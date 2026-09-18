@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Http\SessionHeader;
+use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleTextGenerationModel;
@@ -49,6 +51,14 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 */
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
 		$cls = $this->providerClass();
+		if ( OpenCodeGoProvider::class === $cls ) {
+			try {
+				$with_session = SessionHeader::inject_into_headers( $headers, $data );
+			} catch ( \Throwable $e ) {
+				$with_session = $headers;
+			}
+			$headers = $with_session;
+		}
 		return new Request( $method, $cls::url( $path ), $headers, $data, $this->getRequestOptions() );
 	}
 

@@ -78,7 +78,9 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 
 		$cls         = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
 		$probe_model = 'go' === $this->catalog ? 'deepseek-v4-flash' : 'deepseek-v4-flash-free';
-		$req         = new Request(
+		// Intentionally no session header here: the probe has no conversation
+		// context, so it stays fail-open and header-free.
+		$req = new Request(
 			HttpMethodEnum::POST(),
 			$cls::url( 'chat/completions' ),
 			array( 'Content-Type' => 'application/json' ),
