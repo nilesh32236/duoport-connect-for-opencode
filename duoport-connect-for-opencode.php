@@ -50,8 +50,22 @@ add_action(
 		if ( ! class_exists( \WordPress\AiClient\AiClient::class ) ) {
 			return;
 		}
+		if ( ! method_exists( \WordPress\AiClient\AiClient::class, 'defaultRegistry' ) ) {
+			if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- WP_DEBUG-gated.
+				error_log( '[duoport-connect-for-opencode] AiClient::defaultRegistry() unavailable; skipping provider registration.' );
+			}
+			return;
+		}
 		try {
 			$r = \WordPress\AiClient\AiClient::defaultRegistry();
+			if ( ! is_object( $r ) || ! method_exists( $r, 'hasProvider' ) || ! method_exists( $r, 'registerProvider' ) ) {
+				if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+					// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- WP_DEBUG-gated.
+					error_log( '[duoport-connect-for-opencode] AiClient registry has unexpected shape; skipping provider registration.' );
+				}
+				return;
+			}
 			foreach ( array( Providers\OpenCodeGoProvider::class, Providers\OpenCodeZenProvider::class ) as $cls ) {
 				if ( ! $r->hasProvider( $cls ) ) {
 					try {
