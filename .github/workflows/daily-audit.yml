@@ -45,7 +45,7 @@ jobs:
           echo "vendor/bin/phpunit..."
           vendor/bin/phpunit > /tmp/test-php.log 2>&1 || { echo "PHP_TESTS=failed" >> $GITHUB_ENV; FAILED=1; }
           echo "PHP compat..."
-          vendor/bin/phpcs --standard=PHPCompatibilityWP --runtime-set testVersion 8.2- --ignore=vendor/* . > /tmp/compat.log 2>&1 || { echo "PHP_COMPAT=failed" >> $GITHUB_ENV; FAILED=1; }
+          vendor/bin/phpcs --standard=PHPCompatibilityWP --runtime-set testVersion 8.2- --ignore=vendor/*,.github/* . > /tmp/compat.log 2>&1 || { echo "PHP_COMPAT=failed" >> $GITHUB_ENV; FAILED=1; }
           if [ "$FAILED" = "1" ]; then
             echo "status=failed" >> $GITHUB_OUTPUT
             exit 1
