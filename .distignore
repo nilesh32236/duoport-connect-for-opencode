@@ -15,6 +15,11 @@ composer.lock
 .nvmrc
 phpcs.xml
 psalm.xml
+phpunit.xml.dist
+.distignore
+README.md
+CONTRIBUTING.md
+opencode.json
 tests/
 bin/
 scripts/
