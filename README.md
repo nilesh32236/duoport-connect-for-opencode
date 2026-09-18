@@ -1,80 +1,60 @@
 # DuoPort Connector for OpenCode
 
-Connect [OpenCode](https://opencode.ai) Go and Zen catalogs (including free models) to the WordPress 7.0+ AI Client.
+Connect [OpenCode](https://opencode.ai) Go and Zen catalogs — including free models — to the WordPress 7.0+ AI Client.
 
-> **Not affiliated with or endorsed by OpenCode (Anomaly Innovations, Inc.).**
+> This plugin is not affiliated with or endorsed by OpenCode (Anomaly Innovations, Inc.).
 >
-> WordPress.org listing: https://wordpress.org/plugins/duoport-connect-for-opencode
+> Also available on [WordPress.org](https://wordpress.org/plugins/duoport-connect-for-opencode).
 
-Registers two AI providers — **OpenCode Go** (subscription catalog) and **OpenCode Zen** (pay-as-you-go catalog including free models) — with the WordPress AI Client. Enter your API key in both the Go and Zen fields on Settings → Connectors; the same opencode.ai key works for both catalogs. `OPENCODE_GO_API_KEY` / `OPENCODE_ZEN_API_KEY` constants or env vars are also supported.
+Once connected, any plugin that uses the WordPress AI Client (for example the official AI plugin's featured-image, alt-text, title and excerpt generation) can use OpenCode models.
 
-## Install (users)
+## Features
 
-Install from WordPress.org, or download the release ZIP from the
-[Releases](../../releases) page and upload it via Plugins → Add New → Upload.
+- **Two providers** — OpenCode Go (subscription catalog) and OpenCode Zen (pay-as-you-go catalog including free models), auto-discovered on Settings → Connectors.
+- **Curated model list** — only verified chat/completions models per catalog; free Zen models are labeled `(Free)` in the picker.
+- **Show all models toggle** — optional full catalog exposure on Settings → DuoPort Connector.
+- **Key validation with caching** — connection status is probed and cached, and shown on the settings page.
 
-Requires WordPress 7.0+ and PHP 8.2+.
+## Requirements
 
-## Develop
+- WordPress 7.0+
+- PHP 8.2+
 
-```sh
-composer install          # dev deps (WPCS, PHPUnit, Brain Monkey)
-vendor/bin/phpunit        # unit tests
-vendor/bin/phpcs          # WordPress Coding Standards (phpcs.xml)
-vendor/bin/phpcs --standard=PHPCompatibilityWP --runtime-set testVersion 8.2- --ignore=vendor/* .
-./scripts/build-release.sh  # build the distributable ZIP (uses .distignore)
-```
+## Installation
 
-`vendor/` is git-ignored and never ships — the plugin has no runtime
-Composer dependencies (it autoloads its own `src/` and uses core's AI Client).
+1. Install from WordPress.org, or download the ZIP from the
+   [Releases](../../releases) page and upload it via Plugins → Add New → Upload.
+2. Activate the plugin.
+3. Go to **Settings → Connectors** and enter your opencode.ai key in **both**
+   the Go and the Zen fields — the same key works for both catalogs.
+   (Advanced: `OPENCODE_GO_API_KEY` / `OPENCODE_ZEN_API_KEY` constants or
+   environment variables are also supported.)
+4. Optional: visit **Settings → DuoPort Connector** to enable **Show all
+   models** or check connection status.
 
-## Release process
+## FAQ
 
-1. Bump the version in `duoport-connect-for-opencode.php` (`Version:` header
-   + `VERSION` const), `readme.txt` (`Stable tag`, Changelog, Upgrade Notice).
-2. Commit and push to `main`.
-3. Tag: `git tag v0.1.3 && git push origin v0.1.3`
-4. The `release.yml` workflow builds the ZIP, creates the GitHub Release,
-   and deploys to WordPress.org SVN (`trunk/` + tag).
+**Where do I get an API key?**
+Visit https://opencode.ai/auth and sign up for Go or Zen. The same key works for both catalogs.
 
-Required repo secrets (`Settings → Secrets and variables → Actions`):
+**Do Go and Zen use the same API key?**
+Yes. OpenCode uses a unified auth domain — paste the same key into both fields. Each catalog keeps its own field so WordPress can validate them independently.
 
-| Secret         | Purpose                                              |
-|----------------|------------------------------------------------------|
-| `SVN_USERNAME` | WordPress.org username (`nilesh912`) for SVN deploy  |
-| `SVN_PASSWORD` | SVN password from your WordPress.org profile for SVN deploy |
-| `OPENCODE_API_KEY` | OpenCode gateway key — powers the AI review/audit workflows |
-| `GH_PAT`       | Optional: personal access token (`repo`, `workflow`) used instead of `GITHUB_TOKEN` where workflow-file writes are needed |
+**Which models are available?**
+By default only allowlisted chat/completions models are shown (Go: 16, Zen: 19 including free models). Enable **Show all models** to expose every model from the API, including non-chat models that may fail.
 
-Optional repo variable: `OPENCODE_MODEL` (model for AI workflows, defaults to
-`opencode/muse-spark-1.3-contributor-free`).
+**Does it work without WordPress 7.0?**
+No. It requires WordPress 7.0+ and PHP 8.2+. On older installs an admin notice is shown and registration is skipped.
 
-## Automation
+## Privacy
 
-| Workflow | Trigger | What it does |
-|----------|---------|--------------|
-| `release.yml` | `v*` tag | ZIP + GitHub Release + wp.org SVN deploy |
-| `ci.yml` | Push/PR | `php -l`, WPCS, PHPUnit, PHP compat 8.2+ |
-| `ai-review.yml` | PR opened/synced, `autofix-trigger` label, `/review` `/fix` `/oc` comments | AI review + fix loop + auto-merge on `autofix:ready` |
-| `daily-audit.yml` | Daily 2 AM UTC + manual | Verification suite + AI audit → issues (auto-fixable) |
-| `catalog-watch.yml` | Weekly Monday + manual | Diffs live OpenCode `/models` vs allowlist → drift issue |
+This plugin connects to the OpenCode API (https://opencode.ai) to list models, check availability, and generate text. Your API key is sent with every request, and prompts you submit are sent to OpenCode's servers. See the [terms of service](https://opencode.ai/legal/terms-of-service) and [privacy policy](https://opencode.ai/legal/privacy-policy).
 
-WordPress.org assets (banner, icon) live in `assets/` and are deployed to
-the SVN `assets/` directory — they are excluded from the user-facing ZIP
-via `.distignore`.
+## Support & contributions
 
-## Layout
-
-```
-duoport-connect-for-opencode.php  Plugin entry (provider registration, cache busting)
-src/Providers/    OpenCode Go / Zen provider definitions
-src/Models/       Chat/completions text-generation models
-src/Metadata/     Model catalogs + allowlist (chat-capable models, free labels)
-src/Availability/ Key validation probe (transient-cached)
-src/Settings/     "Show all models" toggle + connection status page
-tests/Unit/       PHPUnit + Brain Monkey specs
-```
+- Found a bug or want a feature? [Open an issue](../../issues).
+- Developers: see [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
 
 ## License
 
-GPL-2.0-or-later. See `readme.txt`.
+GPL-2.0-or-later.
