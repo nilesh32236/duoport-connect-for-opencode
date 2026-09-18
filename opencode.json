@@ -1,0 +1,56 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "oc-researcher": {
+      "description": "Read-only research orchestrator for the connector monitor. Full shell is available for read-only verification (jq/echo and beyond) — but no file writes/edits and no gh/issue commands (the research job has no GitHub token). Returns findings as JSON text.",
+      "permission": {
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "webfetch": "allow",
+        "websearch": "allow",
+        "edit": "deny",
+        "bash": "allow",
+        "task": {
+          "*": "deny",
+          "oc-lane-researcher*": "allow"
+        }
+      }
+    },
+    "oc-lane-researcher": {
+      "mode": "subagent",
+      "hidden": true,
+      "description": "Read-only research lane (Task-invoked). Full shell is available for read-only verification — but no file writes/edits and no gh/issue commands (no GitHub token). Returns findings as message text.",
+      "permission": {
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "webfetch": "allow",
+        "websearch": "allow",
+        "edit": "deny",
+        "bash": "allow",
+        "task": "deny"
+      }
+    },
+    "oc-issue-publisher": {
+      "description": "Files GitHub issues for pre-validated Tier-A findings via gh CLI. Shell is scoped to gh issue create/list, sleep, and jq/echo for mandatory final-JSON self-verification. No edits, no web tools, no shell beyond that.",
+      "permission": {
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow",
+        "edit": "deny",
+        "webfetch": "deny",
+        "websearch": "deny",
+        "task": "deny",
+        "bash": {
+          "*": "deny",
+          "gh issue create*": "allow",
+          "gh issue list*": "allow",
+          "sleep *": "allow",
+          "jq *": "allow",
+          "echo *": "allow"
+        }
+      }
+    }
+  }
+}

@@ -34,6 +34,7 @@ handling, version sync) and conventions.
 | `ai-review.yml` | PR opened/synced, `autofix-trigger` label, `/review` `/fix` `/oc` comments | AI review + fix loop + auto-merge on `autofix:ready` |
 | `daily-audit.yml` | Daily 2 AM UTC + manual | Verification suite + AI audit → issues (auto-fixable) |
 | `catalog-watch.yml` | Weekly Monday + manual | Diffs live OpenCode `/models` vs allowlist → drift issue |
+| `research-monitor.yml` | Weekly Sunday + manual | 5-lane research (core AI, OpenCode API, competitors, user voice, code) → scored findings → Tier-A issues (auto-fixable) |
 
 ## Required repo secrets
 

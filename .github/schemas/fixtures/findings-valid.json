@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "run": {
+    "commit": "example",
+    "wordpress_target": "7.0+",
+    "php_target": "8.2+",
+    "date": "2026-09-18"
+  },
+  "lanes": [
+    { "name": "core-ai", "searches_performed": 3, "sources_consulted": 2, "findings": 1 },
+    { "name": "opencode-api", "searches_performed": 3, "sources_consulted": 2, "findings": 0 },
+    { "name": "competitor", "searches_performed": 3, "sources_consulted": 2, "findings": 0 },
+    { "name": "user-voice", "searches_performed": 3, "sources_consulted": 2, "findings": 0 },
+    { "name": "code-auditor", "searches_performed": 3, "sources_consulted": 1, "findings": 0 }
+  ],
+  "findings": [
+    {
+      "id": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "category": "core-parity",
+      "title": "Example finding for schema self-proof",
+      "status": "candidate",
+      "priority": "medium",
+      "difficulty": "easy",
+      "risk": "low",
+      "risk_numeric": 1,
+      "confidence": 0.85,
+      "score": 72.25,
+      "impact": 5,
+      "user_value": 5,
+      "feasibility": 5,
+      "classification": "NEW",
+      "tier": "B",
+      "evidence": [
+        { "url": "https://developer.wordpress.org/", "version": "n/a", "published": "2026-09-18" }
+      ],
+      "implementation": {
+        "files": ["duoport-connect-for-opencode.php"],
+        "functions": ["example_function"]
+      },
+      "fallback": "Example fallback path.",
+      "acceptance_criteria": ["Example criterion."],
+      "measured_impact": null
+    }
+  ]
+}

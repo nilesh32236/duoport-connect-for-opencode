@@ -1,0 +1,109 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/nilesh32236/duoport-connect-for-opencode/.github/schemas/oc-findings.schema.json",
+  "title": "Connector monitor findings",
+  "type": "object",
+  "required": ["schema_version", "run", "lanes", "findings"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "run": {
+      "type": "object",
+      "required": ["commit", "wordpress_target", "php_target", "date"],
+      "additionalProperties": false,
+      "properties": {
+        "commit": { "type": "string" },
+        "wordpress_target": { "type": "string" },
+        "php_target": { "type": "string" },
+        "date": { "type": "string" }
+      }
+    },
+    "lanes": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["name", "searches_performed", "sources_consulted", "findings"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "searches_performed": { "type": "integer", "minimum": 0 },
+          "sources_consulted": { "type": "integer", "minimum": 0 },
+          "findings": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id", "category", "title", "status", "priority", "difficulty",
+          "risk", "risk_numeric", "confidence", "score", "impact",
+          "user_value", "feasibility", "classification", "tier",
+          "evidence", "implementation", "fallback", "acceptance_criteria"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "category": {
+            "type": "string",
+            "enum": [
+              "core-parity", "opencode-parity", "competitor-gap",
+              "user-request", "bug-hardening", "ai-feature",
+              "stability", "standout-differentiator"
+            ]
+          },
+          "title": { "type": "string", "minLength": 1 },
+          "status": { "const": "candidate" },
+          "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+          "difficulty": { "type": "string", "enum": ["easy", "medium", "hard"] },
+          "risk": { "type": "string", "enum": ["low", "medium", "high"] },
+          "risk_numeric": { "type": "integer", "minimum": 1, "maximum": 5 },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "score": { "type": "number" },
+          "impact": { "type": "integer", "minimum": 1, "maximum": 10 },
+          "user_value": { "type": "integer", "minimum": 1, "maximum": 10 },
+          "feasibility": { "type": "integer", "minimum": 1, "maximum": 10 },
+          "classification": {
+            "type": "string",
+            "enum": [
+              "NEW", "CORE_PARTIAL", "CORE_COMPLETE", "PLUGIN_UNIQUE",
+              "COMPETITOR_ONLY", "EXPERIMENTAL", "IRRELEVANT",
+              "REMOVE_OBSOLETE", "ALREADY_IMPLEMENTED"
+            ]
+          },
+          "tier": { "type": "string", "enum": ["A", "B", "C"] },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["url", "version", "published"],
+              "additionalProperties": false,
+              "properties": {
+                "url": { "type": "string" },
+                "version": { "type": "string" },
+                "published": { "type": "string" }
+              }
+            }
+          },
+          "implementation": {
+            "type": "object",
+            "required": ["files", "functions"],
+            "additionalProperties": false,
+            "properties": {
+              "files": { "type": "array", "items": { "type": "string" } },
+              "functions": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "fallback": { "type": "string" },
+          "acceptance_criteria": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "measured_impact": { "type": ["null", "string"] }
+        }
+      }
+    }
+  }
+}

@@ -41,3 +41,4 @@ PRs/pushes → `.github/workflows/ci.yml` (php -l, WPCS, PHPUnit, PHPCompatibili
 AI loop → `ai-review.yml` (review on PRs, fix on `autofix-trigger`/`/fix`, auto-merge on `autofix:ready`).
 Daily → `daily-audit.yml` (verify + AI audit → labeled issues).
 Weekly → `catalog-watch.yml` (live `/models` vs allowlist drift → issue; script: `.github/scripts/check-catalog-drift.php`).
+Weekly → `research-monitor.yml` (5-lane AI research → schema-validated JSON → Tier-A issues; agents in `opencode.json`, schema in `.github/schemas/`).
