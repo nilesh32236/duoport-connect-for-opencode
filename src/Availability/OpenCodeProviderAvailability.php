@@ -16,6 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Http\SessionHeader;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
 use WordPress\AiClient\Providers\Contracts\ProviderAvailabilityInterface;
@@ -77,23 +78,34 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		set_transient( $lock_key, 1, 10 );
 
 		$cls         = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
-		$probe_model = 'go' === $this->catalog ? 'deepseek-v4-flash' : 'deepseek-v4-flash-free';
-		// Intentionally no session header here: the probe has no conversation
-		// context, so it stays fail-open and header-free.
-		$req = new Request(
+		// Probe models are chosen to discriminate AUTHENTICATION, not model
+		// availability: paid models answer 401 CreditsError for a valid but
+		// empty-balance key (configured) versus other 401s for a bad key.
+		// Probing a free model instead would fail closed whenever that model
+		// is transiently unavailable upstream (observed live).
+		$probe_model = 'deepseek-v4-flash';
+		$probe_data = array(
+			'model'      => $probe_model,
+			'messages'   => array(
+				array(
+					'role'    => 'user',
+					'content' => 'ping',
+				),
+			),
+			'max_tokens' => 1,
+		);
+		// The Go catalog rejects requests without x-opencode-session (400
+		// MissingSessionID), so the probe carries a stable session value
+		// derived from its own payload. Zen ignores the extra header.
+		$probe_headers = SessionHeader::inject_into_headers(
+			array( 'Content-Type' => 'application/json' ),
+			$probe_data
+		);
+		$req           = new Request(
 			HttpMethodEnum::POST(),
 			$cls::url( 'chat/completions' ),
-			array( 'Content-Type' => 'application/json' ),
-			array(
-				'model'      => $probe_model,
-				'messages'   => array(
-					array(
-						'role'    => 'user',
-						'content' => 'ping',
-					),
-				),
-				'max_tokens' => 1,
-			)
+			$probe_headers,
+			$probe_data
 		);
 		try {
 			$req  = $this->getRequestAuthentication()->authenticateRequest( $req );

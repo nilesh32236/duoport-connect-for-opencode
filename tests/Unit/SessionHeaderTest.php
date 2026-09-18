@@ -273,14 +273,15 @@ final class SessionHeaderTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * The availability probe builds its request directly and stays header-free.
+	 * The availability probe carries a derived session header: the Go
+	 * catalog rejects headerless requests (400 MissingSessionID), so a
+	 * header-free probe can never validate a Go key.
 	 *
 	 * @return void
 	 */
-	public function test_probe_stays_header_free(): void {
+	public function test_probe_carries_derived_session_header(): void {
 		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Availability/OpenCodeProviderAvailability.php' );
 
-		self::assertStringNotContainsString( 'SessionHeader', $source );
-		self::assertStringNotContainsString( 'x-opencode-session', $source );
+		self::assertStringContainsString( 'SessionHeader::inject_into_headers', $source );
 	}
 }
