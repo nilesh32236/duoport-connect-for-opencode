@@ -120,6 +120,17 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 			if ( $is_json_capable ) {
 				array_splice( $opts, 5, 0, array( new SupportedOption( OptionEnum::outputSchema() ) ) );
 			}
+			// Function-calling transport is inherited from the OpenAI-compatible
+			// base model (tools param + tool_calls response parsing), so
+			// tool-verified models advertise it and stop being filtered out of
+			// Abilities-API tool tasks. Web search stays gated until the
+			// chat/completions payload is gateway-verified (fail-open default).
+			if ( ModelAllowlist::isToolCapable( $id, $this->catalogKey() ) ) {
+				$opts[] = new SupportedOption( OptionEnum::functionDeclarations() );
+			}
+			if ( ModelAllowlist::isWebSearchCapable( $id, $this->catalogKey() ) ) {
+				$opts[] = new SupportedOption( OptionEnum::webSearch() );
+			}
 			$list[] = new ModelMetadata( $id, $name, array( CapabilityEnum::textGeneration(), CapabilityEnum::chatHistory() ), $opts );
 		}
 		usort(
