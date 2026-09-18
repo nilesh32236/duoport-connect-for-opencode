@@ -107,12 +107,27 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 			if ( ! $id ) {
 				continue;
 			}
-			if ( ! $show_all && ! ModelAllowlist::isAllowed( $id, $this->catalogKey() ) ) {
+			$is_image = ModelAllowlist::isImageCapable( $id, $this->catalogKey() );
+			if ( ! $is_image && ! $show_all && ! ModelAllowlist::isAllowed( $id, $this->catalogKey() ) ) {
 				continue;
 			}
 			$name = ModelAllowlist::displayName( $id );
 			if ( ModelAllowlist::isFree( $id ) ) {
 				$name .= ' ' . __( '(Free)', 'duoport-connect-for-opencode' );
+			}
+			if ( $is_image ) {
+				$list[] = new ModelMetadata(
+					$id,
+					$name,
+					array( CapabilityEnum::imageGeneration() ),
+					array(
+						new SupportedOption( OptionEnum::inputModalities(), array( array( ModalityEnum::text() ) ) ),
+						new SupportedOption( OptionEnum::outputModalities(), array( array( ModalityEnum::image() ) ) ),
+						new SupportedOption( OptionEnum::outputMimeType(), array( 'image/png', 'image/jpeg', 'image/webp' ) ),
+						new SupportedOption( OptionEnum::customOptions() ),
+					)
+				);
+				continue;
 			}
 			// DeepSeek models return malformed JSON for strict schema; hide outputSchema so JSON tasks pick a capable model.
 			$is_json_capable = 0 !== strpos( $id, 'deepseek' );
