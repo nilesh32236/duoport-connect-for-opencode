@@ -1,0 +1,60 @@
+name: Catalog Drift Watch
+
+# OpenCode adds/removes models without notice. This workflow diffs the live
+# /models catalogs against src/Metadata/ModelAllowlist.php and files an
+# issue when they drift, so the allowlist (and readme model counts) can be
+# updated and released. Needs no AI secrets — pure API comparison.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    name: Check Model Catalogs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: '8.2'
+
+      - name: Compare live catalogs with allowlist
+        id: drift
+        run: |
+          set +e
+          php .github/scripts/check-catalog-drift.php > /tmp/drift.txt 2>&1
+          CODE=$?
+          cat /tmp/drift.txt
+          php .github/scripts/check-catalog-drift.php --markdown > /tmp/drift.md 2>/dev/null
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: File or update drift issue
+        if: steps.drift.outputs.code == '2'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY="$(cat /tmp/drift.md)"
+          BODY="$BODY
+
+          _Detected by Catalog Drift Watch. Comment \`/fix\` to trigger the AI fix loop, or update the allowlist manually._"
+          gh label create "catalog-drift" --force --color "1d76db" --description "OpenCode model catalog changed" -R "${{ github.repository }}" 2>/dev/null || true
+          EXISTING=$(gh issue list -R "${{ github.repository }}" --label "catalog-drift" --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" -R "${{ github.repository }}" --body "$BODY"
+          else
+            gh issue create -R "${{ github.repository }}" --title "OpenCode catalog drift — $(date -u '+%Y-%m-%d')" --label "catalog-drift" --body "$BODY"
+          fi

@@ -1,0 +1,283 @@
+name: AI Review & Fix
+
+# Mirror of the performance-optimisation "AI Multi-Agent Review" loop,
+# sized for this PHP-only plugin (no Node steps).
+#
+#  Event                          Job that fires
+#  ─────────────────────────────  ──────────────────────────────────
+#  issues.labeled                 fix-issue  (creates autofix/ PR)
+#    (label == autofix-trigger)
+#  pull_request.opened/synced     review     (human PRs only)
+#  pull_request.labeled           autofix    (label == autofix)
+#  issue_comment (/review|/oc)    review     (on a PR)
+#  issue_comment (/fix on PR)     autofix
+#  issue_comment (/fix on issue)  fix-issue
+#  pull_request.labeled           auto-merge (label == autofix:ready)
+#
+# Conflict rules: outer concurrency differs by actor so bot pushes never
+# cancel human reviews; cancel-in-progress is false everywhere.
+
+on:
+  pull_request:
+    types: [opened, synchronize, labeled]
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: ai-${{ github.event.pull_request.number || github.event.issue.number || github.sha }}-${{ github.actor }}
+  cancel-in-progress: false
+
+jobs:
+  # ── 1. FIX ISSUE ───────────────────────────────────────────────────
+  fix-issue:
+    name: Fix Audit Issue
+    if: |
+      github.event.issue.pull_request == null && (
+        (
+          github.event_name == 'issues' &&
+          github.event.action == 'labeled' &&
+          github.event.label.name == 'autofix-trigger'
+        ) ||
+        (
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request == null &&
+          contains(github.event.comment.body || '', '/fix')
+        )
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
+
+      - name: Ensure labels exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create "autofix" --force --color "243cd4" --description "PR created by AI fix agent" 2>/dev/null || true
+          gh label create "autofix:ready" --force --color "0e8a16" --description "Approved by AI reviewer — ready to merge" 2>/dev/null || true
+          gh label create "autofix:needs-manual-review" --force --color "d93f0b" --description "Needs human review" 2>/dev/null || true
+          gh label create "autofix-trigger" --force --color "c2e0c6" --description "Triggers autofix workflow on issues" 2>/dev/null || true
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --ignore-platform-reqs
+
+      - name: Fix Issue
+        uses: nilesh32236/opencode-ai-reviewer@main
+        with:
+          mode: fix
+          github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          opencode_api_key: ${{ secrets.OPENCODE_API_KEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          git_user_name: nilesh32236
+          git_user_email: nilesh32236@gmail.com
+          model: ${{ vars.OPENCODE_MODEL || 'opencode/muse-spark-1.3-contributor-free' }}
+          enable_mcp: false
+          max_fix_iterations: 1
+          run_checks_after_fix: 'vendor/bin/phpcs && vendor/bin/phpunit'
+          project_context: >
+            DuoPort Connector for OpenCode — WordPress 7.0+ AI provider plugin, PHP 8.2+.
+            WPCS enforced (phpcs.xml); PHPUnit + Brain Monkey (tests/Unit).
+            HARD RULES: never share/alias setting_name between the Go and Zen
+            connectors (each keeps its own connectors_ai_opencode_{go,zen}_api_key);
+            never read/write connectors_ai_* option values (cache-bust hooks are
+            transient-deletes only); keep Version header, VERSION const, readme
+            Stable tag/Changelog/Upgrade Notice in sync; keep the OpenCode
+            non-affiliation disclaimer in readme.txt.
+            After fixes, vendor/bin/phpcs and vendor/bin/phpunit must pass.
+
+  # ── 2. REVIEW (human PRs + /review|/oc) ────────────────────────────
+  review:
+    name: AI Code Review
+    if: |
+      github.event.action != 'closed' &&
+      github.actor != 'github-actions[bot]' &&
+      !endsWith(github.actor, '[bot]') &&
+      !startsWith(github.event.pull_request.head.ref, 'autofix/') &&
+      !contains(github.event.pull_request.labels.*.name, 'autofix') &&
+      (
+        github.event_name == 'pull_request' ||
+        (
+          github.event_name == 'issue_comment' &&
+          github.event.issue.pull_request != null &&
+          (
+            contains(github.event.comment.body || '', '/review') ||
+            contains(github.event.comment.body || '', '/oc')
+          )
+        )
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Resolve PR ref
+        id: resolve-ref
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            PR_NUMBER="${{ github.event.issue.number }}"
+            REF=$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json headRefName --jq .headRefName)
+            echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.resolve-ref.outputs.ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --ignore-platform-reqs
+
+      - name: AI Code Review
+        uses: nilesh32236/opencode-ai-reviewer@main
+        with:
+          mode: review
+          github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          opencode_api_key: ${{ secrets.OPENCODE_API_KEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          git_user_name: nilesh32236
+          git_user_email: nilesh32236@gmail.com
+          model: ${{ vars.OPENCODE_MODEL || 'opencode/muse-spark-1.3-contributor-free' }}
+          review_model: ${{ vars.OPENCODE_MODEL || 'opencode/muse-spark-1.3-contributor-free' }}
+          fix_model: ${{ vars.OPENCODE_MODEL || 'opencode/muse-spark-1.3-contributor-free' }}
+          max_files_per_batch: 3
+          enable_mcp: false
+          include_strengths: true
+          review_comment_summary: true
+          project_context: >
+            DuoPort Connector for OpenCode — WordPress 7.0+ AI provider plugin, PHP 8.2+.
+            WPCS enforced (phpcs.xml); PHPUnit + Brain Monkey (tests/Unit).
+            Watch for: shared/aliased connector setting_name, reads/writes of
+            connectors_ai_* options, unsynced versions, missing text-domain usage,
+            unescaped output, missing capability checks.
+            Verification: vendor/bin/phpcs, vendor/bin/phpunit.
+
+  # ── 3. AUTOFIX LOOP (/fix on PR or autofix label) ──────────────────
+  autofix:
+    name: AI Fix Loop
+    if: |
+      (
+        github.event_name == 'pull_request' &&
+        github.event.action == 'labeled' &&
+        github.event.label.name == 'autofix'
+      ) ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request != null &&
+        contains(github.event.comment.body || '', '/fix')
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: autofix-pr-${{ github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: false
+    steps:
+      - name: Resolve PR ref
+        id: resolve-ref
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ github.event_name }}" = "issue_comment" ]; then
+            PR_NUMBER="${{ github.event.issue.number }}"
+            REF=$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json headRefName --jq .headRefName)
+            echo "ref=$REF" >> "$GITHUB_OUTPUT"
+            echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.resolve-ref.outputs.ref }}
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --ignore-platform-reqs
+
+      - name: AI Fix
+        uses: nilesh32236/opencode-ai-reviewer@main
+        with:
+          mode: fix
+          github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          opencode_api_key: ${{ secrets.OPENCODE_API_KEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          git_user_name: nilesh32236
+          git_user_email: nilesh32236@gmail.com
+          model: ${{ vars.OPENCODE_MODEL || 'opencode/muse-spark-1.3-contributor-free' }}
+          enable_mcp: false
+          max_fix_iterations: 2
+          run_checks_after_fix: 'vendor/bin/phpcs && vendor/bin/phpunit'
+          project_context: >
+            DuoPort Connector for OpenCode — WordPress 7.0+ AI provider plugin, PHP 8.2+.
+            Same hard rules as fix-issue: own setting per connector, no
+            connectors_ai_* reads/writes, versions in sync, disclaimer kept.
+            After fixes, vendor/bin/phpcs and vendor/bin/phpunit must pass.
+
+  # ── 4. AUTO-MERGE (label autofix:ready + green CI) ─────────────────
+  auto-merge:
+    name: Auto-Merge Approved Autofix
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'autofix:ready'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Merge when CI is green
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          PR="${{ github.event.pull_request.number }}"
+          for i in $(seq 1 12); do
+            STATE=$(gh pr view "$PR" --repo "${{ github.repository }}" --json statusCheckRollup --jq '[.statusCheckRollup[].conclusion] | if length == 0 then "pending" elif all(. == "SUCCESS" or . == "SKIPPED") then "green" elif any(. == "FAILURE") then "red" else "pending" end')
+            echo "CI state: $STATE (try $i/12)"
+            [ "$STATE" = "green" ] && break
+            [ "$STATE" = "red" ] && { echo "CI failed — not merging."; exit 1; }
+            sleep 30
+          done
+          [ "$STATE" = "green" ] || { echo "CI did not go green in time."; exit 1; }
+          gh pr merge "$PR" --repo "${{ github.repository }}" --squash --delete-branch
+          gh pr edit "$PR" --repo "${{ github.repository }}" --remove-label "autofix:ready" --add-label "autofix:merged" 2>/dev/null || true

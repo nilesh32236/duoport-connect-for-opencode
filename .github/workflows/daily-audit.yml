@@ -1,0 +1,175 @@
+name: Daily Audit
+
+on:
+  schedule:
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Verify + AI Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    outputs:
+      verify_status: ${{ steps.verify.outputs.status }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: 8.2
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --ignore-platform-reqs
+
+      - name: Run verification suite
+        id: verify
+        run: |
+          FAILED=0
+          echo "vendor/bin/phpcs..."
+          vendor/bin/phpcs > /tmp/lint-php.log 2>&1 || { echo "PHP_LINT=failed" >> $GITHUB_ENV; FAILED=1; }
+          echo "vendor/bin/phpunit..."
+          vendor/bin/phpunit > /tmp/test-php.log 2>&1 || { echo "PHP_TESTS=failed" >> $GITHUB_ENV; FAILED=1; }
+          echo "PHP compat..."
+          vendor/bin/phpcs --standard=PHPCompatibilityWP --runtime-set testVersion 8.2- --ignore=vendor/* . > /tmp/compat.log 2>&1 || { echo "PHP_COMPAT=failed" >> $GITHUB_ENV; FAILED=1; }
+          if [ "$FAILED" = "1" ]; then
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          echo "status=passed" >> $GITHUB_OUTPUT
+
+      - name: Report verification failures as issue
+        if: failure() && steps.verify.outputs.status == 'failed'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          ISSUE_TITLE="[Audit] Daily verification failed — $(date -u '+%Y-%m-%d')"
+          PHP_LINT_VAL="${{ env.PHP_LINT == 'failed' && '❌' || '✅' }}"
+          PHP_TESTS_VAL="${{ env.PHP_TESTS == 'failed' && '❌' || '✅' }}"
+          PHP_COMPAT_VAL="${{ env.PHP_COMPAT == 'failed' && '❌' || '✅' }}"
+          BODY="## Daily Verification Failed
+
+          The daily verification suite reported failures on $(date -u '+%Y-%m-%d %H:%M UTC').
+
+          | Check | Status |
+          |-------|--------|
+          | WPCS (vendor/bin/phpcs) | ${PHP_LINT_VAL} |
+          | PHPUnit (vendor/bin/phpunit) | ${PHP_TESTS_VAL} |
+          | PHP compat 8.2+ | ${PHP_COMPAT_VAL} |
+
+          <details>
+          <summary>PHPCS Output</summary>
+
+          \`\`\`
+          $(cat /tmp/lint-php.log 2>/dev/null | tail -100)
+          \`\`\`
+          </details>
+
+          <details>
+          <summary>PHPUnit Output</summary>
+
+          \`\`\`
+          $(cat /tmp/test-php.log 2>/dev/null | tail -100)
+          \`\`\`
+          </details>
+
+          <details>
+          <summary>Compat Output</summary>
+
+          \`\`\`
+          $(cat /tmp/compat.log 2>/dev/null | tail -100)
+          \`\`\`
+          </details>
+
+          See [workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) for full logs.
+          "
+          EXISTING=$(gh issue list --repo "${{ github.repository }}" --label audit --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "$EXISTING" ]; then
+            gh issue edit "$EXISTING" --body "$BODY" --repo "${{ github.repository }}"
+          else
+            gh issue create --title "$ISSUE_TITLE" --body "$BODY" --label "audit" --repo "${{ github.repository }}"
+          fi
+
+      - name: Ensure labels exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create "audit" --force --color "fbca04" --description "Codebase audit findings" -R "${{ github.repository }}" 2>/dev/null || true
+          gh label create "autofix" --force --color "243cd4" --description "PR created by AI fix agent" -R "${{ github.repository }}" 2>/dev/null || true
+          gh label create "autofix-trigger" --force --color "c2e0c6" --description "Triggers autofix workflow on issues" -R "${{ github.repository }}" 2>/dev/null || true
+          gh label create "autofix:ready" --force --color "0e8a16" --description "Approved by AI reviewer — ready to merge" -R "${{ github.repository }}" 2>/dev/null || true
+          gh label create "autofix:needs-manual-review" --force --color "d93f0b" --description "Max fix iterations reached" -R "${{ github.repository }}" 2>/dev/null || true
+
+      # ── AI Audit ───────────────────────────────────────────────────
+      # Creates one GitHub issue per finding labeled audit+autofix-trigger.
+      # The label fires ai-review.yml fix-issue, which opens an autofix/ PR
+      # automatically — no manual triggering needed.
+      - name: AI Codebase Audit
+        id: ai-audit
+        uses: nilesh32236/opencode-ai-reviewer@main
+        with:
+          mode: audit
+          github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          opencode_api_key: ${{ secrets.OPENCODE_API_KEY }}
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          git_user_name: nilesh32236
+          git_user_email: nilesh32236@gmail.com
+          model: ${{ vars.OPENCODE_MODEL || 'opencode/muse-spark-1.3-contributor-free' }}
+          audit_create_issues: true
+          audit_auto_fix: true
+          audit_labels: 'audit,autofix-trigger'
+          audit_target_dirs: 'src'
+          enable_mcp: false
+          project_context: >
+            DuoPort Connector for OpenCode — WordPress 7.0+ AI provider plugin, PHP 8.2+.
+            WPCS enforced (phpcs.xml); PHPUnit + Brain Monkey (tests/Unit).
+            HARD RULES: never share/alias setting_name between the Go and Zen
+            connectors; never read/write connectors_ai_* option values;
+            keep Version header, VERSION const, readme Stable tag/Changelog/
+            Upgrade Notice in sync; keep the OpenCode non-affiliation disclaimer.
+            Verification: vendor/bin/phpcs, vendor/bin/phpunit.
+            PHP lives in src/ (Providers, Models, Metadata, Availability, Settings).
+
+  notify-failure:
+    name: Notify Audit Failure
+    needs: [audit]
+    if: failure()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Create or update failure issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BODY=$(printf '%s\n' \
+            "The daily audit job failed." \
+            "" \
+            "Failed run: ${RUN_URL}" \
+            "" \
+            "Check the run log for the cause (verification suite, AI audit, or issue-reporting step).")
+          gh label create "audit-failure" --color "d93f0b" --description "Daily audit failure" -R "${{ github.repository }}" || true
+          EXISTING=$(gh issue list -R "${{ github.repository }}" --label "audit-failure" --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          if [ -n "${EXISTING}" ]; then
+            gh issue comment "${EXISTING}" -R "${{ github.repository }}" --body "Audit failed again — run: ${RUN_URL}"
+          else
+            gh issue create -R "${{ github.repository }}" --title "Daily Audit: verification failed" --label "audit-failure" --body "${BODY}"
+          fi

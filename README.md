@@ -43,6 +43,21 @@ Required repo secrets (`Settings → Secrets and variables → Actions`):
 |----------------|------------------------------------------------------|
 | `SVN_USERNAME` | WordPress.org username (`nilesh912`) for SVN deploy  |
 | `SVN_PASSWORD` | SVN password from your WordPress.org profile for SVN deploy |
+| `OPENCODE_API_KEY` | OpenCode gateway key — powers the AI review/audit workflows |
+| `GH_PAT`       | Optional: personal access token (`repo`, `workflow`) used instead of `GITHUB_TOKEN` where workflow-file writes are needed |
+
+Optional repo variable: `OPENCODE_MODEL` (model for AI workflows, defaults to
+`opencode/muse-spark-1.3-contributor-free`).
+
+## Automation
+
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| `release.yml` | `v*` tag | ZIP + GitHub Release + wp.org SVN deploy |
+| `ci.yml` | Push/PR | `php -l`, WPCS, PHPUnit, PHP compat 8.2+ |
+| `ai-review.yml` | PR opened/synced, `autofix-trigger` label, `/review` `/fix` `/oc` comments | AI review + fix loop + auto-merge on `autofix:ready` |
+| `daily-audit.yml` | Daily 2 AM UTC + manual | Verification suite + AI audit → issues (auto-fixable) |
+| `catalog-watch.yml` | Weekly Monday + manual | Diffs live OpenCode `/models` vs allowlist → drift issue |
 
 WordPress.org assets (banner, icon) live in `assets/` and are deployed to
 the SVN `assets/` directory — they are excluded from the user-facing ZIP
