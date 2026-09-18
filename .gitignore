@@ -2,6 +2,7 @@
 *.zip
 .phpunit.result.cache
 .omo/
+.opencode/
 .idea/
 .vscode/
 *.log
