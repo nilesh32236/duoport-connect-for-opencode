@@ -19,6 +19,9 @@ tests/
 bin/
 scripts/
 AGENTS.md
+README.md
+CONTRIBUTING.md
+opencode.json
 *.zip
 /.omo/
 AUDIT/
