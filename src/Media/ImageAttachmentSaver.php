@@ -68,6 +68,11 @@ final class ImageAttachmentSaver {
 	/**
 	 * Validate an image payload against the MIME and size guards.
 	 *
+	 * Besides the claimed-type allowlist, the bytes themselves are sniffed:
+	 * a payload whose detected content type differs from the claim is
+	 * rejected, so a non-image masquerading as one never reaches uploads.
+	 * Size is checked before sniffing so oversized payloads fail fast.
+	 *
 	 * @since 0.1.4
 	 *
 	 * @param string $image_bytes Raw image bytes.
@@ -101,7 +106,50 @@ final class ImageAttachmentSaver {
 				)
 			);
 		}
+		$detected = self::detect_mime( $image_bytes );
+		if ( null !== $detected && $detected !== strtolower( trim( $mime_type ) ) ) {
+			return new \WP_Error(
+				'opencode_image_mime_mismatch',
+				sprintf(
+					/* translators: 1: claimed MIME type, 2: detected MIME type. */
+					__( 'The image content (%2$s) does not match the claimed type %1$s.', 'duoport-connect-for-opencode' ),
+					$mime_type,
+					$detected
+				)
+			);
+		}
 		return true;
+	}
+
+	/**
+	 * Sniff the real content type of a payload.
+	 *
+	 * Returns null when detection is unavailable (finfo missing) or
+	 * inconclusive — callers then fall back to the claimed-type allowlist
+	 * instead of failing valid uploads. Never throws.
+	 *
+	 * @since 0.1.4
+	 *
+	 * @param string $image_bytes Raw bytes.
+	 * @return string|null Lowercase detected MIME type, or null when unknown.
+	 */
+	private static function detect_mime( string $image_bytes ): ?string {
+		try {
+			if ( ! class_exists( \finfo::class ) ) {
+				return null;
+			}
+			$finfo = new \finfo( FILEINFO_MIME_TYPE );
+			if ( false === $finfo ) {
+				return null;
+			}
+			$detected = $finfo->buffer( $image_bytes );
+			if ( ! is_string( $detected ) || '' === $detected ) {
+				return null;
+			}
+			return strtolower( trim( $detected ) );
+		} catch ( \Throwable ) {
+			return null;
+		}
 	}
 
 	/**

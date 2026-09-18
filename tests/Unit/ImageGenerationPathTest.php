@@ -20,6 +20,14 @@
 
 declare(strict_types=1);
 
+// Single source for the shared SDK stand-ins (HttpMethodEnum, Request with
+// header/data/URL getters, AbstractApiProvider::url()). This file adds only
+// the stubs SdkStubs does not declare; overlapping definitions were removed
+// so test execution order can never swap a weaker stub in first.
+namespace OpenCodeConnector\Tests\Unit\Bootstrap {
+	require_once __DIR__ . '/Fixtures/SdkStubs.php';
+}
+
 namespace WordPress\AiClient\Providers\Models\Enums {
 	if ( ! class_exists( __NAMESPACE__ . '\CapabilityEnum' ) ) {
 		class CapabilityEnum {
@@ -174,13 +182,6 @@ namespace WordPress\AiClient\Common\Exception {
 	}
 }
 
-namespace WordPress\AiClient\Providers\ApiBasedImplementation {
-	if ( ! class_exists( __NAMESPACE__ . '\AbstractApiProvider' ) ) {
-		abstract class AbstractApiProvider {
-		}
-	}
-}
-
 namespace WordPress\AiClient\Providers\OpenAiCompatibleImplementation {
 	use WordPress\AiClient\Providers\Models\Contracts\ModelInterface;
 
@@ -213,23 +214,6 @@ namespace WordPress\AiClient\Providers\Http\DTO {
 			}
 			public function getData(): array {
 				return $this->data;
-			}
-		}
-	}
-
-	if ( ! class_exists( __NAMESPACE__ . '\Request' ) ) {
-		class Request {
-			public function __construct( $method = null, $url = null, array $headers = array(), $data = null, $options = null ) {
-			}
-		}
-	}
-}
-
-namespace WordPress\AiClient\Providers\Http\Enums {
-	if ( ! class_exists( __NAMESPACE__ . '\HttpMethodEnum' ) ) {
-		class HttpMethodEnum {
-			public static function POST(): self {
-				return new self();
 			}
 		}
 	}
@@ -485,7 +469,30 @@ namespace OpenCodeConnector\Tests\Unit {
 			self::assertInstanceOf( \WP_Error::class, $big );
 			self::assertSame( 'opencode_image_size', $big->get_error_code() );
 
-			self::assertTrue( ImageAttachmentSaver::validate( 'bytes', 'image/png' ) );
+			self::assertTrue( ImageAttachmentSaver::validate( self::tiny_png(), 'image/png' ) );
+		}
+
+		/**
+		 * Validation rejects bytes whose sniffed content differs from the claim.
+		 */
+		public function test_validate_rejects_mime_mismatch(): void {
+			if ( ! class_exists( \finfo::class ) ) {
+				self::markTestSkipped( 'finfo unavailable; content sniffing falls back to the claimed-type allowlist.' );
+			}
+			$mismatch = ImageAttachmentSaver::validate( 'plain text, not an image', 'image/png' );
+			self::assertInstanceOf( \WP_Error::class, $mismatch );
+			self::assertSame( 'opencode_image_mime_mismatch', $mismatch->get_error_code() );
+		}
+
+		/**
+		 * Minimal 1x1 transparent PNG payload for content-sniffing tests.
+		 *
+		 * @return string Raw PNG bytes.
+		 */
+		private static function tiny_png(): string {
+			$raw = base64_decode( 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', true );
+			self::assertIsString( $raw );
+			return $raw;
 		}
 
 		/**
@@ -531,7 +538,7 @@ namespace OpenCodeConnector\Tests\Unit {
 			);
 			Functions\when( 'wp_upload_bits' )->justReturn( array( 'error' => 'disk full' ) );
 
-			$result = ImageAttachmentSaver::save_to_media_library( 'bytes', 'image/png', 'sunset' );
+			$result = ImageAttachmentSaver::save_to_media_library( self::tiny_png(), 'image/png', 'sunset' );
 			self::assertInstanceOf( \WP_Error::class, $result );
 			self::assertSame( 'opencode_image_upload', $result->get_error_code() );
 		}
@@ -573,7 +580,7 @@ namespace OpenCodeConnector\Tests\Unit {
 				}
 			);
 
-			$result = ImageAttachmentSaver::save_to_media_library( 'bytes', 'image/png', 'sunset' );
+			$result = ImageAttachmentSaver::save_to_media_library( self::tiny_png(), 'image/png', 'sunset' );
 			self::assertSame( 123, $result );
 			self::assertSame( 'sunset.png', $seen_upload[0] );
 			self::assertSame( 'image/png', $seen_insert[0]['post_mime_type'] );

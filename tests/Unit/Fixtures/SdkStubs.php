@@ -102,12 +102,22 @@ namespace WordPress\AiClient\Providers\Http\DTO {
 	}
 }
 
+namespace WordPress\AiClient\Providers\Models\Contracts {
+	if ( ! interface_exists( \WordPress\AiClient\Providers\Models\Contracts\ModelInterface::class ) ) {
+		/**
+		 * Minimal model contract.
+		 */
+		interface ModelInterface {
+		}
+	}
+}
+
 namespace WordPress\AiClient\Providers\OpenAiCompatibleImplementation {
 	if ( ! class_exists( \WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleTextGenerationModel::class ) ) {
 		/**
 		 * Minimal OpenAI-compatible model stub.
 		 */
-		abstract class AbstractOpenAiCompatibleTextGenerationModel {
+		abstract class AbstractOpenAiCompatibleTextGenerationModel implements \WordPress\AiClient\Providers\Models\Contracts\ModelInterface {
 			/**
 			 * Transport options.
 			 *
