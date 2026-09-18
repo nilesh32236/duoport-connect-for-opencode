@@ -4,7 +4,7 @@ Tags: ai, opencode, connector, zen, go
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.2
-Stable tag: 0.1.2
+Stable tag: 0.1.3
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -43,7 +43,7 @@ Yes. OpenCode uses a unified auth domain, so paste the same opencode.ai key into
 
 = Which models are available? =
 
-By default only allowlisted chat/completions models are shown (Go: 16, Zen: 19 including free models). Enable **Show all models** on Settings → DuoPort Connector to expose every model from the API (including non-chat models that may fail).
+By default only allowlisted chat/completions models are shown (Go: 38, Zen: 71 including free models). Enable **Show all models** on Settings → DuoPort Connector to expose every model from the API (including non-chat models that may fail).
 
 = Does it work without WordPress 7.0? =
 
@@ -61,6 +61,8 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 == Changelog ==
 
+= 0.1.3 =
+* Updated: refreshed Go (38) and Zen (71) model allowlists against the live OpenCode `/models` catalogs; removed stale `hy3-free` and `laguna-s-2.1-free`; labeled new free models (`ling-3.0-flash-fin-free`, `muse-spark-1.2-contributor-free`, `muse-spark-1.3-contributor-free`).
 = 0.1.2 =
 * Fixed: Go and Zen now use separate API key fields on the Connectors screen. The previous shared-key setup made WordPress reject valid keys on save ("It was not possible to connect to the provider using this key"). If you connected 0.1.1, please re-enter your key in both fields after updating.
 = 0.1.1 =
@@ -71,6 +73,8 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 == Upgrade Notice ==
 
+= 0.1.3 =
+Model allowlists refreshed (Go: 38, Zen: 71). No action required.
 = 0.1.2 =
 Go and Zen now use separate API key fields. After updating, re-enter your opencode.ai key in both fields on Settings → Connectors.
 
