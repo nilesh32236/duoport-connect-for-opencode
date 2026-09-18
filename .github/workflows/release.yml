@@ -1,0 +1,59 @@
+name: Release Plugin
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    name: Build, Package, and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # 30m ceiling: package + ZIP + GitHub release + SVN deploy, single
+    # pass — guardrail only.
+    timeout-minutes: 30
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: '8.2'
+          extensions: mbstring
+          tools: composer:v2
+
+      - name: Install PHP Dependencies
+        run: composer install --no-dev --optimize-autoloader --no-progress --prefer-dist
+
+      - name: Create Plugin ZIP
+        id: build_zip
+        run: |
+          chmod +x ./scripts/build-release.sh
+          ./scripts/build-release.sh
+
+          # Pass the variables to the next step
+          VERSION=$(grep "Version:" duoport-connect-for-opencode.php | awk '{print $NF}' | tr -d '\r')
+          FILENAME="duoport-connect-for-opencode-${VERSION}.zip"
+          echo "zip_file=${FILENAME}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          files: ${{ steps.build_zip.outputs.zip_file }}
+          fail_on_unmatched_files: true
+          name: Release ${{ steps.build_zip.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy to WordPress.org SVN
+        uses: 10up/action-wordpress-plugin-deploy@54bd289b8525fd23a5c365ec369185f2966529c2 # stable
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          SLUG: duoport-connect-for-opencode

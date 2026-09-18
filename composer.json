@@ -1,0 +1,35 @@
+{
+    "name": "duoport/duoport-connect-for-opencode",
+    "type": "wordpress-plugin",
+    "description": "DuoPort Connector for OpenCode: register OpenCode Go and Zen as AI connectors in WordPress.",
+    "license": "GPL-2.0-or-later",
+    "authors": [
+        {
+            "name": "Nilesh Kanzariya"
+        }
+    ],
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true
+        }
+    },
+    "require-dev": {
+        "wp-coding-standards/wpcs": "^3.4",
+        "dealerdirect/phpcodesniffer-composer-installer": "^1.2",
+        "phpcompatibility/php-compatibility": "^9.3",
+        "phpcompatibility/phpcompatibility-wp": "^2.1",
+        "phpunit/phpunit": "^11.0",
+        "brain/monkey": "^2.7"
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "OpenCodeConnector\\Tests\\Unit\\": "tests/Unit/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "lint": "phpcs",
+        "lint:fix": "phpcbf",
+        "compat": "phpcs --standard=PHPCompatibilityWP --runtime-set testVersion 8.2- --ignore=vendor/* ."
+    }
+}
