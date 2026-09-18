@@ -111,7 +111,11 @@ final class Settings {
 		);
 		$cache   = null;
 		if ( class_exists( AiClient::class ) && method_exists( AiClient::class, 'getCache' ) ) {
-			$cache = AiClient::getCache();
+			try {
+				$cache = AiClient::getCache();
+			} catch ( \Throwable $e ) {
+				$cache = null;
+			}
 		}
 		foreach ( $classes as $cls ) {
 			$full_key = $this->modelCacheKey( $cls );

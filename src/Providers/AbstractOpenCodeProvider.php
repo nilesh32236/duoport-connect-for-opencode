@@ -105,7 +105,18 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 					: new OpenCodeZenTextGenerationModel( $model, $provider );
 			}
 		}
-		$cap_names = array_map( static fn( $capability ): string => method_exists( $capability, 'getValue' ) ? (string) $capability->getValue() : (string) $capability, $caps );
+		$cap_names = array_map(
+			static function ( $capability ): string {
+				if ( is_object( $capability ) && method_exists( $capability, 'getValue' ) ) {
+					return (string) $capability->getValue();
+				}
+				if ( is_string( $capability ) ) {
+					return $capability;
+				}
+				return is_object( $capability ) ? get_class( $capability ) : get_debug_type( $capability );
+			},
+			$caps
+		);
 		// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message, not output.
 		throw new \WordPress\AiClient\Common\Exception\RuntimeException( 'Unsupported capability: ' . implode( ', ', $cap_names ) );
 	}
