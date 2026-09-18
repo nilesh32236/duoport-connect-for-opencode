@@ -109,10 +109,13 @@ final class Settings {
 			\OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory::class,
 			\OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory::class,
 		);
-		$cache   = AiClient::getCache();
+		$cache   = null;
+		if ( class_exists( AiClient::class ) && method_exists( AiClient::class, 'getCache' ) ) {
+			$cache = AiClient::getCache();
+		}
 		foreach ( $classes as $cls ) {
 			$full_key = $this->modelCacheKey( $cls );
-			if ( $cache ) {
+			if ( is_object( $cache ) && method_exists( $cache, 'delete' ) ) {
 				$cache->delete( $full_key );
 			}
 			delete_transient( $full_key );
@@ -141,7 +144,8 @@ final class Settings {
 	 * @return string
 	 */
 	private function modelCacheKey( string $class_name ): string {
-		return 'ai_client_' . AiClient::VERSION . '_' . md5( $class_name ) . '_models';
+		$ai_version = defined( AiClient::class . '::VERSION' ) ? AiClient::VERSION : '0.0.0';
+		return 'ai_client_' . $ai_version . '_' . md5( $class_name ) . '_models';
 	}
 
 	/**
@@ -166,18 +170,25 @@ final class Settings {
 		$opts   = get_option( \OpenCodeConnector\OPTION_NAME, array( 'show_all_models' => false ) );
 		$go_ok  = false;
 		$zen_ok = false;
-		if ( class_exists( AiClient::class ) ) {
+		if ( class_exists( AiClient::class ) && method_exists( AiClient::class, 'defaultRegistry' ) ) {
 			try {
 				$registry = AiClient::defaultRegistry();
-				// Use non-blocking check: transient-backed isConfigured() already has
-				// stampede lock + jitter; avoid double HTTP on render by tolerating exceptions.
-				$go_ok = $registry->isProviderConfigured( 'opencode-go' );
+				if ( is_object( $registry ) && method_exists( $registry, 'isProviderConfigured' ) ) {
+					// Use non-blocking check: transient-backed isConfigured() already has
+					// stampede lock + jitter; avoid double HTTP on render by tolerating exceptions.
+					try {
+						$go_ok = $registry->isProviderConfigured( 'opencode-go' );
+					} catch ( \Throwable $e ) {
+						$go_ok = false;
+					}
+					try {
+						$zen_ok = $registry->isProviderConfigured( 'opencode-zen' );
+					} catch ( \Throwable $e ) {
+						$zen_ok = false;
+					}
+				}
 			} catch ( \Throwable $e ) {
-				$go_ok = false;
-			}
-			try {
-				$zen_ok = $registry->isProviderConfigured( 'opencode-zen' );
-			} catch ( \Throwable $e ) {
+				$go_ok  = false;
 				$zen_ok = false;
 			}
 		}

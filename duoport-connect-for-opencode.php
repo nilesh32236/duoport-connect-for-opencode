@@ -50,8 +50,14 @@ add_action(
 		if ( ! class_exists( \WordPress\AiClient\AiClient::class ) ) {
 			return;
 		}
+		if ( ! method_exists( \WordPress\AiClient\AiClient::class, 'defaultRegistry' ) ) {
+			return;
+		}
 		try {
 			$r = \WordPress\AiClient\AiClient::defaultRegistry();
+			if ( ! is_object( $r ) || ! method_exists( $r, 'hasProvider' ) || ! method_exists( $r, 'registerProvider' ) ) {
+				return;
+			}
 			foreach ( array( Providers\OpenCodeGoProvider::class, Providers\OpenCodeZenProvider::class ) as $cls ) {
 				if ( ! $r->hasProvider( $cls ) ) {
 					try {

@@ -85,9 +85,21 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * @throws \WordPress\AiClient\Common\Exception\RuntimeException When capability is unsupported.
 	 */
 	protected static function createModel( ModelMetadata $model, ProviderMetadata $provider ): ModelInterface {
+		if ( ! method_exists( $model, 'getSupportedCapabilities' ) ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message, not output.
+			throw new \WordPress\AiClient\Common\Exception\RuntimeException( 'Unsupported capability: unknown' );
+		}
 		$caps = $model->getSupportedCapabilities();
 		foreach ( $caps as $capability ) {
-			if ( $capability->isTextGeneration() ) {
+			$is_text = false;
+			if ( is_object( $capability ) && method_exists( $capability, 'isTextGeneration' ) ) {
+				$is_text = (bool) $capability->isTextGeneration();
+			} elseif ( is_object( $capability ) && method_exists( $capability, 'getValue' ) ) {
+				$is_text = ( 'text-generation' === (string) $capability->getValue() );
+			} elseif ( is_string( $capability ) ) {
+				$is_text = ( 'text-generation' === $capability );
+			}
+			if ( $is_text ) {
 				return 'go' === static::catalogKey()
 					? new OpenCodeGoTextGenerationModel( $model, $provider )
 					: new OpenCodeZenTextGenerationModel( $model, $provider );
@@ -104,19 +116,27 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * @since 0.1.0
 	 *
 	 * @return ProviderMetadata
+	 * @throws \RuntimeException When the SDK enum factories are unavailable.
 	 */
 	protected static function createProviderMetadata(): ProviderMetadata {
-		$args = array(
+		if ( ! class_exists( ProviderTypeEnum::class ) || ! method_exists( ProviderTypeEnum::class, 'cloud' ) ) {
+			throw new \RuntimeException( 'OpenCode provider requires ProviderTypeEnum::cloud().' );
+		}
+		if ( ! class_exists( RequestAuthenticationMethod::class ) || ! method_exists( RequestAuthenticationMethod::class, 'apiKey' ) ) {
+			throw new \RuntimeException( 'OpenCode provider requires RequestAuthenticationMethod::apiKey().' );
+		}
+		$args       = array(
 			static::providerId(),
 			static::displayName(),
 			ProviderTypeEnum::cloud(),
 			'https://opencode.ai/auth',
 			RequestAuthenticationMethod::apiKey(),
 		);
-		if ( version_compare( AiClient::VERSION, '1.2.0', '>=' ) ) {
+		$ai_version = defined( AiClient::class . '::VERSION' ) ? AiClient::VERSION : '1.0.0';
+		if ( version_compare( $ai_version, '1.2.0', '>=' ) ) {
 			$args[] = static::description();
 		}
-		if ( version_compare( AiClient::VERSION, '1.3.0', '>=' ) ) {
+		if ( version_compare( $ai_version, '1.3.0', '>=' ) ) {
 			$args[] = dirname( __DIR__, 2 ) . '/assets/images/opencode.svg';
 		}
 		return new ProviderMetadata( ...$args );
