@@ -141,7 +141,11 @@ final class CompatGuardsTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Provider metadata must probe enum factories and VERSION defensively.
+	 * Provider metadata must probe enum backing constants and VERSION defensively.
+	 *
+	 * The factories (ProviderTypeEnum::cloud(), RequestAuthenticationMethod::apiKey())
+	 * are magic (__callStatic on AbstractEnum), so method_exists() probing cannot
+	 * see them — the guards must probe the backing class constants instead.
 	 *
 	 * @return void
 	 */
@@ -149,8 +153,13 @@ final class CompatGuardsTest extends MonkeyTestCase {
 		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Providers/AbstractOpenCodeProvider.php' );
 
 		self::assertStringContainsString( 'method_exists( $model, \'getSupportedCapabilities\' )', $source );
-		self::assertStringContainsString( 'method_exists( ProviderTypeEnum::class, \'cloud\' )', $source );
-		self::assertStringContainsString( 'method_exists( RequestAuthenticationMethod::class, \'apiKey\' )', $source );
+		self::assertStringContainsString( 'defined( ProviderTypeEnum::class . \'::CLOUD\' )', $source );
+		self::assertStringContainsString( 'defined( RequestAuthenticationMethod::class . \'::API_KEY\' )', $source );
+		self::assertStringNotContainsString(
+			'method_exists( ProviderTypeEnum::class',
+			$source,
+			'Enum factories are magic methods invisible to method_exists(); probe the backing constants.'
+		);
 		self::assertStringContainsString( 'throw new \\RuntimeException(', $source );
 		self::assertStringContainsString( 'defined( AiClient::class . \'::VERSION\' )', $source );
 		self::assertStringContainsString( ': \'1.0.0\'', $source );

@@ -93,21 +93,12 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 		}
 		$caps = $model->getSupportedCapabilities();
 		foreach ( $caps as $capability ) {
-			$is_image = is_object( $capability ) && method_exists( $capability, 'isImageGeneration' ) && (bool) $capability->isImageGeneration();
-			if ( $is_image ) {
+			if ( self::capability_matches( $capability, 'isImageGeneration', 'image-generation' ) ) {
 				return 'go' === static::catalogKey()
 					? new OpenCodeGoImageGenerationModel( $model, $provider )
 					: new OpenCodeZenImageGenerationModel( $model, $provider );
 			}
-			$is_text = false;
-			if ( is_object( $capability ) && method_exists( $capability, 'isTextGeneration' ) ) {
-				$is_text = (bool) $capability->isTextGeneration();
-			} elseif ( is_object( $capability ) && method_exists( $capability, 'getValue' ) ) {
-				$is_text = ( 'text-generation' === (string) $capability->getValue() );
-			} elseif ( is_string( $capability ) ) {
-				$is_text = ( 'text-generation' === $capability );
-			}
-			if ( $is_text ) {
+			if ( self::capability_matches( $capability, 'isTextGeneration', 'text-generation' ) ) {
 				return 'go' === static::catalogKey()
 					? new OpenCodeGoTextGenerationModel( $model, $provider )
 					: new OpenCodeZenTextGenerationModel( $model, $provider );
@@ -130,6 +121,46 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	}
 
 	/**
+	 * Whether a capability value matches a text/image generation capability.
+	 *
+	 * The SDK exposes these checks as magic methods (__call/__callStatic on
+	 * AbstractEnum), so method_exists() probing cannot see them — call the
+	 * checker directly inside try/catch instead, then fall back to legacy
+	 * getValue()/string shapes. Never throws.
+	 *
+	 * @since 0.1.4
+	 *
+	 * @param mixed  $capability Capability value.
+	 * @param string $checker    Checker method name (e.g. isTextGeneration).
+	 * @param string $value      Legacy scalar value (e.g. text-generation).
+	 * @return bool
+	 */
+	private static function capability_matches( $capability, string $checker, string $value ): bool {
+		if ( is_object( $capability ) ) {
+			try {
+				$result = $capability->{$checker}();
+				if ( null !== $result ) {
+					return (bool) $result;
+				}
+			} catch ( \Throwable ) {
+				// Unknown shape or failing checker: try legacy fallbacks below.
+			}
+			if ( method_exists( $capability, 'getValue' ) ) {
+				try {
+					if ( $value === (string) $capability->getValue() ) {
+						return true;
+					}
+				} catch ( \Throwable ) {
+					// Ignore and fall through.
+				}
+			}
+		} elseif ( is_string( $capability ) ) {
+			return $value === $capability;
+		}
+		return false;
+	}
+
+	/**
 	 * Create provider metadata.
 	 *
 	 * @since 0.1.0
@@ -138,10 +169,13 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * @throws \RuntimeException When the SDK enum factories are unavailable.
 	 */
 	protected static function createProviderMetadata(): ProviderMetadata {
-		if ( ! class_exists( ProviderTypeEnum::class ) || ! method_exists( ProviderTypeEnum::class, 'cloud' ) ) {
+		// NOTE: the factories below are magic (__callStatic on AbstractEnum),
+		// so method_exists() probing cannot see them — probe the backing
+		// class constants instead, then call the factories directly.
+		if ( ! class_exists( ProviderTypeEnum::class ) || ! defined( ProviderTypeEnum::class . '::CLOUD' ) ) {
 			throw new \RuntimeException( 'OpenCode provider requires ProviderTypeEnum::cloud().' );
 		}
-		if ( ! class_exists( RequestAuthenticationMethod::class ) || ! method_exists( RequestAuthenticationMethod::class, 'apiKey' ) ) {
+		if ( ! class_exists( RequestAuthenticationMethod::class ) || ! defined( RequestAuthenticationMethod::class . '::API_KEY' ) ) {
 			throw new \RuntimeException( 'OpenCode provider requires RequestAuthenticationMethod::apiKey().' );
 		}
 		$args       = array(
