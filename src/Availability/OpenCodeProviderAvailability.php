@@ -115,9 +115,6 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 		// Stagger expiry ±60s to avoid synchronized stampedes.
 		$ttl = 5 * MINUTE_IN_SECONDS + wp_rand( -60, 60 );
-		if ( ! isset( $lock_key ) ) {
-			$lock_key = $tkey . '_lock';
-		}
 		delete_transient( $lock_key );
 		set_transient( $tkey, (int) $ok, max( 60, $ttl ) );
 		return $ok;
