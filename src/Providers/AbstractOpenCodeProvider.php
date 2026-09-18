@@ -19,7 +19,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 use OpenCodeConnector\Availability\OpenCodeProviderAvailability;
 use OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory;
 use OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory;
+use OpenCodeConnector\Models\OpenCodeGoImageGenerationModel;
 use OpenCodeConnector\Models\OpenCodeGoTextGenerationModel;
+use OpenCodeConnector\Models\OpenCodeZenImageGenerationModel;
 use OpenCodeConnector\Models\OpenCodeZenTextGenerationModel;
 use WordPress\AiClient\AiClient;
 use WordPress\AiClient\Providers\ApiBasedImplementation\AbstractApiProvider;
@@ -91,6 +93,12 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 		}
 		$caps = $model->getSupportedCapabilities();
 		foreach ( $caps as $capability ) {
+			$is_image = is_object( $capability ) && method_exists( $capability, 'isImageGeneration' ) && (bool) $capability->isImageGeneration();
+			if ( $is_image ) {
+				return 'go' === static::catalogKey()
+					? new OpenCodeGoImageGenerationModel( $model, $provider )
+					: new OpenCodeZenImageGenerationModel( $model, $provider );
+			}
 			$is_text = false;
 			if ( is_object( $capability ) && method_exists( $capability, 'isTextGeneration' ) ) {
 				$is_text = (bool) $capability->isTextGeneration();

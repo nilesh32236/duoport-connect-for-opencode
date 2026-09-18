@@ -80,6 +80,22 @@ final class ModelAllowlist {
 	 */
 	private const WEB_SEARCH_CAPABLE = array();
 	/**
+	 * Image-capable IDs per catalog.
+	 *
+	 * Mirrors the ALLOW shape (per-catalog, never shared between Go and Zen).
+	 * Only IDs verified as image-capable against the live
+	 * `https://opencode.ai/zen/{go,}v1/models` catalogs may be listed here.
+	 * Ships empty: with no image-capable IDs allowlisted the image path stays
+	 * inert and text generation is unaffected (fail-open).
+	 *
+	 * @var array<string, list<string>>
+	 */
+	private const IMAGE = array(
+		'go'  => array(),
+		'zen' => array(),
+	);
+
+	/**
 	 * Free model IDs.
 	 *
 	 * @var list<string>
@@ -105,6 +121,22 @@ final class ModelAllowlist {
 	 */
 	public static function isAllowed( string $id, string $catalog ): bool {
 		return in_array( $id, self::ALLOW[ $catalog ] ?? array(), true );
+	}
+
+	/**
+	 * Whether a model is allowlisted as image-capable.
+	 *
+	 * Image capability is advertised only for IDs in this set; the text
+	 * allowlist is unaffected.
+	 *
+	 * @since 0.1.4
+	 *
+	 * @param string $id      Model ID.
+	 * @param string $catalog Catalog slug.
+	 * @return bool
+	 */
+	public static function isImageCapable( string $id, string $catalog ): bool {
+		return in_array( $id, self::IMAGE[ $catalog ] ?? array(), true );
 	}
 
 	/**
