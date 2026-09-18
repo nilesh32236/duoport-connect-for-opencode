@@ -49,9 +49,10 @@ handling, version sync) and conventions.
 Optional repo variable: `OPENCODE_MODEL` (model for AI workflows, defaults to
 `opencode/muse-spark-1.3-contributor-free`).
 
-WordPress.org assets (banner, icon) live in `assets/` and are deployed to
-the SVN `assets/` directory — they are excluded from the user-facing ZIP
-via `.distignore`.
+WordPress.org assets (banner, icon) live in `.wordpress-org/` and are deployed to
+the SVN `assets/` directory — that folder is excluded from the user-facing ZIP
+via `.distignore`. The runtime provider icon is `assets/images/opencode.svg`
+and *does* ship in the ZIP.
 
 ## Layout
 

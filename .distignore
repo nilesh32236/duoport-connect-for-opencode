@@ -23,5 +23,4 @@ AGENTS.md
 /.omo/
 AUDIT/
 .phpunit.result.cache
-/assets/banner-772x250.png
-/assets/icon.svg
+/.wordpress-org/
