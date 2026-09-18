@@ -723,7 +723,12 @@ jobs:
     timeout-minutes: 5
     permissions: {}
     steps:
+      # Downloads are gated on the producing job's result: requesting a
+      # missing artifact fails the step (loud "Artifact not found"), so only
+      # fetch what the upstream job actually published. The Post summary
+      # step already degrades gracefully when files are absent.
       - name: Download research report
+        if: always() && needs.research.result == 'success'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: oc-research-report
@@ -732,6 +737,7 @@ jobs:
         timeout-minutes: 5
 
       - name: Download findings JSON
+        if: always() && needs.research.result == 'success'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: oc-findings-json
@@ -740,6 +746,7 @@ jobs:
         timeout-minutes: 5
 
       - name: Download created issues JSON
+        if: always() && needs.create-issues.result == 'success'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: oc-created-issues-json
