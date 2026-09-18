@@ -62,6 +62,7 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 == Changelog ==
 
 = 0.1.4 =
+* Fixed: the key validation probe now sends the required `x-opencode-session` header and probes an authentication-discriminating model, so valid Go/Zen keys are accepted instead of rejected.
 * Added image-generation model path: image-capable models advertise the `imageGeneration` capability through new Go/Zen image models behind a per-catalog allowlist. Ships with no image IDs allowlisted yet, so the path stays inert and text generation is unaffected. Also added a Media Library saver with MIME, size, and capability guards.
 = 0.1.3 =
 * Updated Zen model catalog: removed `hy3-free` and `laguna-s-2.1-free`, which OpenCode retired from the API.
