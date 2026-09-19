@@ -1,6 +1,6 @@
 <?php
 /**
- * Stable session header for Go chat requests.
+ * Stable session header for Go chat and image requests.
  *
  * Derives a stable opaque session value for routing and prompt-cache affinity.
  *
@@ -20,7 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Stable session header helper.
  *
  * Credential-blind and option-blind: derivation only looks at the request
- * payload (model + messages) and never reads options, users, or globals.
+ * payload (model + messages/prompt) and never reads options, users, or globals.
  *
  * @package OpenCodeConnector
  * @since 0.1.4
@@ -43,10 +43,15 @@ final class SessionHeader {
 	/**
 	 * Derive a stable opaque session value from request data.
 	 *
-	 * Returns null when there is no usable conversation context so callers
-	 * can omit the header (fail-open, behavior unchanged). Never throws.
+	 * Supports chat payloads (`model` + `messages`) and image payloads
+	 * (`model` + `prompt` as sent to `images/generations`, which carry no
+	 * `messages` key). Both shapes use the same sha256-to-32-hex scheme so
+	 * Go image requests carry the same stable session identity as the text
+	 * path. Returns null when there is no usable context so callers can
+	 * omit the header (fail-open, behavior unchanged). Never throws.
 	 *
 	 * @since 0.1.4
+	 * @since 0.1.5 Added image `prompt` payload support.
 	 *
 	 * @param mixed $data Request data.
 	 * @return string|null Opaque hex session value, or null when omitted.
@@ -56,32 +61,92 @@ final class SessionHeader {
 			if ( ! is_array( $data ) ) {
 				return null;
 			}
-			if ( empty( $data['messages'] ) || ! is_array( $data['messages'] ) ) {
-				return null;
+			if ( ! empty( $data['messages'] ) && is_array( $data['messages'] ) ) {
+				return self::derive_from_messages( $data );
 			}
-			$messages = array();
-			foreach ( $data['messages'] as $message ) {
-				if ( ! is_array( $message ) ) {
-					continue;
-				}
-				$role    = isset( $message['role'] ) && is_string( $message['role'] ) ? $message['role'] : '';
-				$content = self::normalize_content( $message['content'] ?? '' );
-				if ( '' === $role && '' === $content ) {
-					continue;
-				}
-				$messages[] = array(
-					'role'    => $role,
-					'content' => $content,
-				);
+			if ( isset( $data['prompt'] ) ) {
+				return self::derive_from_prompt( $data );
 			}
-			if ( array() === $messages ) {
-				return null;
+			return null;
+		} catch ( \Throwable ) {
+			// Fail-open: derivation must never be fatal.
+			return null;
+		}
+	}
+
+	/**
+	 * Derive a session value from a chat payload.
+	 *
+	 * @since 0.1.5
+	 *
+	 * @param array $data Request data with `messages`.
+	 * @return string|null Opaque hex session value, or null when omitted.
+	 */
+	private static function derive_from_messages( array $data ): ?string {
+		$messages = array();
+		foreach ( $data['messages'] as $message ) {
+			if ( ! is_array( $message ) ) {
+				continue;
 			}
-			$model     = isset( $data['model'] ) && is_string( $data['model'] ) ? $data['model'] : '';
-			$canonical = array(
-				'model'    => $model,
-				'messages' => $messages,
+			$role    = isset( $message['role'] ) && is_string( $message['role'] ) ? $message['role'] : '';
+			$content = self::normalize_content( $message['content'] ?? '' );
+			if ( '' === $role && '' === $content ) {
+				continue;
+			}
+			$messages[] = array(
+				'role'    => $role,
+				'content' => $content,
 			);
+		}
+		if ( array() === $messages ) {
+			return null;
+		}
+		$model     = isset( $data['model'] ) && is_string( $data['model'] ) ? $data['model'] : '';
+		$canonical = array(
+			'model'    => $model,
+			'messages' => $messages,
+		);
+		return self::hash_canonical( $canonical );
+	}
+
+	/**
+	 * Derive a session value from an image payload.
+	 *
+	 * `images/generations` payloads carry `prompt` instead of `messages`;
+	 * only `model` + normalized `prompt` feed the hash so no other keys
+	 * (user ids, keys) can leak into the value. Never throws.
+	 *
+	 * @since 0.1.5
+	 *
+	 * @param array $data Request data with `prompt`.
+	 * @return string|null Opaque hex session value, or null when omitted.
+	 */
+	private static function derive_from_prompt( array $data ): ?string {
+		$prompt = self::normalize_content( $data['prompt'] );
+		if ( '' === $prompt ) {
+			return null;
+		}
+		$model     = isset( $data['model'] ) && is_string( $data['model'] ) ? $data['model'] : '';
+		$canonical = array(
+			'model'  => $model,
+			'prompt' => $prompt,
+		);
+		return self::hash_canonical( $canonical );
+	}
+
+	/**
+	 * Hash a canonical payload to a 32-char hex session value.
+	 *
+	 * Uses `wp_json_encode()` when available, plain `json_encode()` outside
+	 * a WP context (e.g. unit tests). Never throws.
+	 *
+	 * @since 0.1.5
+	 *
+	 * @param array $canonical Canonical payload.
+	 * @return string|null Hex session value, or null when unencodable.
+	 */
+	private static function hash_canonical( array $canonical ): ?string {
+		try {
 			if ( function_exists( 'wp_json_encode' ) ) {
 				$encoded = wp_json_encode( $canonical );
 			} else {
@@ -97,7 +162,6 @@ final class SessionHeader {
 			}
 			return substr( $hash, 0, 32 );
 		} catch ( \Throwable ) {
-			// Fail-open: derivation must never be fatal.
 			return null;
 		}
 	}
@@ -105,7 +169,7 @@ final class SessionHeader {
 	/**
 	 * Inject the session header into a headers array.
 	 *
-	 * Adds the header only when conversation context exists and no value was
+	 * Adds the header only when chat or image context exists and no value was
 	 * explicitly provided (compared case-insensitively). Never throws.
 	 *
 	 * @since 0.1.4
