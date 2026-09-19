@@ -4,7 +4,7 @@ Tags: ai, opencode, connector, zen, go
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.2
-Stable tag: 0.1.4
+Stable tag: 0.1.5
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -61,6 +61,8 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 == Changelog ==
 
+= 0.1.5 =
+* Settings status now shows Saved vs Verified separately with cause-class validation diagnostics (bad key vs network failure vs server error), a save-reverted hint, and a keyless trial preview.
 = 0.1.4 =
 * Added `deepseek-v4.1-flash` to the Go catalog.
 * Fixed: the key validation probe now sends the required `x-opencode-session` header and probes an authentication-discriminating model, so valid Go/Zen keys are accepted instead of rejected.
@@ -76,6 +78,9 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 * Initial release: Go and Zen providers, allowlisted models with free labels, probe availability, shared-key sync, and Show all models toggle.
 
 == Upgrade Notice ==
+
+= 0.1.5 =
+Connection status on Settings → DuoPort Connector now distinguishes Saved from Verified with validation diagnostics; no action required.
 
 = 0.1.2 =
 Go and Zen now use separate API key fields. After updating, re-enter your opencode.ai key in both fields on Settings → Connectors.

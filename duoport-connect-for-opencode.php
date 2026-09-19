@@ -4,7 +4,7 @@
  * Description:       Connect OpenCode Go and Zen (including free models) to WordPress 7.0 AI.
  * Requires at least: 7.0
  * Requires PHP:      8.2
- * Version:           0.1.4
+ * Version:           0.1.5
  * Author:            Nilesh Kanzariya
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-const VERSION     = '0.1.4';
+const VERSION     = '0.1.5';
 const OPTION_NAME = 'opencode_connector_settings';
 
 require_once __DIR__ . '/src/autoload.php';
@@ -112,8 +112,14 @@ add_action(
 foreach ( array( 'connectors_ai_opencode_go_api_key', 'connectors_ai_opencode_zen_api_key' ) as $opencode_connector_setting ) {
 	$opencode_connector_catalog = str_contains( $opencode_connector_setting, '_zen_' ) ? 'zen' : 'go';
 	$opencode_connector_bust    = static function () use ( $opencode_connector_catalog ): void {
-		delete_transient( 'opencode_connector_avail_go' );
-		delete_transient( 'opencode_connector_avail_zen' );
+		if ( function_exists( 'delete_transient' ) ) {
+			try {
+				delete_transient( 'opencode_connector_avail_go' );
+				delete_transient( 'opencode_connector_avail_zen' );
+			} catch ( \Throwable $e ) {
+				unset( $e );
+			}
+		}
 		if ( function_exists( 'delete_transient' ) ) {
 			try {
 				delete_transient( 'opencode_connector_avail_go_cause' );

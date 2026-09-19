@@ -114,9 +114,14 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Shared cached probe backing isConfigured() and diagnose().
 	 *
+	 * All WP/SDK/HTTP calls are wrapped in try/catch and every code path
+	 * returns an array, so the RuntimeException below is only ever raised
+	 * and caught internally — it never escapes to callers, which keep
+	 * their try/catch as belt-and-braces.
+	 *
 	 * @since 0.1.5
 	 *
-	 * @throws \RuntimeException When SDK entry points are unavailable.
+	 * @throws \RuntimeException When SDK entry points are unavailable (caught internally).
 	 * @return array{configured: bool, cause: string}
 	 */
 	private function probe(): array {
@@ -259,8 +264,22 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 					$cause = 'bad-key';
 				}
 			} elseif ( 403 === $code ) {
-				$ok    = false;
-				$cause = 'bad-key';
+				// A 403 is not always an invalid key: it can also signal a
+				// geo-block, IP policy, or moderation refusal. Only treat it
+				// as a key failure when the error body looks auth-shaped;
+				// otherwise report unknown so users are not misdirected into
+				// re-entering a valid key.
+				$data     = method_exists( $res, 'getData' ) ? $res->getData() : null;
+				$err_type = is_array( $data ) ? ( $data['error']['type'] ?? '' ) : '';
+				$err_msg  = is_array( $data ) ? ( $data['error']['message'] ?? '' ) : '';
+				$haystack = strtolower( (string) $err_type . ' ' . (string) $err_msg );
+				if ( '' !== $haystack && ( str_contains( $haystack, 'auth' ) || str_contains( $haystack, 'api key' ) || str_contains( $haystack, 'apikey' ) || str_contains( $haystack, 'credential' ) || str_contains( $haystack, 'unauthorized' ) || str_contains( $haystack, 'forbidden key' ) || str_contains( $haystack, 'invalid key' ) ) ) {
+					$ok    = false;
+					$cause = 'bad-key';
+				} else {
+					$ok    = false;
+					$cause = 'unknown';
+				}
 			} elseif ( $code >= 500 && $code < 600 ) {
 				$ok    = false;
 				$cause = 'server-error';

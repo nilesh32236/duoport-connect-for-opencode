@@ -60,6 +60,7 @@ final class SlimBustHooksTest extends MonkeyTestCase {
 		$get_calls    = array();
 		$update_calls = array();
 		$deleted      = array();
+		$set_calls    = array();
 
 		Functions\when( 'plugin_basename' )->justReturn( 'duoport-connect-for-opencode/duoport-connect-for-opencode.php' );
 		Functions\when( 'get_option' )->alias(
@@ -77,6 +78,12 @@ final class SlimBustHooksTest extends MonkeyTestCase {
 		Functions\when( 'delete_transient' )->alias(
 			static function ( ...$args ) use ( &$deleted ): bool {
 				$deleted[] = $args[0];
+				return true;
+			}
+		);
+		Functions\when( 'set_transient' )->alias(
+			static function ( ...$args ) use ( &$set_calls ): bool {
+				$set_calls[] = $args;
 				return true;
 			}
 		);
@@ -108,8 +115,33 @@ final class SlimBustHooksTest extends MonkeyTestCase {
 			$deleted,
 			'The zen availability transient must be deleted when either key changes.'
 		);
+		self::assertContains(
+			'opencode_connector_avail_go_cause',
+			$deleted,
+			'The go cause diagnostic transient must be deleted when either key changes.'
+		);
+		self::assertContains(
+			'opencode_connector_avail_zen_cause',
+			$deleted,
+			'The zen cause diagnostic transient must be deleted when either key changes.'
+		);
 
-		foreach ( array_merge( $get_calls, $update_calls ) as $call ) {
+		$set_keys = array_map(
+			static fn ( $call ): string => (string) ( $call[0] ?? '' ),
+			$set_calls
+		);
+		self::assertContains(
+			'opencode_connector_key_seen_go',
+			$set_keys,
+			'The go save marker must be written when the go key changes.'
+		);
+		self::assertContains(
+			'opencode_connector_key_seen_zen',
+			$set_keys,
+			'The zen save marker must be written when the zen key changes.'
+		);
+
+		foreach ( array_merge( $get_calls, $update_calls, $set_calls ) as $call ) {
 			$option_name = (string) ( $call[0] ?? '' );
 			self::assertStringNotContainsString(
 				'connectors_ai_',

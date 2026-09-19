@@ -77,8 +77,14 @@ final class Settings {
 	public function bustCaches( $old_value, $new_value ): void {
 		if ( ( $old_value['show_all_models'] ?? false ) !== ( $new_value['show_all_models'] ?? false ) ) {
 			$this->clearModelCaches();
-			delete_transient( 'opencode_connector_avail_go' );
-			delete_transient( 'opencode_connector_avail_zen' );
+			if ( function_exists( 'delete_transient' ) ) {
+				try {
+					delete_transient( 'opencode_connector_avail_go' );
+					delete_transient( 'opencode_connector_avail_zen' );
+				} catch ( \Throwable $e ) {
+					unset( $e );
+				}
+			}
 			if ( function_exists( 'delete_transient' ) ) {
 				try {
 					delete_transient( 'opencode_connector_avail_go_cause' );
@@ -102,8 +108,14 @@ final class Settings {
 	public function bustCachesAdd( string $option, $value ): void {
 		unset( $option, $value );
 		$this->clearModelCaches();
-		delete_transient( 'opencode_connector_avail_go' );
-		delete_transient( 'opencode_connector_avail_zen' );
+		if ( function_exists( 'delete_transient' ) ) {
+			try {
+				delete_transient( 'opencode_connector_avail_go' );
+				delete_transient( 'opencode_connector_avail_zen' );
+			} catch ( \Throwable $e ) {
+				unset( $e );
+			}
+		}
 		if ( function_exists( 'delete_transient' ) ) {
 			try {
 				delete_transient( 'opencode_connector_avail_go_cause' );
@@ -222,6 +234,9 @@ final class Settings {
 			if ( ! trait_exists( 'WordPress\AiClient\Providers\Http\Traits\WithHttpTransporterTrait' ) ) {
 				return $fallback;
 			}
+			if ( ! trait_exists( 'WordPress\AiClient\Providers\Http\Traits\WithRequestAuthenticationTrait' ) ) {
+				return $fallback;
+			}
 			if ( class_exists( OpenCodeProviderAvailability::class ) && method_exists( OpenCodeProviderAvailability::class, 'validCauses' ) ) {
 				$causes = OpenCodeProviderAvailability::validCauses();
 				if ( is_array( $causes ) ) {
@@ -279,7 +294,11 @@ final class Settings {
 	 */
 	private function diagnosisFor( string $catalog, bool $configured ): array {
 		$catalog = 'zen' === $catalog ? 'zen' : 'go';
-		$cause   = $configured ? 'ok' : 'unknown';
+		// Default to unknown and never force a live-configured verdict into
+		// 'ok': without a cached cause we cannot know whether the key is
+		// merely valid (ok) versus throttled or credit-exhausted, and the
+		// verified boolean already carries the registry's live verdict.
+		$cause = 'unknown';
 		if ( function_exists( 'get_transient' ) ) {
 			try {
 				$cached = get_transient( self::causeKey( $catalog ) );
@@ -377,6 +396,9 @@ final class Settings {
 			}
 		}
 		$supported = true;
+		// Forward-compat hardening: Requires at least is 7.0 so this gate is
+		// always true on supported installs; it only renders the fallback
+		// notice if a future install ever reports an older version string.
 		if ( function_exists( 'get_bloginfo' ) ) {
 			try {
 				$supported = version_compare( (string) get_bloginfo( 'version' ), '7.0', '>=' );
