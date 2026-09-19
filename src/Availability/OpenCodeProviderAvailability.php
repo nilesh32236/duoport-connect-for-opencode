@@ -58,7 +58,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	public function isConfigured(): bool {
 		try {
 			$this->getRequestAuthentication();
-		} catch ( \Throwable $e ) {
+		} catch ( \Throwable ) {
 			return false;
 		}
 
@@ -122,7 +122,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			} else {
 				$ok = false;
 			}
-		} catch ( \Throwable $e ) {
+		} catch ( \Throwable ) {
 			$ok = false;
 		}
 		// Stagger expiry ±60s to avoid synchronized stampedes.
