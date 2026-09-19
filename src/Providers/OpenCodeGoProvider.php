@@ -64,7 +64,7 @@ final class OpenCodeGoProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function description(): string {
-		return 'Text generation with OpenCode Go.';
+		return __( 'Text generation with OpenCode Go.', 'duoport-connect-for-opencode' );
 	}
 
 	/**

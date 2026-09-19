@@ -54,7 +54,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 		if ( OpenCodeGoProvider::class === $cls ) {
 			try {
 				$with_session = SessionHeader::inject_into_headers( $headers, $data );
-			} catch ( \Throwable $e ) {
+			} catch ( \Throwable ) {
 				$with_session = $headers;
 			}
 			$headers = $with_session;

@@ -26,6 +26,8 @@ final class ModelAllowlist {
 	/**
 	 * Allowlisted IDs.
 	 *
+	 * @since 0.1.0
+	 *
 	 * @var array<string, list<string>>
 	 */
 	private const ALLOW = array(
@@ -77,6 +79,8 @@ final class ModelAllowlist {
 	 * option until an end-to-end gateway probe passes. Add verified IDs here
 	 * to advertise it; the metadata directory already consults the gate.
 	 *
+	 * @since 0.1.4
+	 *
 	 * @var array<string, list<string>>
 	 */
 	private const WEB_SEARCH_CAPABLE = array();
@@ -89,6 +93,8 @@ final class ModelAllowlist {
 	 * Ships empty: with no image-capable IDs allowlisted the image path stays
 	 * inert and text generation is unaffected (fail-open).
 	 *
+	 * @since 0.1.4
+	 *
 	 * @var array<string, list<string>>
 	 */
 	private const IMAGE = array(
@@ -98,6 +104,8 @@ final class ModelAllowlist {
 
 	/**
 	 * Free model IDs.
+	 *
+	 * @since 0.1.0
 	 *
 	 * @var list<string>
 	 */
