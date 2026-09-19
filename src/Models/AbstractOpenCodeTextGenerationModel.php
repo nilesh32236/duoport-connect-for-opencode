@@ -16,6 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Http\ClientUserAgent;
 use OpenCodeConnector\Http\SessionHeader;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use WordPress\AiClient\Providers\Http\DTO\Request;
@@ -41,7 +42,14 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	/**
 	 * Create a request for the provider.
 	 *
+	 * Go requests carry the stable `x-opencode-session` header plus the
+	 * shared client User-Agent (same fingerprint as the Go image path, so
+	 * gateway observability sees one client). Zen requests are sent
+	 * unchanged. Header failures always fall back to a headerless send;
+	 * never fatal.
+	 *
 	 * @since 0.1.0
+	 * @since 0.1.5 Added shared client User-Agent on the Go path.
 	 *
 	 * @param HttpMethodEnum $method  HTTP method.
 	 * @param string         $path    Request path.
@@ -54,10 +62,16 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 		if ( OpenCodeGoProvider::class === $cls ) {
 			try {
 				$with_session = SessionHeader::inject_into_headers( $headers, $data );
-			} catch ( \Throwable $e ) {
+			} catch ( \Throwable ) {
 				$with_session = $headers;
 			}
 			$headers = $with_session;
+			try {
+				$with_agent = ClientUserAgent::inject_into_headers( $headers );
+			} catch ( \Throwable ) {
+				$with_agent = $headers;
+			}
+			$headers = $with_agent;
 		}
 		return new Request( $method, $cls::url( $path ), $headers, $data, $this->getRequestOptions() );
 	}
