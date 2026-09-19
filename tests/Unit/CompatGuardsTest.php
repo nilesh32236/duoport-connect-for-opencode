@@ -182,4 +182,98 @@ final class CompatGuardsTest extends MonkeyTestCase {
 			$source
 		);
 	}
+
+	/**
+	 * Missing ProviderMetadata DTO must fail open via RuntimeException.
+	 *
+	 * @return void
+	 */
+	public function test_provider_metadata_guards_missing_dto(): void {
+		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Providers/AbstractOpenCodeProvider.php' );
+
+		self::assertStringContainsString( 'class_exists( ProviderMetadata::class )', $source );
+	}
+
+	/**
+	 * Registration bootstrap must skip provider classes that cannot autoload.
+	 *
+	 * @return void
+	 */
+	public function test_register_bootstrap_skips_missing_provider_class(): void {
+		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/duoport-connect-for-opencode.php' );
+
+		self::assertStringContainsString( 'class_exists( $cls )', $source );
+		self::assertStringContainsString( 'version_compare(', $source );
+		self::assertStringContainsString( "function_exists( 'get_bloginfo' )", $source );
+		self::assertStringContainsString( "function_exists( 'admin_url' )", $source );
+		self::assertStringContainsString( "function_exists( 'plugin_basename' )", $source );
+	}
+
+	/**
+	 * Unkeyed installs must surface a credential-blind not-connected notice.
+	 *
+	 * @return void
+	 */
+	public function test_unkeyed_notice_is_credential_blind_and_guarded(): void {
+		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/duoport-connect-for-opencode.php' );
+
+		self::assertStringContainsString( 'isProviderConfigured', $source );
+		self::assertStringContainsString( 'is-dismissible', $source );
+		self::assertStringContainsString( 'is not connected', $source );
+		self::assertStringContainsString( "current_user_can( 'manage_options' )", $source );
+		self::assertStringNotContainsString( "get_option( 'connectors_ai_", $source );
+		self::assertStringNotContainsString( 'get_option( "connectors_ai_', $source );
+		self::assertStringNotContainsString( "update_option( 'connectors_ai_", $source );
+	}
+
+	/**
+	 * Unkeyed install renders a not-connected notice instead of fataling.
+	 *
+	 * @return void
+	 */
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_unkeyed_install_renders_not_connected_notice_without_fatal(): void {
+		require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+		if ( ! class_exists( \UnkeyedNoticeFakeRegistry::class ) ) {
+			eval( 'class UnkeyedNoticeFakeRegistry { public function isProviderConfigured( string $id ): bool { return false; } }' );
+		}
+		if ( ! class_exists( \WordPress\AiClient\AiClient::class ) ) {
+			eval( 'namespace WordPress\\AiClient; class AiClient { public static function defaultRegistry(): object { return new \\UnkeyedNoticeFakeRegistry(); } }' );
+		}
+
+		$captured = array();
+		\Brain\Monkey\Actions\expectAdded( 'admin_notices' )
+			->twice()
+			->with(
+				\Mockery::on(
+					static function ( $callback ) use ( &$captured ): bool {
+						$captured[] = $callback;
+						return true;
+					}
+				)
+			);
+
+		Functions\when( 'is_admin' )->justReturn( true );
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'get_bloginfo' )->justReturn( '7.0' );
+		Functions\when( 'admin_url' )->alias( static fn( ...$args ): string => 'http://example.test/wp-admin/' . (string) ( $args[0] ?? '' ) );
+		Functions\when( 'esc_url' )->alias( static fn( ...$args ): string => (string) ( $args[0] ?? '' ) );
+		Functions\when( 'esc_html' )->alias( static fn( ...$args ): string => (string) ( $args[0] ?? '' ) );
+		Functions\when( 'esc_html__' )->alias( static fn( ...$args ): string => (string) ( $args[0] ?? '' ) );
+		Functions\when( '__' )->alias( static fn( ...$args ): string => (string) ( $args[0] ?? '' ) );
+		Functions\when( 'plugin_basename' )->justReturn( 'duoport-connect-for-opencode/duoport-connect-for-opencode.php' );
+
+		require_once dirname( __DIR__, 2 ) . '/duoport-connect-for-opencode.php';
+
+		self::assertCount( 2, $captured, 'Plugin must register the SDK-missing guard plus the unkeyed not-connected notice.' );
+
+		ob_start();
+		foreach ( $captured as $callback ) {
+			$callback();
+		}
+		$output = (string) ob_get_clean();
+
+		self::assertStringContainsString( 'is not connected', $output );
+	}
 }

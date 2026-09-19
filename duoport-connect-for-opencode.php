@@ -32,15 +32,73 @@ require_once __DIR__ . '/src/autoload.php';
 add_action(
 	'admin_notices',
 	static function (): void {
-		$wp_ok  = version_compare( get_bloginfo( 'version' ), '7.0', '>=' );
-		$sdk_ok = class_exists( \WordPress\AiClient\AiClient::class );
+		$wp_version = function_exists( 'get_bloginfo' ) ? (string) get_bloginfo( 'version' ) : '0.0.0';
+		$wp_ok      = version_compare( $wp_version, '7.0', '>=' );
+		$sdk_ok     = class_exists( \WordPress\AiClient\AiClient::class );
 		if ( $wp_ok && $sdk_ok ) {
+			return;
+		}
+		if ( ! function_exists( '__' ) || ! function_exists( 'esc_html' ) ) {
 			return;
 		}
 		$msg = ! $wp_ok
 			? __( 'DuoPort Connector for OpenCode requires WordPress 7.0+.', 'duoport-connect-for-opencode' )
 			: __( 'DuoPort Connector for OpenCode requires the WordPress AI Client (WordPress 7.0+ AI).', 'duoport-connect-for-opencode' );
 		echo '<div class="notice notice-error"><p>' . esc_html( $msg ) . '</p></div>';
+	}
+);
+
+// Unkeyed installs: not-connected prompt, never a fatal.
+//
+// Credential-blind by design: status comes only from the boolean
+// `isProviderConfigured()` probe (the same pattern Settings::render()
+// uses). This callback never calls get_option()/update_option() for any
+// `connectors_ai_*` value.
+add_action(
+	'admin_notices',
+	static function (): void {
+		if ( function_exists( 'is_admin' ) && ! is_admin() ) {
+			return;
+		}
+		if ( function_exists( 'current_user_can' ) && ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		if ( ! class_exists( \WordPress\AiClient\AiClient::class ) ) {
+			return;
+		}
+		if ( ! method_exists( \WordPress\AiClient\AiClient::class, 'defaultRegistry' ) ) {
+			return;
+		}
+		if ( ! function_exists( 'admin_url' ) || ! function_exists( 'esc_url' ) || ! function_exists( '__' ) || ! function_exists( 'esc_html' ) ) {
+			return;
+		}
+		$wp_version = function_exists( 'get_bloginfo' ) ? (string) get_bloginfo( 'version' ) : '0.0.0';
+		if ( version_compare( $wp_version, '7.0', '<' ) ) {
+			return;
+		}
+		try {
+			$registry = \WordPress\AiClient\AiClient::defaultRegistry();
+			if ( ! is_object( $registry ) || ! method_exists( $registry, 'isProviderConfigured' ) ) {
+				return;
+			}
+			try {
+				$go_configured = (bool) $registry->isProviderConfigured( 'opencode-go' );
+			} catch ( \Throwable $e ) {
+				$go_configured = false;
+			}
+			try {
+				$zen_configured = (bool) $registry->isProviderConfigured( 'opencode-zen' );
+			} catch ( \Throwable $e ) {
+				$zen_configured = false;
+			}
+			if ( $go_configured || $zen_configured ) {
+				return;
+			}
+			$url = admin_url( 'options-connectors.php' );
+			echo '<div class="notice notice-info is-dismissible"><p>' . esc_html__( 'DuoPort Connector for OpenCode is not connected.', 'duoport-connect-for-opencode' ) . ' <a href="' . esc_url( $url ) . '">' . esc_html__( 'Add your API key under Settings → Connectors.', 'duoport-connect-for-opencode' ) . '</a></p></div>';
+		} catch ( \Throwable $e ) {
+			return;
+		}
 	}
 );
 
@@ -67,15 +125,24 @@ add_action(
 				return;
 			}
 			foreach ( array( Providers\OpenCodeGoProvider::class, Providers\OpenCodeZenProvider::class ) as $cls ) {
-				if ( ! $r->hasProvider( $cls ) ) {
-					try {
-						$r->registerProvider( $cls );
-					} catch ( \Throwable $e ) {
-						// Log but do not fatal: provider registration failed (e.g. corrupted core SDK).
+				try {
+					// Skip (don't fatal) when the provider class cannot autoload,
+					// e.g. its AbstractApiProvider parent is missing from the SDK.
+					if ( ! class_exists( $cls ) ) {
 						if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
 							// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- WP_DEBUG-gated.
-							error_log( sprintf( '[duoport-connect-for-opencode] Failed to register %s: %s: %s', $cls, get_class( $e ), $e->getMessage() ) );
+							error_log( sprintf( '[duoport-connect-for-opencode] Provider class %s unavailable; skipping registration.', $cls ) );
 						}
+						continue;
+					}
+					if ( ! $r->hasProvider( $cls ) ) {
+						$r->registerProvider( $cls );
+					}
+				} catch ( \Throwable $e ) {
+					// Log but do not fatal: provider registration failed (e.g. corrupted core SDK).
+					if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+						// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- WP_DEBUG-gated.
+						error_log( sprintf( '[duoport-connect-for-opencode] Failed to register %s: %s: %s', $cls, get_class( $e ), $e->getMessage() ) );
 					}
 				}
 			}
@@ -134,11 +201,16 @@ add_action(
 );
 
 // Plugin action link to Connectors screen.
-add_filter(
-	'plugin_action_links_' . plugin_basename( __FILE__ ),
-	static function ( array $links ): array {
-		$url     = admin_url( 'options-connectors.php' );
-		$links[] = '<a href="' . esc_url( $url ) . '">' . esc_html__( 'Connect', 'duoport-connect-for-opencode' ) . '</a>';
-		return $links;
-	}
-);
+if ( function_exists( 'plugin_basename' ) ) {
+	add_filter(
+		'plugin_action_links_' . plugin_basename( __FILE__ ),
+		static function ( array $links ): array {
+			if ( ! function_exists( 'admin_url' ) || ! function_exists( 'esc_url' ) || ! function_exists( 'esc_html__' ) ) {
+				return $links;
+			}
+			$url     = admin_url( 'options-connectors.php' );
+			$links[] = '<a href="' . esc_url( $url ) . '">' . esc_html__( 'Connect', 'duoport-connect-for-opencode' ) . '</a>';
+			return $links;
+		}
+	);
+}
