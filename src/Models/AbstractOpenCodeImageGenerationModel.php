@@ -31,28 +31,6 @@ use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCo
  */
 abstract class AbstractOpenCodeImageGenerationModel extends AbstractOpenAiCompatibleImageGenerationModel {
 	/**
-	 * Client User-Agent prefix identifying this plugin.
-	 *
-	 * Kept for backward compatibility; canonical value lives on
-	 * {@see \OpenCodeConnector\Http\ClientUserAgent::PREFIX}.
-	 *
-	 * @since 0.1.5
-	 */
-	const CLIENT_USER_AGENT_PREFIX = 'duoport-connect-for-opencode/';
-
-	/**
-	 * Fallback plugin version when the VERSION constant is unavailable.
-	 *
-	 * Kept for backward compatibility; canonical value lives on
-	 * {@see \OpenCodeConnector\Http\ClientUserAgent::FALLBACK_VERSION}.
-	 * Mirrors the plugin header; used only when `OpenCodeConnector\VERSION`
-	 * is not defined (e.g. partial bootstrap). Never read from options.
-	 *
-	 * @since 0.1.5
-	 */
-	const CLIENT_USER_AGENT_FALLBACK_VERSION = '0.1.4';
-
-	/**
 	 * Provider class FQCN.
 	 *
 	 * @since 0.1.4
