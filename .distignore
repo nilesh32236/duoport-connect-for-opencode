@@ -2,6 +2,7 @@
 /.github/
 /.agents/
 /.jules/
+/.audit-prompts/
 /.superpowers/
 /docs/
 node_modules/
