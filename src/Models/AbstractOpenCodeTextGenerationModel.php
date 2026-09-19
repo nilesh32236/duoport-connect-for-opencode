@@ -51,6 +51,23 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 */
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
 		$cls = $this->providerClass();
+		// Apply site-wide generation defaults (default model, temperature,
+		// max tokens). Caller-supplied values always win; fail-open on any
+		// error so requests never fatal due to settings. Credential-blind:
+		// reads only the plugin-owned option, never connectors_ai_* values.
+		if ( is_array( $data ) ) {
+			try {
+				if ( class_exists( \OpenCodeConnector\Settings\Settings::class ) && method_exists( \OpenCodeConnector\Settings\Settings::class, 'apply_to_request_data' ) ) {
+					$data = \OpenCodeConnector\Settings\Settings::apply_to_request_data( $data );
+				}
+			} catch ( \Throwable $e ) {
+				// Fail-open: send the request unmodified.
+				unset( $e );
+			}
+			if ( ! is_array( $data ) ) {
+				$data = array();
+			}
+		}
 		if ( OpenCodeGoProvider::class === $cls ) {
 			try {
 				$with_session = SessionHeader::inject_into_headers( $headers, $data );
