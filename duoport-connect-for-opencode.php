@@ -4,7 +4,7 @@
  * Description:       Connect OpenCode Go and Zen (including free models) to WordPress 7.0 AI.
  * Requires at least: 7.0
  * Requires PHP:      8.2
- * Version:           0.1.4
+ * Version:           0.1.5
  * Author:            Nilesh Kanzariya
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-const VERSION     = '0.1.4';
+const VERSION     = '0.1.5';
 const OPTION_NAME = 'opencode_connector_settings';
 
 require_once __DIR__ . '/src/autoload.php';
@@ -104,15 +104,43 @@ add_action(
 // valid keys were rejected with "It was not possible to connect to the
 // provider using this key." Separate settings keep every validation against
 // the real submitted key.
-$opencode_connector_bust = static function (): void {
-	delete_transient( 'opencode_connector_avail_go' );
-	delete_transient( 'opencode_connector_avail_zen' );
-};
+// One bust callback per key hook (four registrations total): clear both
+// availability verdicts plus their cause diagnostics, and record THAT a key
+// save was observed for the matching catalog via a plugin-owned transient.
+// The callbacks take no parameters on purpose — the hook's old/new values
+// are never read, so the handlers stay credential-blind.
 foreach ( array( 'connectors_ai_opencode_go_api_key', 'connectors_ai_opencode_zen_api_key' ) as $opencode_connector_setting ) {
+	$opencode_connector_catalog = str_contains( $opencode_connector_setting, '_zen_' ) ? 'zen' : 'go';
+	$opencode_connector_bust    = static function () use ( $opencode_connector_catalog ): void {
+		if ( function_exists( 'delete_transient' ) ) {
+			try {
+				delete_transient( 'opencode_connector_avail_go' );
+				delete_transient( 'opencode_connector_avail_zen' );
+			} catch ( \Throwable $e ) {
+				unset( $e );
+			}
+		}
+		if ( function_exists( 'delete_transient' ) ) {
+			try {
+				delete_transient( 'opencode_connector_avail_go_cause' );
+				delete_transient( 'opencode_connector_avail_zen_cause' );
+			} catch ( \Throwable $e ) {
+				unset( $e );
+			}
+		}
+		$ttl = defined( 'MONTH_IN_SECONDS' ) ? MONTH_IN_SECONDS : 2592000;
+		if ( function_exists( 'set_transient' ) ) {
+			try {
+				set_transient( 'opencode_connector_key_seen_' . $opencode_connector_catalog, time(), $ttl );
+			} catch ( \Throwable $e ) {
+				unset( $e );
+			}
+		}
+	};
 	add_action( 'update_option_' . $opencode_connector_setting, $opencode_connector_bust );
 	add_action( 'add_option_' . $opencode_connector_setting, $opencode_connector_bust );
 }
-unset( $opencode_connector_bust, $opencode_connector_setting );
+unset( $opencode_connector_bust, $opencode_connector_setting, $opencode_connector_catalog );
 
 // Settings bootstrap.
 add_action(
