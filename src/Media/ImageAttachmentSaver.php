@@ -107,7 +107,7 @@ final class ImageAttachmentSaver {
 			);
 		}
 		$detected = self::detect_mime( $image_bytes );
-		if ( null !== $detected && $detected !== strtolower( trim( $mime_type ) ) ) {
+		if ( null !== $detected && strtolower( trim( $mime_type ) ) !== $detected ) {
 			return new \WP_Error(
 				'opencode_image_mime_mismatch',
 				sprintf(

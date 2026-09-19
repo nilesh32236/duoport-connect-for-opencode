@@ -137,27 +137,45 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 */
 	private static function capability_matches( $capability, string $checker, string $value ): bool {
 		if ( is_object( $capability ) ) {
-			try {
-				$result = $capability->{$checker}();
-				if ( null !== $result ) {
-					return (bool) $result;
-				}
-			} catch ( \Throwable ) {
-				// Unknown shape or failing checker: try legacy fallbacks below.
+			$direct = self::try_capability_checker( $capability, $checker );
+			if ( null !== $direct ) {
+				return $direct;
 			}
 			if ( method_exists( $capability, 'getValue' ) ) {
 				try {
-					if ( $value === (string) $capability->getValue() ) {
-						return true;
-					}
-				} catch ( \Throwable ) {
-					// Ignore and fall through.
+					return $value === (string) $capability->getValue();
+				} catch ( \Throwable $e ) {
+					return false;
 				}
 			}
 		} elseif ( is_string( $capability ) ) {
 			return $value === $capability;
 		}
 		return false;
+	}
+
+	/**
+	 * Run a capability checker, translating failures to null.
+	 *
+	 * Unknown shapes and failing checkers yield null so callers fall back to
+	 * legacy getValue()/string comparisons. Never throws.
+	 *
+	 * @since 0.1.4
+	 *
+	 * @param object $capability Capability object.
+	 * @param string $checker    Checker method name (e.g. isTextGeneration).
+	 * @return bool|null Match result, or null when unavailable.
+	 */
+	private static function try_capability_checker( object $capability, string $checker ): ?bool {
+		try {
+			$result = $capability->{$checker}();
+		} catch ( \Throwable $e ) {
+			return null;
+		}
+		if ( null === $result ) {
+			return null;
+		}
+		return (bool) $result;
 	}
 
 	/**

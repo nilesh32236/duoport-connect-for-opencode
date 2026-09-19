@@ -77,14 +77,14 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		// Set lock before network I/O (10s).
 		set_transient( $lock_key, 1, 10 );
 
-		$cls         = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
+		$cls = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
 		// Probe models are chosen to discriminate AUTHENTICATION, not model
 		// availability: paid models answer 401 CreditsError for a valid but
 		// empty-balance key (configured) versus other 401s for a bad key.
 		// Probing a free model instead would fail closed whenever that model
 		// is transiently unavailable upstream (observed live).
 		$probe_model = 'deepseek-v4-flash';
-		$probe_data = array(
+		$probe_data  = array(
 			'model'      => $probe_model,
 			'messages'   => array(
 				array(
