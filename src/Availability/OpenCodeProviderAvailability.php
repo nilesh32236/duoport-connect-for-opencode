@@ -45,7 +45,18 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @param string $catalog Catalog slug.
 	 */
 	public function __construct( private readonly string $catalog ) {
-		// Catalog is go or zen.
+		// Catalog is go or zen; garbage normalizes to zen via normalized_catalog().
+	}
+
+	/**
+	 * Normalized catalog slug (go|zen).
+	 *
+	 * @since 0.1.5
+	 *
+	 * @return string
+	 */
+	private function normalized_catalog(): string {
+		return ( 'go' === $this->catalog ) ? 'go' : 'zen';
 	}
 
 	/**
@@ -84,9 +95,10 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return bool
 	 */
 	public function isConfigured(): bool {
+		$catalog = $this->normalized_catalog();
 		if ( function_exists( 'get_transient' ) ) {
 			try {
-				$cached = get_transient( 'opencode_connector_avail_' . $this->catalog );
+				$cached = get_transient( 'opencode_connector_avail_' . $catalog );
 			} catch ( \Throwable $e ) {
 				$cached = false;
 			}
@@ -110,7 +122,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return string One of connected, invalid_key, network_error, not_configured.
 	 */
 	public function check_connection(): string {
-		$catalog = ( 'go' === $this->catalog ) ? 'go' : 'zen';
+		$catalog = $this->normalized_catalog();
 		$tkey    = 'opencode_connector_test_' . $catalog;
 
 		if ( function_exists( 'get_transient' ) ) {
@@ -240,7 +252,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			return self::VERDICT_NOT_CONFIGURED;
 		}
 
-		$cls = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
+		$cls = 'go' === $this->normalized_catalog() ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
 		// Probe models are chosen to discriminate AUTHENTICATION, not model
 		// availability: paid models answer 401 CreditsError for a valid but
 		// empty-balance key (configured) versus other 401s for a bad key.

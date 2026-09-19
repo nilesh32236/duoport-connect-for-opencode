@@ -71,7 +71,7 @@ final class ConnectionTest {
 	 */
 	public static function handle(): void {
 		try {
-			if ( function_exists( 'current_user_can' ) && ! current_user_can( 'manage_options' ) ) {
+			if ( ! function_exists( 'current_user_can' ) || ! current_user_can( 'manage_options' ) ) {
 				self::send_error( 'forbidden', 403 );
 				return;
 			}
