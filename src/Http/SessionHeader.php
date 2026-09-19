@@ -52,15 +52,15 @@ final class SessionHeader {
 	 *
 	 * Single policy consulted by both the text model and the availability
 	 * probe: only the Go catalog requires x-opencode-session (it rejects
-	 * headerless requests); Zen ignores the extra header.
+	 * headerless requests); Zen ignores the extra header. Subclasses of the Go provider count as Go so extended providers keep the header.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param string $provider_class Provider FQCN.
 	 * @return bool
 	 */
 	public static function should_send_for( string $provider_class ): bool {
-		return OpenCodeGoProvider::class === $provider_class;
+		return is_a( $provider_class, OpenCodeGoProvider::class, true );
 	}
 
 	/**
@@ -193,13 +193,21 @@ final class SessionHeader {
 	 * Sequential lists are unaffected (keys 0..n already sort); maps hash
 	 * alike regardless of insertion order. Never throws.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param mixed $value Raw value.
 	 * @return mixed Canonicalized value.
 	 */
 	private static function canonicalize_value( $value ) {
 		if ( ! is_array( $value ) ) {
+			return $value;
+		}
+		// Fast path: sequential lists keep order (no ksort); only recurse
+		// into items so large multimodal content blocks skip the sort.
+		if ( array_is_list( $value ) ) {
+			foreach ( $value as $key => $item ) {
+				$value[ $key ] = self::canonicalize_value( $item );
+			}
 			return $value;
 		}
 		foreach ( $value as $key => $item ) {

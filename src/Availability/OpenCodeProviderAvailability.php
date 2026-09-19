@@ -75,9 +75,9 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			return false;
 		}
 
-		$cls = Catalog::provider_class( $this->catalog );
-		$req = $this->probe_request( $cls );
 		try {
+			$cls = Catalog::provider_class( $this->catalog );
+			$req = $this->probe_request( $cls );
 			$req = $this->getRequestAuthentication()->authenticateRequest( $req );
 			$res = $this->getHttpTransporter()->send( $req );
 			$ok  = $this->classify_response( $res->getStatusCode(), $res->getData() );
@@ -91,7 +91,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Load a cached probe verdict.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param string $transient_key Availability transient key.
 	 * @return bool|null Cached verdict, or null on cache miss.
@@ -107,7 +107,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Acquire the probe stampede lock (10s TTL).
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param string $lock_key Lock transient key.
 	 * @return bool True when the lock was acquired.
@@ -130,7 +130,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * Probing a free model instead would fail closed whenever that model
 	 * is transiently unavailable upstream (observed live).
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param class-string $provider_class Provider FQCN.
 	 * @return Request
@@ -170,7 +170,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * CreditsError → true (valid key, no credits); 429 → true (throttled:
 	 * must not lock out valid users); other 4xx/5xx + exceptions → false.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param int   $status_code HTTP status code.
 	 * @param mixed $data        Decoded response data.
@@ -193,7 +193,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Persist a probe verdict with staggered expiry.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param string $transient_key Availability transient key.
 	 * @param string $lock_key      Lock transient key.

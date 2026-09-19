@@ -43,7 +43,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	 * set_show_all_models() so the pure mapping logic stays decoupled from
 	 * global state.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @var bool|null
 	 */
@@ -52,7 +52,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	/**
 	 * Inject the show-all-models flag (test seam).
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param bool $show_all Whether to list every API model.
 	 * @return void
@@ -67,7 +67,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	 * Thin WP-wired reader: the option is read once here, parsing helpers
 	 * below stay pure. A corrupted non-array option safely reads as false.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @return bool
 	 */
@@ -158,7 +158,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	/**
 	 * Options shared by every text-capable model.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @return SupportedOption[]
 	 */
@@ -182,7 +182,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	 * Advertised MIME types come from ImageAttachmentSaver::ALLOWED_MIME_TYPES
 	 * so the options never desync from what the saver accepts.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param string $id   Model ID.
 	 * @param string $name Display name.
@@ -205,7 +205,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	/**
 	 * Build text-generation metadata with capability gates.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param string            $id          Model ID.
 	 * @param string            $name        Display name.
@@ -235,7 +235,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	/**
 	 * Sort free models first, then by ID.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param ModelMetadata[] $metadata_list Metadata list (sorted in place).
 	 * @return void

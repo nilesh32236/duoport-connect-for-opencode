@@ -159,7 +159,7 @@ final class ModelAllowlist {
 	 * advertising outputSchema metadata and when gating tool calls (whose
 	 * arguments cannot be trusted either). Narrows in one place.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param string $id Model ID.
 	 * @return bool

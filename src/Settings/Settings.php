@@ -103,7 +103,7 @@ final class Settings {
 	 * orphan a cache. Credential-blind: transient deletes only, never reads
 	 * or writes any connectors_ai_* option.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @return void
 	 */

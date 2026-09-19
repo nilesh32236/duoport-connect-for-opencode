@@ -11,7 +11,7 @@
  * Credential-blind and option-blind: pure maps only, never reads options.
  *
  * @package OpenCodeConnector
- * @since 0.1.5
+ * @since 0.1.4
  */
 
 declare(strict_types=1);
@@ -26,27 +26,27 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Catalog registry for the Go/Zen catalogs.
  *
  * @package OpenCodeConnector
- * @since 0.1.5
+ * @since 0.1.4
  */
 final class Catalog {
 	/**
 	 * Go catalog slug.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 */
 	public const GO = 'go';
 
 	/**
 	 * Zen catalog slug.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 */
 	public const ZEN = 'zen';
 
 	/**
 	 * Availability transient key prefix.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 */
 	public const AVAIL_PREFIX = 'opencode_connector_avail_';
 
@@ -89,7 +89,7 @@ final class Catalog {
 	/**
 	 * All known catalog slugs.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @return list<string>
 	 */
@@ -100,7 +100,7 @@ final class Catalog {
 	/**
 	 * Whether a catalog slug is known.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param string $catalog Catalog slug.
 	 * @return bool
@@ -112,7 +112,7 @@ final class Catalog {
 	/**
 	 * Throw on unknown catalog slugs.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param string $catalog Catalog slug.
 	 * @return void
@@ -128,19 +128,21 @@ final class Catalog {
 	/**
 	 * Availability transient key for a catalog.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param string $catalog Catalog slug.
 	 * @return string
+	 * @throws \InvalidArgumentException When the catalog is unknown.
 	 */
 	public static function transient_key( string $catalog ): string {
+		self::require_valid( $catalog );
 		return self::AVAIL_PREFIX . $catalog;
 	}
 
 	/**
 	 * Provider class for a catalog.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param string $catalog Catalog slug.
 	 * @return class-string
@@ -153,7 +155,7 @@ final class Catalog {
 	/**
 	 * Model metadata directory class for a catalog.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param string $catalog Catalog slug.
 	 * @return class-string
@@ -166,7 +168,7 @@ final class Catalog {
 	/**
 	 * Model class for a catalog + capability.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param string $catalog    Catalog slug.
 	 * @param string $capability Capability slug (text-generation|image-generation).
@@ -185,7 +187,7 @@ final class Catalog {
 	/**
 	 * All model metadata directory classes.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @return list<class-string>
 	 */

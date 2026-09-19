@@ -88,7 +88,7 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * Shape: array( 'go' => array( 'text-generation' => class, ...,
 	 * 'directory' => class ), 'zen' => array( ... ) ).
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @return array<string, array<string, class-string>>
 	 */
@@ -110,10 +110,15 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	/**
 	 * Resolve a model class for the current catalog + capability.
 	 *
-	 * @since 0.1.5
+	 * Fails fast with InvalidArgumentException for unknown catalogs or
+	 * capabilities (via the Catalog fallback) instead of silently
+	 * defaulting everything non-go to Zen.
+	 *
+	 * @since 0.1.4
 	 *
 	 * @param string $capability Capability slug (text-generation|image-generation).
 	 * @return class-string
+	 * @throws \InvalidArgumentException When the catalog or capability is unknown.
 	 */
 	protected static function model_class_for( string $capability ): string {
 		$map     = static::class_map();
@@ -273,9 +278,13 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	/**
 	 * Create model metadata directory.
 	 *
+	 * Fails fast with InvalidArgumentException for unknown catalogs (via
+	 * the Catalog fallback) instead of silently defaulting to Zen.
+	 *
 	 * @since 0.1.0
 	 *
 	 * @return ModelMetadataDirectoryInterface
+	 * @throws \InvalidArgumentException When the catalog is unknown.
 	 */
 	protected static function createModelMetadataDirectory(): ModelMetadataDirectoryInterface {
 		$map     = static::class_map();

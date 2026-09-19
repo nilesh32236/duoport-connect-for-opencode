@@ -59,16 +59,23 @@ final class ImageAttachmentSaver {
 	/**
 	 * File extension for a MIME type.
 	 *
-	 * Falls back to png for allowlisted-but-unmapped types so callers never
-	 * fatal; keep EXTENSIONS keys === ALLOWED_MIME_TYPES.
+	 * Throws on allowlisted-but-unmapped types so adding a MIME to
+	 * ALLOWED_MIME_TYPES without updating EXTENSIONS fails loudly instead
+	 * of silently saving with the wrong extension.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param string $mime_type MIME type.
 	 * @return string File extension without dot.
+	 * @throws \InvalidArgumentException When the MIME type has no mapped extension.
 	 */
 	public static function mime_to_extension( string $mime_type ): string {
-		return self::EXTENSIONS[ strtolower( trim( $mime_type ) ) ] ?? 'png';
+		$key = strtolower( trim( $mime_type ) );
+		if ( ! isset( self::EXTENSIONS[ $key ] ) ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message, not output.
+			throw new \InvalidArgumentException( 'Unsupported image MIME type: ' . $mime_type );
+		}
+		return self::EXTENSIONS[ $key ];
 	}
 
 	/**
@@ -205,8 +212,12 @@ final class ImageAttachmentSaver {
 			return $valid;
 		}
 
-		$extension = self::mime_to_extension( $mime_type );
-		$base      = sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) );
+		try {
+			$extension = self::mime_to_extension( $mime_type );
+		} catch ( \InvalidArgumentException $e ) {
+			return new \WP_Error( 'opencode_image_mime', $e->getMessage() );
+		}
+		$base = sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) );
 		if ( '' === $base ) {
 			$base = 'opencode-image';
 		}
