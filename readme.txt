@@ -43,7 +43,7 @@ Yes. OpenCode uses a unified auth domain, so paste the same opencode.ai key into
 
 = Which models are available? =
 
-By default only allowlisted chat/completions models are shown (Go: 16, Zen: 17 including free models). Enable **Show all models** on Settings → DuoPort Connector to expose every model from the API (including non-chat models that may fail).
+By default only allowlisted chat/completions models are shown (Go: 17, Zen: 17 including free models). Enable **Show all models** on Settings → DuoPort Connector to expose every model from the API (including non-chat models that may fail).
 
 = Does it work without WordPress 7.0? =
 
@@ -62,6 +62,7 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 == Changelog ==
 
 = 0.1.4 =
+* Added `deepseek-v4.1-flash` to the Go catalog.
 * Fixed: the key validation probe now sends the required `x-opencode-session` header and probes an authentication-discriminating model, so valid Go/Zen keys are accepted instead of rejected.
 * Added image-generation model path: image-capable models advertise the `imageGeneration` capability through new Go/Zen image models behind a per-catalog allowlist. Ships with no image IDs allowlisted yet, so the path stays inert and text generation is unaffected. Also added a Media Library saver with MIME, size, and capability guards.
 = 0.1.3 =

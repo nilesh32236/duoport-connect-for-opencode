@@ -40,6 +40,7 @@ final class ModelAllowlist {
 			'kimi-k2.5',
 			'deepseek-v4-pro',
 			'deepseek-v4-flash',
+			'deepseek-v4.1-flash',
 			'mimo-v2.5-pro',
 			'mimo-v2.5',
 			'mimo-v2-pro',
