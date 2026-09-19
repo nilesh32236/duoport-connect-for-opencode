@@ -64,7 +64,7 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function description(): string {
-		return 'Text generation with OpenCode Zen, including free models.';
+		return __( 'Text generation with OpenCode Zen, including free models.', 'duoport-connect-for-opencode' );
 	}
 
 	/**

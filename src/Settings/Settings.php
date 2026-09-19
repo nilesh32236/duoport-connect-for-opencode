@@ -113,7 +113,7 @@ final class Settings {
 		if ( class_exists( AiClient::class ) && method_exists( AiClient::class, 'getCache' ) ) {
 			try {
 				$cache = AiClient::getCache();
-			} catch ( \Throwable $e ) {
+			} catch ( \Throwable ) {
 				$cache = null;
 			}
 		}
@@ -182,16 +182,16 @@ final class Settings {
 					// stampede lock + jitter; avoid double HTTP on render by tolerating exceptions.
 					try {
 						$go_ok = $registry->isProviderConfigured( 'opencode-go' );
-					} catch ( \Throwable $e ) {
+					} catch ( \Throwable ) {
 						$go_ok = false;
 					}
 					try {
 						$zen_ok = $registry->isProviderConfigured( 'opencode-zen' );
-					} catch ( \Throwable $e ) {
+					} catch ( \Throwable ) {
 						$zen_ok = false;
 					}
 				}
-			} catch ( \Throwable $e ) {
+			} catch ( \Throwable ) {
 				$go_ok  = false;
 				$zen_ok = false;
 			}

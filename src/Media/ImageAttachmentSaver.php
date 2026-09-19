@@ -30,12 +30,16 @@ final class ImageAttachmentSaver {
 	/**
 	 * MIME types accepted for generated images.
 	 *
+	 * @since 0.1.4
+	 *
 	 * @var list<string>
 	 */
 	public const ALLOWED_MIME_TYPES = array( 'image/png', 'image/jpeg', 'image/webp' );
 
 	/**
 	 * Maximum accepted payload size in bytes (10 MB).
+	 *
+	 * @since 0.1.4
 	 *
 	 * @var int
 	 */
@@ -138,10 +142,7 @@ final class ImageAttachmentSaver {
 			if ( ! class_exists( \finfo::class ) ) {
 				return null;
 			}
-			$finfo = new \finfo( FILEINFO_MIME_TYPE );
-			if ( false === $finfo ) {
-				return null;
-			}
+			$finfo    = new \finfo( FILEINFO_MIME_TYPE );
 			$detected = $finfo->buffer( $image_bytes );
 			if ( ! is_string( $detected ) || '' === $detected ) {
 				return null;

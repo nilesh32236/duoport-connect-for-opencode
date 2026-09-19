@@ -107,7 +107,11 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 		$cap_names = array_map(
 			static function ( $capability ): string {
 				if ( is_object( $capability ) && method_exists( $capability, 'getValue' ) ) {
-					return (string) $capability->getValue();
+					try {
+						return (string) $capability->getValue();
+					} catch ( \Throwable ) {
+						return get_class( $capability );
+					}
 				}
 				if ( is_string( $capability ) ) {
 					return $capability;
@@ -144,7 +148,7 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 			if ( method_exists( $capability, 'getValue' ) ) {
 				try {
 					return $value === (string) $capability->getValue();
-				} catch ( \Throwable $e ) {
+				} catch ( \Throwable ) {
 					return false;
 				}
 			}
@@ -169,7 +173,7 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	private static function try_capability_checker( object $capability, string $checker ): ?bool {
 		try {
 			$result = $capability->{$checker}();
-		} catch ( \Throwable $e ) {
+		} catch ( \Throwable ) {
 			return null;
 		}
 		if ( null === $result ) {
