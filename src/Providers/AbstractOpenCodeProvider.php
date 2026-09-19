@@ -17,6 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use OpenCodeConnector\Availability\OpenCodeProviderAvailability;
+use OpenCodeConnector\Catalog;
 use OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory;
 use OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory;
 use OpenCodeConnector\Models\OpenCodeGoImageGenerationModel;
@@ -77,6 +78,53 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	abstract protected static function description(): string;
 
 	/**
+	 * Catalog-to-class map consulted by the factories.
+	 *
+	 * Single wiring point for Go/Zen routing: subclasses/tests override this
+	 * to substitute fakes instead of editing the base class or stubbing the
+	 * whole SDK. Factories fall back to Catalog defaults for catalogs absent
+	 * from the override.
+	 *
+	 * Shape: array( 'go' => array( 'text-generation' => class, ...,
+	 * 'directory' => class ), 'zen' => array( ... ) ).
+	 *
+	 * @since 0.1.5
+	 *
+	 * @return array<string, array<string, class-string>>
+	 */
+	protected static function class_map(): array {
+		return array(
+			'go'  => array(
+				'text-generation'  => OpenCodeGoTextGenerationModel::class,
+				'image-generation' => OpenCodeGoImageGenerationModel::class,
+				'directory'        => OpenCodeGoModelMetadataDirectory::class,
+			),
+			'zen' => array(
+				'text-generation'  => OpenCodeZenTextGenerationModel::class,
+				'image-generation' => OpenCodeZenImageGenerationModel::class,
+				'directory'        => OpenCodeZenModelMetadataDirectory::class,
+			),
+		);
+	}
+
+	/**
+	 * Resolve a model class for the current catalog + capability.
+	 *
+	 * @since 0.1.5
+	 *
+	 * @param string $capability Capability slug (text-generation|image-generation).
+	 * @return class-string
+	 */
+	protected static function model_class_for( string $capability ): string {
+		$map     = static::class_map();
+		$catalog = static::catalogKey();
+		if ( isset( $map[ $catalog ][ $capability ] ) ) {
+			return $map[ $catalog ][ $capability ];
+		}
+		return Catalog::model_class( $catalog, $capability );
+	}
+
+	/**
 	 * Create a model instance.
 	 *
 	 * @since 0.1.0
@@ -94,14 +142,12 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 		$caps = $model->getSupportedCapabilities();
 		foreach ( $caps as $capability ) {
 			if ( self::capability_matches( $capability, 'isImageGeneration', 'image-generation' ) ) {
-				return 'go' === static::catalogKey()
-					? new OpenCodeGoImageGenerationModel( $model, $provider )
-					: new OpenCodeZenImageGenerationModel( $model, $provider );
+				$cls = static::model_class_for( 'image-generation' );
+				return new $cls( $model, $provider );
 			}
 			if ( self::capability_matches( $capability, 'isTextGeneration', 'text-generation' ) ) {
-				return 'go' === static::catalogKey()
-					? new OpenCodeGoTextGenerationModel( $model, $provider )
-					: new OpenCodeZenTextGenerationModel( $model, $provider );
+				$cls = static::model_class_for( 'text-generation' );
+				return new $cls( $model, $provider );
 			}
 		}
 		$cap_names = array_map(
@@ -232,8 +278,9 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * @return ModelMetadataDirectoryInterface
 	 */
 	protected static function createModelMetadataDirectory(): ModelMetadataDirectoryInterface {
-		return 'go' === static::catalogKey()
-			? new OpenCodeGoModelMetadataDirectory()
-			: new OpenCodeZenModelMetadataDirectory();
+		$map     = static::class_map();
+		$catalog = static::catalogKey();
+		$cls     = $map[ $catalog ]['directory'] ?? Catalog::directory_class( $catalog );
+		return new $cls();
 	}
 }

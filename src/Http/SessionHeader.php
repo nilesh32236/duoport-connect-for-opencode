@@ -16,11 +16,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Providers\OpenCodeGoProvider;
+
 /**
  * Stable session header helper.
  *
  * Credential-blind and option-blind: derivation only looks at the request
  * payload (model + messages) and never reads options, users, or globals.
+ *
+ * Session affinity is payload-canonical sensitive: array content is
+ * recursively key-sorted before hashing so reordered keys hash alike, while
+ * roles are lowercased (protocol-fixed values). Anything beyond that
+ * (whitespace, casing of free text) intentionally yields a new session.
  *
  * @package OpenCodeConnector
  * @since 0.1.4
@@ -39,6 +46,22 @@ final class SessionHeader {
 	 * @since 0.1.4
 	 */
 	const VALUE_MAX_LENGTH = 64;
+
+	/**
+	 * Whether the session header should be sent for a provider class.
+	 *
+	 * Single policy consulted by both the text model and the availability
+	 * probe: only the Go catalog requires x-opencode-session (it rejects
+	 * headerless requests); Zen ignores the extra header.
+	 *
+	 * @since 0.1.5
+	 *
+	 * @param string $provider_class Provider FQCN.
+	 * @return bool
+	 */
+	public static function should_send_for( string $provider_class ): bool {
+		return OpenCodeGoProvider::class === $provider_class;
+	}
 
 	/**
 	 * Derive a stable opaque session value from request data.
@@ -64,7 +87,7 @@ final class SessionHeader {
 				if ( ! is_array( $message ) ) {
 					continue;
 				}
-				$role    = isset( $message['role'] ) && is_string( $message['role'] ) ? $message['role'] : '';
+				$role    = isset( $message['role'] ) && is_string( $message['role'] ) ? strtolower( $message['role'] ) : '';
 				$content = self::normalize_content( $message['content'] ?? '' );
 				if ( '' === $role && '' === $content ) {
 					continue;
@@ -150,6 +173,7 @@ final class SessionHeader {
 		}
 		if ( is_array( $content ) ) {
 			try {
+				$content = self::canonicalize_value( $content );
 				if ( function_exists( 'wp_json_encode' ) ) {
 					$encoded = wp_json_encode( $content );
 				} else {
@@ -161,5 +185,27 @@ final class SessionHeader {
 			}
 		}
 		return '';
+	}
+
+	/**
+	 * Recursively key-sort an array value for canonical hashing.
+	 *
+	 * Sequential lists are unaffected (keys 0..n already sort); maps hash
+	 * alike regardless of insertion order. Never throws.
+	 *
+	 * @since 0.1.5
+	 *
+	 * @param mixed $value Raw value.
+	 * @return mixed Canonicalized value.
+	 */
+	private static function canonicalize_value( $value ) {
+		if ( ! is_array( $value ) ) {
+			return $value;
+		}
+		foreach ( $value as $key => $item ) {
+			$value[ $key ] = self::canonicalize_value( $item );
+		}
+		ksort( $value );
+		return $value;
 	}
 }

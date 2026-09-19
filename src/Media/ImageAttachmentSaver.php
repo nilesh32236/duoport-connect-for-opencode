@@ -35,11 +35,41 @@ final class ImageAttachmentSaver {
 	public const ALLOWED_MIME_TYPES = array( 'image/png', 'image/jpeg', 'image/webp' );
 
 	/**
+	 * File extension per MIME type, derived from the allowlist.
+	 *
+	 * Keys must stay in lockstep with ALLOWED_MIME_TYPES: adding a type
+	 * here requires an entry below, otherwise the fallback saves it with a
+	 * wrong extension.
+	 *
+	 * @var array<string, string>
+	 */
+	private const EXTENSIONS = array(
+		'image/png'  => 'png',
+		'image/jpeg' => 'jpg',
+		'image/webp' => 'webp',
+	);
+
+	/**
 	 * Maximum accepted payload size in bytes (10 MB).
 	 *
 	 * @var int
 	 */
 	public const MAX_BYTES = 10485760;
+
+	/**
+	 * File extension for a MIME type.
+	 *
+	 * Falls back to png for allowlisted-but-unmapped types so callers never
+	 * fatal; keep EXTENSIONS keys === ALLOWED_MIME_TYPES.
+	 *
+	 * @since 0.1.5
+	 *
+	 * @param string $mime_type MIME type.
+	 * @return string File extension without dot.
+	 */
+	public static function mime_to_extension( string $mime_type ): string {
+		return self::EXTENSIONS[ strtolower( trim( $mime_type ) ) ] ?? 'png';
+	}
 
 	/**
 	 * Whether a MIME type is accepted.
@@ -175,13 +205,8 @@ final class ImageAttachmentSaver {
 			return $valid;
 		}
 
-		$extensions = array(
-			'image/png'  => 'png',
-			'image/jpeg' => 'jpg',
-			'image/webp' => 'webp',
-		);
-		$extension  = $extensions[ strtolower( trim( $mime_type ) ) ] ?? 'png';
-		$base       = sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) );
+		$extension = self::mime_to_extension( $mime_type );
+		$base      = sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) );
 		if ( '' === $base ) {
 			$base = 'opencode-image';
 		}

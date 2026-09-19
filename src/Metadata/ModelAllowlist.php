@@ -153,6 +153,22 @@ final class ModelAllowlist {
 	}
 
 	/**
+	 * Whether a model returns reliable strict-schema JSON.
+	 *
+	 * Single encoding of the 'DeepSeek is broken' rule, consulted both when
+	 * advertising outputSchema metadata and when gating tool calls (whose
+	 * arguments cannot be trusted either). Narrows in one place.
+	 *
+	 * @since 0.1.5
+	 *
+	 * @param string $id Model ID.
+	 * @return bool
+	 */
+	public static function hasReliableJson( string $id ): bool {
+		return 0 !== strpos( $id, 'deepseek' );
+	}
+
+	/**
 	 * Whether a model may advertise function-calling (tools) support.
 	 *
 	 * Capability gate keeping spend and injection surface bounded: the model
@@ -176,7 +192,7 @@ final class ModelAllowlist {
 		if ( self::isFree( $id ) ) {
 			return false;
 		}
-		if ( 0 === strpos( $id, 'deepseek' ) ) {
+		if ( ! self::hasReliableJson( $id ) ) {
 			return false;
 		}
 		return true;
