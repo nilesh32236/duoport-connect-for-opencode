@@ -112,6 +112,41 @@ final class ModelAllowlist {
 	);
 
 	/**
+	 * Allowlisted IDs for one catalog.
+	 *
+	 * Fail-open: unknown catalogs yield an empty list.
+	 *
+	 * @since 0.1.5
+	 *
+	 * @param string $catalog Catalog slug.
+	 * @return list<string>
+	 */
+	public static function allowed_models( string $catalog ): array {
+		$list = self::ALLOW[ $catalog ] ?? array();
+		return array_values( $list );
+	}
+
+	/**
+	 * Deduplicated, sorted union of allowlisted IDs across catalogs.
+	 *
+	 * Source of default-model picker options. Never throws.
+	 *
+	 * @since 0.1.5
+	 *
+	 * @return list<string>
+	 */
+	public static function all_models(): array {
+		try {
+			$merged = array_merge( self::allowed_models( 'go' ), self::allowed_models( 'zen' ) );
+			$merged = array_unique( $merged );
+			sort( $merged );
+			return array_values( $merged );
+		} catch ( \Throwable $e ) {
+			return array();
+		}
+	}
+
+	/**
 	 * Whether a model is allowlisted.
 	 *
 	 * @since 0.1.0

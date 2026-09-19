@@ -87,7 +87,17 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 		if ( ! is_array( $data['data'] ) || array() === $data['data'] ) {
 			return array();
 		}
-		$show_all = (bool) ( get_option( \OpenCodeConnector\OPTION_NAME, array() )['show_all_models'] ?? false );
+		$show_all = false;
+		try {
+			if ( function_exists( 'get_option' ) ) {
+				$raw_opts = get_option( \OpenCodeConnector\OPTION_NAME, array() );
+				if ( is_array( $raw_opts ) ) {
+					$show_all = (bool) ( $raw_opts['show_all_models'] ?? false );
+				}
+			}
+		} catch ( \Throwable $e ) {
+			$show_all = false;
+		}
 
 		$common_opts = array(
 			new SupportedOption( OptionEnum::systemInstruction() ),
