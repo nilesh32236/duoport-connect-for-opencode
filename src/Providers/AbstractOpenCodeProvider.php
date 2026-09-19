@@ -187,6 +187,11 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * @throws \RuntimeException When the SDK enum factories are unavailable.
 	 */
 	protected static function createProviderMetadata(): ProviderMetadata {
+		// Fail open when the SDK DTO itself is missing: let the bootstrap
+		// catch convert this into an unregistered provider + notice.
+		if ( ! class_exists( ProviderMetadata::class ) ) {
+			throw new \RuntimeException( 'OpenCode provider requires ProviderMetadata.' );
+		}
 		// NOTE: the factories below are magic (__callStatic on AbstractEnum),
 		// so method_exists() probing cannot see them — probe the backing
 		// class constants instead, then call the factories directly.
