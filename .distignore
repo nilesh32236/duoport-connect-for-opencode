@@ -33,3 +33,4 @@ opencode.json
 AUDIT/
 .phpunit.result.cache
 /.wordpress-org/
+review-output.jsonl
