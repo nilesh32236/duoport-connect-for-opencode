@@ -38,8 +38,8 @@ final class ImageAttachmentSaver {
 	 * File extension per MIME type, derived from the allowlist.
 	 *
 	 * Keys must stay in lockstep with ALLOWED_MIME_TYPES: adding a type
-	 * here requires an entry below, otherwise the fallback saves it with a
-	 * wrong extension.
+	 * here requires an entry below, otherwise mime_to_extension() throws
+	 * instead of silently saving with a wrong extension.
 	 *
 	 * @var array<string, string>
 	 */
