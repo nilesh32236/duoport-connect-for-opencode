@@ -35,11 +35,48 @@ final class ImageAttachmentSaver {
 	public const ALLOWED_MIME_TYPES = array( 'image/png', 'image/jpeg', 'image/webp' );
 
 	/**
+	 * File extension per MIME type, derived from the allowlist.
+	 *
+	 * Keys must stay in lockstep with ALLOWED_MIME_TYPES: adding a type
+	 * here requires an entry below, otherwise mime_to_extension() throws
+	 * instead of silently saving with a wrong extension.
+	 *
+	 * @var array<string, string>
+	 */
+	private const EXTENSIONS = array(
+		'image/png'  => 'png',
+		'image/jpeg' => 'jpg',
+		'image/webp' => 'webp',
+	);
+
+	/**
 	 * Maximum accepted payload size in bytes (10 MB).
 	 *
 	 * @var int
 	 */
 	public const MAX_BYTES = 10485760;
+
+	/**
+	 * File extension for a MIME type.
+	 *
+	 * Throws on allowlisted-but-unmapped types so adding a MIME to
+	 * ALLOWED_MIME_TYPES without updating EXTENSIONS fails loudly instead
+	 * of silently saving with the wrong extension.
+	 *
+	 * @since 0.1.4
+	 *
+	 * @param string $mime_type MIME type.
+	 * @return string File extension without dot.
+	 * @throws \InvalidArgumentException When the MIME type has no mapped extension.
+	 */
+	public static function mime_to_extension( string $mime_type ): string {
+		$key = strtolower( trim( $mime_type ) );
+		if ( ! isset( self::EXTENSIONS[ $key ] ) ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message, not output.
+			throw new \InvalidArgumentException( 'Unsupported image MIME type: ' . $mime_type );
+		}
+		return self::EXTENSIONS[ $key ];
+	}
 
 	/**
 	 * Whether a MIME type is accepted.
@@ -175,13 +212,12 @@ final class ImageAttachmentSaver {
 			return $valid;
 		}
 
-		$extensions = array(
-			'image/png'  => 'png',
-			'image/jpeg' => 'jpg',
-			'image/webp' => 'webp',
-		);
-		$extension  = $extensions[ strtolower( trim( $mime_type ) ) ] ?? 'png';
-		$base       = sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) );
+		try {
+			$extension = self::mime_to_extension( $mime_type );
+		} catch ( \InvalidArgumentException $e ) {
+			return new \WP_Error( 'opencode_image_mime', $e->getMessage() );
+		}
+		$base = sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) );
 		if ( '' === $base ) {
 			$base = 'opencode-image';
 		}

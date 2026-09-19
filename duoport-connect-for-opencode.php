@@ -105,8 +105,9 @@ add_action(
 // provider using this key." Separate settings keep every validation against
 // the real submitted key.
 $opencode_connector_bust = static function (): void {
-	delete_transient( 'opencode_connector_avail_go' );
-	delete_transient( 'opencode_connector_avail_zen' );
+	foreach ( Catalog::all() as $opencode_connector_catalog ) {
+		delete_transient( Catalog::transient_key( $opencode_connector_catalog ) );
+	}
 };
 foreach ( array( 'connectors_ai_opencode_go_api_key', 'connectors_ai_opencode_zen_api_key' ) as $opencode_connector_setting ) {
 	add_action( 'update_option_' . $opencode_connector_setting, $opencode_connector_bust );

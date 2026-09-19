@@ -17,6 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use WordPress\AiClient\AiClient;
+use OpenCodeConnector\Catalog;
 
 /**
  * Settings page and cache-bust handlers.
@@ -76,8 +77,7 @@ final class Settings {
 	public function bustCaches( $old_value, $new_value ): void {
 		if ( ( $old_value['show_all_models'] ?? false ) !== ( $new_value['show_all_models'] ?? false ) ) {
 			$this->clearModelCaches();
-			delete_transient( 'opencode_connector_avail_go' );
-			delete_transient( 'opencode_connector_avail_zen' );
+			$this->bustAvailabilityCaches();
 		}
 	}
 
@@ -93,8 +93,24 @@ final class Settings {
 	public function bustCachesAdd( string $option, $value ): void {
 		unset( $option, $value );
 		$this->clearModelCaches();
-		delete_transient( 'opencode_connector_avail_go' );
-		delete_transient( 'opencode_connector_avail_zen' );
+		$this->bustAvailabilityCaches();
+	}
+
+	/**
+	 * Delete every catalog availability transient.
+	 *
+	 * Keys resolve from Catalog so a renamed prefix or a new catalog cannot
+	 * orphan a cache. Credential-blind: transient deletes only, never reads
+	 * or writes any connectors_ai_* option.
+	 *
+	 * @since 0.1.4
+	 *
+	 * @return void
+	 */
+	private function bustAvailabilityCaches(): void {
+		foreach ( Catalog::all() as $catalog ) {
+			delete_transient( Catalog::transient_key( $catalog ) );
+		}
 	}
 
 	/**
@@ -105,10 +121,9 @@ final class Settings {
 	 * @return void
 	 */
 	private function clearModelCaches(): void {
-		$classes = array(
-			\OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory::class,
-			\OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory::class,
-		);
+		// Directory list resolves from the Catalog registry so a new catalog
+		// is busted without editing this method.
+		$classes = Catalog::directory_classes();
 		$cache   = null;
 		if ( class_exists( AiClient::class ) && method_exists( AiClient::class, 'getCache' ) ) {
 			try {
@@ -142,6 +157,11 @@ final class Settings {
 	 *
 	 * Centralizes the ai_client_<VERSION>_<md5>_models pattern so VERSION bumps
 	 * and trait changes stay in one place.
+	 *
+	 * NOTE: the key formula mirrors the SDK's internal cache layout. Pinned
+	 * against AiClient 1.x (tested range: 1.0–1.3, see CompatGuardsTest); if
+	 * the SDK changes its key format, stale model lists orphan — revisit this
+	 * method on SDK major bumps.
 	 *
 	 * @since 0.1.1
 	 * @param string $class_name FQCN.

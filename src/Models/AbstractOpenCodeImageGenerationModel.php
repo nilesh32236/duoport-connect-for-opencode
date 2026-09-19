@@ -16,6 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Http\RequestFactory;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleImageGenerationModel;
@@ -48,7 +49,6 @@ abstract class AbstractOpenCodeImageGenerationModel extends AbstractOpenAiCompat
 	 * @return Request
 	 */
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
-		$cls = $this->providerClass();
-		return new Request( $method, $cls::url( $path ), $headers, $data, $this->getRequestOptions() );
+		return RequestFactory::for_provider( $this->providerClass(), $method, $path, $headers, $data, $this->getRequestOptions() );
 	}
 }
