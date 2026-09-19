@@ -133,6 +133,19 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 				$locked = false;
 			}
 			if ( false !== $locked ) {
+				// Another probe is in flight: prefer the last known legacy bool
+				// verdict over a spurious network error (e.g. concurrent Test
+				// button clicks). Falls back to network_error when unknown.
+				if ( function_exists( 'get_transient' ) ) {
+					try {
+						$last = get_transient( 'opencode_connector_avail_' . $catalog );
+					} catch ( \Throwable $e ) {
+						$last = false;
+					}
+					if ( false !== $last ) {
+						return $last ? self::VERDICT_CONNECTED : self::VERDICT_NETWORK_ERROR;
+					}
+				}
 				return self::VERDICT_NETWORK_ERROR;
 			}
 		}

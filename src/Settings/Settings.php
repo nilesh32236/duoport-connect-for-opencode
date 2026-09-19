@@ -101,16 +101,17 @@ final class Settings {
 	 *
 	 * @param mixed $data   Request data (expected array for chat/completions).
 	 * @param array $stored Stored options (use stored_options() at runtime).
-	 * @return mixed Request data with defaults applied (unchanged when not an array).
+	 * @return array Request data with defaults applied (empty array when not an array).
 	 */
 	public static function merge_generation_defaults( $data, array $stored ): array {
 		if ( ! is_array( $data ) ) {
-			return is_array( $data ) ? $data : array();
+			return array();
 		}
 		$merged = $data;
 		try {
 			$default_model = isset( $stored['default_model'] ) && is_string( $stored['default_model'] ) ? trim( $stored['default_model'] ) : '';
-			if ( ( ! isset( $merged['model'] ) || '' === $merged['model'] ) && '' !== $default_model ) {
+			$model_missing = ! array_key_exists( 'model', $merged ) || in_array( $merged['model'], array( '', null, false ), true );
+			if ( $model_missing && '' !== $default_model ) {
 				$allowed = false;
 				if ( class_exists( \OpenCodeConnector\Metadata\ModelAllowlist::class ) && method_exists( \OpenCodeConnector\Metadata\ModelAllowlist::class, 'isAllowed' ) ) {
 					$allowed = \OpenCodeConnector\Metadata\ModelAllowlist::isAllowed( $default_model, 'go' ) || \OpenCodeConnector\Metadata\ModelAllowlist::isAllowed( $default_model, 'zen' );
@@ -121,12 +122,12 @@ final class Settings {
 					$merged['model'] = $default_model;
 				}
 			}
-			if ( ! array_key_exists( 'temperature', $merged ) || null === $merged['temperature'] ) {
+			if ( ! array_key_exists( 'temperature', $merged ) || in_array( $merged['temperature'], array( null, false, '' ), true ) ) {
 				if ( isset( $stored['temperature'] ) && is_numeric( $stored['temperature'] ) ) {
 					$merged['temperature'] = (float) $stored['temperature'];
 				}
 			}
-			if ( ! array_key_exists( 'max_tokens', $merged ) || null === $merged['max_tokens'] ) {
+			if ( ! array_key_exists( 'max_tokens', $merged ) || in_array( $merged['max_tokens'], array( null, false, '' ), true ) ) {
 				if ( isset( $stored['max_tokens'] ) && is_numeric( $stored['max_tokens'] ) ) {
 					$merged['max_tokens'] = (int) $stored['max_tokens'];
 				}
@@ -232,11 +233,7 @@ final class Settings {
 			if ( '' === $value || null === $value || ! is_numeric( $value ) ) {
 				return self::DEFAULT_MAX_TOKENS;
 			}
-			if ( function_exists( 'absint' ) ) {
-				$int = absint( $value );
-			} else {
-				$int = abs( (int) $value );
-			}
+			$int = (int) $value;
 			if ( $int < 1 ) {
 				return 1;
 			}
@@ -477,17 +474,6 @@ final class Settings {
 			}
 		}
 		$has_picker = array() !== $models;
-
-		// Legacy WP fallback: static status line only when core helpers are missing.
-		$wp_version_ok = true;
-		try {
-			if ( function_exists( 'get_bloginfo' ) && function_exists( 'version_compare' ) ) {
-				$wp_version_ok = version_compare( (string) get_bloginfo( 'version' ), '7.0', '>=' );
-			}
-		} catch ( \Throwable $e ) {
-			$wp_version_ok = true;
-		}
-		unset( $wp_version_ok );
 
 		$go_ok  = false;
 		$zen_ok = false;

@@ -79,7 +79,11 @@ final class ConnectionTest {
 			if ( function_exists( 'check_ajax_referer' ) ) {
 				$nonce_ok = (bool) check_ajax_referer( self::NONCE_ACTION, 'nonce', false );
 			} elseif ( function_exists( 'wp_verify_nonce' ) && isset( $_REQUEST['nonce'] ) ) {
-				$nonce_ok = (bool) wp_verify_nonce( sanitize_key( $_REQUEST['nonce'] ), self::NONCE_ACTION ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+				$nonce_raw = $_REQUEST['nonce']; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Unslashed on the next line.
+				if ( function_exists( 'wp_unslash' ) && is_string( $nonce_raw ) ) {
+					$nonce_raw = wp_unslash( $nonce_raw ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+				}
+				$nonce_ok = is_string( $nonce_raw ) && (bool) wp_verify_nonce( sanitize_key( $nonce_raw ), self::NONCE_ACTION ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 			} else {
 				$nonce_ok = false;
 			}
@@ -96,8 +100,9 @@ final class ConnectionTest {
 			if ( function_exists( 'sanitize_key' ) ) {
 				$catalog = sanitize_key( $catalog );
 			}
-			if ( 'go' !== $catalog && 'zen' !== $catalog ) {
-				$catalog = 'all';
+			if ( 'go' !== $catalog && 'zen' !== $catalog && 'all' !== $catalog ) {
+				self::send_error( 'bad_request', 400 );
+				return;
 			}
 
 			$catalogs = ( 'all' === $catalog ) ? array( 'go', 'zen' ) : array( $catalog );
