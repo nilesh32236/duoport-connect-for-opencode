@@ -148,3 +148,172 @@ namespace WordPress\AiClient\Providers\ApiBasedImplementation {
 		}
 	}
 }
+
+namespace WordPress\AiClient\Providers\Http\DTO {
+	if ( ! class_exists( \WordPress\AiClient\Providers\Http\DTO\Response::class ) ) {
+		/**
+		 * Minimal response DTO stub.
+		 *
+		 * Supports both shapes the suite exercises: the metadata-directory
+		 * shape `new Response( array $data )` (defaults to status 200) and
+		 * the probe shape `new Response( int $status_code, mixed $data )`.
+		 */
+		final class Response {
+			/**
+			 * HTTP status code.
+			 *
+			 * @var int
+			 */
+			private int $status_code;
+
+			/**
+			 * Decoded response data.
+			 *
+			 * @var mixed
+			 */
+			private mixed $data;
+
+			/**
+			 * Constructor.
+			 *
+			 * @param mixed $first  Status code (int) or data (array).
+			 * @param mixed $second Decoded data when $first is a status code.
+			 */
+			public function __construct(
+				mixed $first = array(),
+				mixed $second = null
+			) {
+				if ( is_int( $first ) ) {
+					$this->status_code = $first;
+					$this->data        = $second;
+				} else {
+					$this->status_code = 200;
+					$this->data        = $first;
+				}
+			}
+
+			/**
+			 * HTTP status code.
+			 *
+			 * @return int
+			 */
+			public function getStatusCode(): int {
+				return $this->status_code;
+			}
+
+			/**
+			 * Decoded response data.
+			 *
+			 * @return mixed
+			 */
+			public function getData(): mixed {
+				return $this->data;
+			}
+		}
+	}
+}
+
+namespace WordPress\AiClient\Providers\Contracts {
+	if ( ! interface_exists( \WordPress\AiClient\Providers\Contracts\ProviderAvailabilityInterface::class ) ) {
+		/**
+		 * Minimal provider-availability contract stub.
+		 */
+		interface ProviderAvailabilityInterface {
+			/**
+			 * Whether the provider is configured.
+			 *
+			 * @return bool
+			 */
+			public function isConfigured(): bool;
+		}
+	}
+}
+
+namespace WordPress\AiClient\Providers\Http\Contracts {
+	if ( ! interface_exists( \WordPress\AiClient\Providers\Http\Contracts\WithHttpTransporterInterface::class ) ) {
+		/**
+		 * Minimal HTTP-transporter awareness contract stub.
+		 */
+		interface WithHttpTransporterInterface {
+		}
+	}
+
+	if ( ! interface_exists( \WordPress\AiClient\Providers\Http\Contracts\WithRequestAuthenticationInterface::class ) ) {
+		/**
+		 * Minimal request-authentication awareness contract stub.
+		 */
+		interface WithRequestAuthenticationInterface {
+		}
+	}
+}
+
+namespace WordPress\AiClient\Providers\Http\Traits {
+	if ( ! trait_exists( \WordPress\AiClient\Providers\Http\Traits\WithHttpTransporterTrait::class ) ) {
+		/**
+		 * Minimal HTTP-transporter trait stub (injectable for probe tests).
+		 */
+		trait WithHttpTransporterTrait {
+			/**
+			 * Injected transporter double.
+			 *
+			 * @var mixed
+			 */
+			private mixed $http_transporter_stub = null;
+
+			/**
+			 * Current transporter.
+			 *
+			 * @return mixed
+			 */
+			public function getHttpTransporter(): mixed {
+				return $this->http_transporter_stub;
+			}
+
+			/**
+			 * Inject a transporter double.
+			 *
+			 * @param mixed $transporter Transporter double.
+			 * @return void
+			 */
+			public function setHttpTransporter( mixed $transporter ): void {
+				$this->http_transporter_stub = $transporter;
+			}
+		}
+	}
+
+	if ( ! trait_exists( \WordPress\AiClient\Providers\Http\Traits\WithRequestAuthenticationTrait::class ) ) {
+		/**
+		 * Minimal request-authentication trait stub (injectable for probe tests).
+		 */
+		trait WithRequestAuthenticationTrait {
+			/**
+			 * Injected authentication double.
+			 *
+			 * @var mixed
+			 */
+			private mixed $request_authentication_stub = null;
+
+			/**
+			 * Current authentication.
+			 *
+			 * @return mixed
+			 */
+			public function getRequestAuthentication(): mixed {
+				if ( null === $this->request_authentication_stub ) {
+					throw new \RuntimeException( 'No request authentication configured.' );
+				}
+				return $this->request_authentication_stub;
+			}
+
+			/**
+			 * Inject an authentication double.
+			 *
+			 * @param mixed $authentication Authentication double.
+			 * @return void
+			 */
+			public function setRequestAuthentication( mixed $authentication ): void {
+				$this->request_authentication_stub = $authentication;
+			}
+		}
+	}
+}
