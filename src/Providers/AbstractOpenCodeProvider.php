@@ -187,6 +187,14 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * @throws \RuntimeException When the SDK enum factories are unavailable.
 	 */
 	protected static function createProviderMetadata(): ProviderMetadata {
+		// Dual-stack: core-bundled (WP 7.0+) and Composer-bundled (WP 6.9)
+		// clients share these DTO shapes. Probe before touching them so a
+		// missing/partial SDK degrades to not-connected (caller catches the
+		// RuntimeException) instead of fataling. Never call removed AiClient
+		// init or prompt APIs here.
+		if ( ! class_exists( ProviderMetadata::class ) ) {
+			throw new \RuntimeException( 'OpenCode provider requires ProviderMetadata.' );
+		}
 		// NOTE: the factories below are magic (__callStatic on AbstractEnum),
 		// so method_exists() probing cannot see them — probe the backing
 		// class constants instead, then call the factories directly.
@@ -208,7 +216,10 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 			$args[] = static::description();
 		}
 		if ( version_compare( $ai_version, '1.3.0', '>=' ) ) {
-			$args[] = dirname( __DIR__, 2 ) . '/assets/images/opencode.svg';
+			$icon = dirname( __DIR__, 2 ) . '/assets/images/opencode.svg';
+			if ( file_exists( $icon ) ) {
+				$args[] = $icon;
+			}
 		}
 		return new ProviderMetadata( ...$args );
 	}

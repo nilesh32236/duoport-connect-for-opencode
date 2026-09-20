@@ -21,6 +21,9 @@
         "phpunit/phpunit": "^11.0",
         "brain/monkey": "^2.7"
     },
+    "suggest": {
+        "wordpress/ai-client": "Bundled fallback for WP < 7.0; on WP 7.0+ the core-bundled AI client is used instead (never shipped in the release ZIP)."
+    },
     "autoload-dev": {
         "psr-4": {
             "OpenCodeConnector\\Tests\\Unit\\": "tests/Unit/"

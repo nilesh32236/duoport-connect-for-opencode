@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name:       DuoPort Connector for OpenCode
- * Description:       Connect OpenCode Go and Zen (including free models) to WordPress 7.0 AI.
- * Requires at least: 7.0
+ * Description:       Connect OpenCode Go and Zen (including free models) to WordPress AI.
+ * Requires at least: 6.9
  * Requires PHP:      8.2
  * Version:           0.1.4
  * Author:            Nilesh Kanzariya
@@ -28,18 +28,23 @@ const OPTION_NAME = 'opencode_connector_settings';
 
 require_once __DIR__ . '/src/autoload.php';
 
-// Guard: WP < 7.0 or SDK missing — admin notice, bail.
+// Guard: WP < 6.9 or AI client missing — admin notice, bail.
+//
+// Dual-stack: WordPress 7.0 ships a core-bundled AI client (preferred); on
+// WP 6.9 the Composer-bundled SDK is loaded as a fallback. The loader below
+// never loads the bundled SDK when core classes are present and never
+// requires it unconditionally — a missing file simply means "not connected".
 add_action(
 	'admin_notices',
 	static function (): void {
-		$wp_ok  = version_compare( get_bloginfo( 'version' ), '7.0', '>=' );
-		$sdk_ok = class_exists( \WordPress\AiClient\AiClient::class );
+		$wp_ok  = Compat\AiClientLoader::is_supported_wp_version();
+		$sdk_ok = Compat\AiClientLoader::ensure_ai_client_loaded();
 		if ( $wp_ok && $sdk_ok ) {
 			return;
 		}
 		$msg = ! $wp_ok
-			? __( 'DuoPort Connector for OpenCode requires WordPress 7.0+.', 'duoport-connect-for-opencode' )
-			: __( 'DuoPort Connector for OpenCode requires the WordPress AI Client (WordPress 7.0+ AI).', 'duoport-connect-for-opencode' );
+			? __( 'DuoPort Connector for OpenCode requires WordPress 6.9+. On WP 6.9 the bundled AI Client SDK is used; on WP 7.0+ the core-bundled AI client is used.', 'duoport-connect-for-opencode' )
+			: __( 'DuoPort Connector for OpenCode requires the WordPress AI Client (core-bundled on WordPress 7.0+, bundled SDK on WP 6.9).', 'duoport-connect-for-opencode' );
 		echo '<div class="notice notice-error"><p>' . esc_html( $msg ) . '</p></div>';
 	}
 );
@@ -47,6 +52,12 @@ add_action(
 add_action(
 	'init',
 	static function (): void {
+		if ( ! Compat\AiClientLoader::is_supported_wp_version() ) {
+			return;
+		}
+		if ( ! Compat\AiClientLoader::ensure_ai_client_loaded() ) {
+			return;
+		}
 		if ( ! class_exists( \WordPress\AiClient\AiClient::class ) ) {
 			return;
 		}

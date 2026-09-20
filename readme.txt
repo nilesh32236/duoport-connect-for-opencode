@@ -1,14 +1,14 @@
 === DuoPort Connector for OpenCode ===
 Contributors: nilesh912
 Tags: ai, opencode, connector, zen, go
-Requires at least: 7.0
+Requires at least: 6.9
 Tested up to: 7.1
 Requires PHP: 8.2
 Stable tag: 0.1.4
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Connect OpenCode Go and Zen catalogs (including free models) to WordPress 7.0 AI.
+Connect OpenCode Go and Zen catalogs (including free models) to WordPress AI (core-bundled on WP 7.0+, bundled SDK fallback on WP 6.9).
 
 == Description ==
 
@@ -47,7 +47,7 @@ By default only allowlisted chat/completions models are shown (Go: 17, Zen: 17 i
 
 = Does it work without WordPress 7.0? =
 
-No. Requires WordPress 7.0+ and PHP 8.2+. On older installs an admin notice is shown and registration is skipped.
+On WordPress 7.0+ the core-bundled AI Client is used. On WordPress 6.9 the bundled AI Client SDK is used as a fallback. Requires WordPress 6.9+ and PHP 8.2+. On older installs an admin notice is shown and registration is skipped.
 
 == External Services ==
 

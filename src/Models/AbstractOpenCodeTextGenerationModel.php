@@ -48,9 +48,16 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * @param array          $headers Request headers.
 	 * @param mixed          $data    Request data.
 	 * @return Request
+	 * @throws \RuntimeException When the AI client DTO or provider class is unavailable.
 	 */
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
+		// Dual-stack guard: fail with a catchable exception (not a fatal
+		// Error) when the SDK DTO or provider class is unavailable on either
+		// stack. Never call removed AiClient init or prompt APIs here.
 		$cls = $this->providerClass();
+		if ( ! class_exists( Request::class ) || ! class_exists( $cls ) || ! method_exists( $cls, 'url' ) ) {
+			throw new \RuntimeException( 'OpenCode text model requires the WordPress AI Client.' );
+		}
 		if ( OpenCodeGoProvider::class === $cls ) {
 			try {
 				$with_session = SessionHeader::inject_into_headers( $headers, $data );
