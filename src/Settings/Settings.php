@@ -78,6 +78,14 @@ final class Settings {
 			$this->clearModelCaches();
 			delete_transient( 'opencode_connector_avail_go' );
 			delete_transient( 'opencode_connector_avail_zen' );
+			delete_transient( 'opencode_connector_avail_go_lock' );
+			delete_transient( 'opencode_connector_avail_zen_lock' );
+			if ( function_exists( 'delete_site_transient' ) ) {
+				delete_site_transient( 'opencode_connector_avail_go' );
+				delete_site_transient( 'opencode_connector_avail_zen' );
+				delete_site_transient( 'opencode_connector_avail_go_lock' );
+				delete_site_transient( 'opencode_connector_avail_zen_lock' );
+			}
 		}
 	}
 
@@ -95,6 +103,14 @@ final class Settings {
 		$this->clearModelCaches();
 		delete_transient( 'opencode_connector_avail_go' );
 		delete_transient( 'opencode_connector_avail_zen' );
+		delete_transient( 'opencode_connector_avail_go_lock' );
+		delete_transient( 'opencode_connector_avail_zen_lock' );
+		if ( function_exists( 'delete_site_transient' ) ) {
+			delete_site_transient( 'opencode_connector_avail_go' );
+			delete_site_transient( 'opencode_connector_avail_zen' );
+			delete_site_transient( 'opencode_connector_avail_go_lock' );
+			delete_site_transient( 'opencode_connector_avail_zen_lock' );
+		}
 	}
 
 	/**
