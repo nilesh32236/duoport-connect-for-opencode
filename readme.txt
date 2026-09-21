@@ -1,6 +1,6 @@
 === DuoPort Connector for OpenCode ===
 Contributors: nilesh912
-Tags: ai, opencode, connector, zen, go
+Tags: ai, artificial-intelligence, connector, opencode, zen
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.2
