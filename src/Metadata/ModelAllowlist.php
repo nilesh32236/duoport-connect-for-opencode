@@ -184,7 +184,7 @@ final class ModelAllowlist {
 		if ( self::isFree( $id ) ) {
 			return false;
 		}
-		if ( 0 === strpos( $id, 'deepseek' ) ) {
+		if ( str_starts_with( $id, 'deepseek' ) ) {
 			return false;
 		}
 		return true;

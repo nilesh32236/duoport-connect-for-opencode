@@ -16,10 +16,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-use OpenCodeConnector\Http\ClientUserAgent;
-use OpenCodeConnector\Http\SessionHeader;
+use OpenCodeConnector\Http\GoRequestHeaders;
 use OpenCodeConnector\Metadata\ModelAllowlist;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
+use OpenCodeConnector\Providers\OpenCodeZenProvider;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleTextGenerationModel;
@@ -50,7 +50,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * never fatal.
 	 *
 	 * @since 0.1.0
-	 * @since 0.1.5 Added shared client User-Agent on the Go path.
+	 * @since 0.1.4 Added shared client User-Agent on the Go path.
 	 *
 	 * @param HttpMethodEnum $method  HTTP method.
 	 * @param string         $path    Request path.
@@ -61,18 +61,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
 		$cls = $this->providerClass();
 		if ( OpenCodeGoProvider::class === $cls ) {
-			try {
-				$with_session = SessionHeader::inject_into_headers( $headers, $data );
-			} catch ( \Throwable ) {
-				$with_session = $headers;
-			}
-			$headers = $with_session;
-			try {
-				$with_agent = ClientUserAgent::inject_into_headers( $headers );
-			} catch ( \Throwable ) {
-				$with_agent = $headers;
-			}
-			$headers = $with_agent;
+			$headers = GoRequestHeaders::for_go( $headers, $data );
 		}
 		return new Request( $method, $cls::url( $path ), $headers, $data, $this->getRequestOptions() );
 	}
@@ -150,12 +139,12 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 						'type'     => 'function',
 						'function' => $declaration_array,
 					);
-				} catch ( \Throwable $e ) {
+				} catch ( \Throwable ) {
 					continue;
 				}
 			}
 			return $tools;
-		} catch ( \Throwable $e ) {
+		} catch ( \Throwable ) {
 			return array();
 		}
 	}
@@ -179,32 +168,35 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 				}
 				try {
 					$metadata = $this->{$accessor}();
-				} catch ( \Throwable $e ) {
+				} catch ( \Throwable ) {
 					continue;
 				}
 				if ( is_object( $metadata ) && method_exists( $metadata, 'getId' ) ) {
 					try {
 						return (string) $metadata->getId();
-					} catch ( \Throwable $e ) {
+					} catch ( \Throwable ) {
 						continue;
 					}
 				}
 			}
+			// Last-resort fallback: reflect over object properties looking for
+			// SDK metadata holding a getId() accessor (targets the
+			// WordPress AI Client OpenAI-compatible base model). The
+			// public-accessor loop above is primary; prefer an explicit
+			// model-id accessor if the SDK exposes one. No setAccessible()
+			// call: it has been a no-op since PHP 8.1 and the floor here is 8.2.
 			try {
 				$reflection = new \ReflectionObject( $this );
 				foreach ( $reflection->getProperties() as $prop ) {
 					try {
-						if ( method_exists( $prop, 'setAccessible' ) ) {
-							$prop->setAccessible( true );
-						}
 						$candidate = $prop->getValue( $this );
-					} catch ( \Throwable $e ) {
+					} catch ( \Throwable ) {
 						continue;
 					}
 					if ( is_object( $candidate ) && method_exists( $candidate, 'getId' ) ) {
 						try {
 							$id = (string) $candidate->getId();
-						} catch ( \Throwable $e ) {
+						} catch ( \Throwable ) {
 							continue;
 						}
 						if ( '' !== $id ) {
@@ -212,10 +204,10 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 						}
 					}
 				}
-			} catch ( \Throwable $e ) {
+			} catch ( \Throwable ) {
 				return '';
 			}
-		} catch ( \Throwable $e ) {
+		} catch ( \Throwable ) {
 			return '';
 		}
 		return '';
@@ -241,13 +233,13 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			if ( ! is_string( $cls ) || '' === $cls ) {
 				return '';
 			}
-			if ( false !== stripos( $cls, 'zen' ) ) {
+			if ( OpenCodeZenProvider::class === $cls ) {
 				return 'zen';
 			}
-			if ( false !== stripos( $cls, 'go' ) ) {
+			if ( OpenCodeGoProvider::class === $cls ) {
 				return 'go';
 			}
-		} catch ( \Throwable $e ) {
+		} catch ( \Throwable ) {
 			return '';
 		}
 		return '';

@@ -16,8 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-use OpenCodeConnector\Http\ClientUserAgent;
-use OpenCodeConnector\Http\SessionHeader;
+use OpenCodeConnector\Http\GoRequestHeaders;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
@@ -49,7 +48,7 @@ abstract class AbstractOpenCodeImageGenerationModel extends AbstractOpenAiCompat
 	 * Header failures always fall back to a headerless send; never fatal.
 	 *
 	 * @since 0.1.4
-	 * @since 0.1.5 Added Go session header and client User-Agent.
+	 * @since 0.1.4 Added Go session header and client User-Agent.
 	 *
 	 * @param HttpMethodEnum $method  HTTP method.
 	 * @param string         $path    Request path.
@@ -60,18 +59,7 @@ abstract class AbstractOpenCodeImageGenerationModel extends AbstractOpenAiCompat
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
 		$cls = $this->providerClass();
 		if ( OpenCodeGoProvider::class === $cls ) {
-			try {
-				$with_session = SessionHeader::inject_into_headers( $headers, $data );
-			} catch ( \Throwable ) {
-				$with_session = $headers;
-			}
-			$headers = $with_session;
-			try {
-				$with_agent = ClientUserAgent::inject_into_headers( $headers );
-			} catch ( \Throwable ) {
-				$with_agent = $headers;
-			}
-			$headers = $with_agent;
+			$headers = GoRequestHeaders::for_go( $headers, $data );
 		}
 		return new Request( $method, $cls::url( $path ), $headers, $data, $this->getRequestOptions() );
 	}

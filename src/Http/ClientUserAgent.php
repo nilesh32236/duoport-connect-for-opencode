@@ -7,7 +7,7 @@
  * never carry it.
  *
  * @package OpenCodeConnector
- * @since 0.1.5
+ * @since 0.1.4
  */
 
 declare(strict_types=1);
@@ -26,20 +26,20 @@ if ( ! defined( 'ABSPATH' ) ) {
  * users, or globals. Never throws.
  *
  * @package OpenCodeConnector
- * @since 0.1.5
+ * @since 0.1.4
  */
 final class ClientUserAgent {
 	/**
 	 * Header name.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 */
 	const HEADER_NAME = 'User-Agent';
 
 	/**
 	 * Client User-Agent prefix identifying this plugin.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 */
 	const PREFIX = 'duoport-connect-for-opencode/';
 
@@ -49,7 +49,12 @@ final class ClientUserAgent {
 	 * Mirrors the plugin header; used only when `OpenCodeConnector\VERSION`
 	 * is not defined (e.g. partial bootstrap). Never read from options.
 	 *
-	 * @since 0.1.5
+	 * Release checklist: bump this together with the plugin header `Version:`,
+	 * the `OpenCodeConnector\VERSION` const, the readme.txt Stable tag, and
+	 * the readme.txt Changelog entry, or the User-Agent reports a stale
+	 * version on partial bootstraps.
+	 *
+	 * @since 0.1.4
 	 */
 	const FALLBACK_VERSION = '0.1.4';
 
@@ -60,7 +65,7 @@ final class ClientUserAgent {
 	 * value stays correct across version bumps. Never throws; never reads
 	 * options.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @return string Client User-Agent value.
 	 */
@@ -85,7 +90,7 @@ final class ClientUserAgent {
 	 * Adds the header only when no value was explicitly provided (compared
 	 * case-insensitively). Never throws; never reads options.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param array $headers Request headers.
 	 * @return array Headers with the client User-Agent added when applicable.
