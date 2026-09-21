@@ -108,6 +108,16 @@ final class SlimBustHooksTest extends MonkeyTestCase {
 			$deleted,
 			'The zen availability transient must be deleted when either key changes.'
 		);
+		self::assertContains(
+			'opencode_connector_avail_go_lock',
+			$deleted,
+			'The go stampede-lock transient must be deleted when either key changes.'
+		);
+		self::assertContains(
+			'opencode_connector_avail_zen_lock',
+			$deleted,
+			'The zen stampede-lock transient must be deleted when either key changes.'
+		);
 
 		foreach ( array_merge( $get_calls, $update_calls ) as $call ) {
 			$option_name = (string) ( $call[0] ?? '' );

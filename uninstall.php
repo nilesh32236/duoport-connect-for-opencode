@@ -17,6 +17,10 @@ delete_transient( 'opencode_connector_avail_go' );
 delete_transient( 'opencode_connector_avail_zen' );
 delete_site_transient( 'opencode_connector_avail_go' );
 delete_site_transient( 'opencode_connector_avail_zen' );
+delete_transient( 'opencode_connector_avail_go_lock' );
+delete_transient( 'opencode_connector_avail_zen_lock' );
+delete_site_transient( 'opencode_connector_avail_go_lock' );
+delete_site_transient( 'opencode_connector_avail_zen_lock' );
 // AI Client model caches (ai_client_<VERSION>_<md5>_models) — best-effort cleanup
 // for both single-site transients and multisite site-transients + direct DB fallback.
 global $wpdb;
