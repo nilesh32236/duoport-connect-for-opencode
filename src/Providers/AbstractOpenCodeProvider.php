@@ -93,12 +93,17 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 		}
 		$caps = $model->getSupportedCapabilities();
 		foreach ( $caps as $capability ) {
-			if ( self::capability_matches( $capability, 'isImageGeneration', 'image-generation' ) ) {
+			if ( self::capability_matches( $capability, 'isImageGeneration', array( 'image-generation', 'image_generation' ) ) ) {
 				return 'go' === static::catalogKey()
 					? new OpenCodeGoImageGenerationModel( $model, $provider )
 					: new OpenCodeZenImageGenerationModel( $model, $provider );
 			}
-			if ( self::capability_matches( $capability, 'isTextGeneration', 'text-generation' ) ) {
+			if ( self::capability_matches( $capability, 'isTextGeneration', array( 'text-generation', 'text_generation' ) ) ) {
+				return 'go' === static::catalogKey()
+					? new OpenCodeGoTextGenerationModel( $model, $provider )
+					: new OpenCodeZenTextGenerationModel( $model, $provider );
+			}
+			if ( self::capability_matches( $capability, 'isChatHistory', array( 'chat-history', 'chat_history' ) ) ) {
 				return 'go' === static::catalogKey()
 					? new OpenCodeGoTextGenerationModel( $model, $provider )
 					: new OpenCodeZenTextGenerationModel( $model, $provider );
@@ -125,21 +130,24 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	}
 
 	/**
-	 * Whether a capability value matches a text/image generation capability.
+	 * Whether a capability value matches a generation/chat capability.
 	 *
 	 * The SDK exposes these checks as magic methods (__call/__callStatic on
 	 * AbstractEnum), so method_exists() probing cannot see them — call the
 	 * checker directly inside try/catch instead, then fall back to legacy
-	 * getValue()/string shapes. Never throws.
+	 * getValue()/string shapes. Accepts both snake_case (real SDK, e.g.
+	 * chat_history) and kebab-case (legacy stubs, e.g. chat-history) values.
+	 * Never throws.
 	 *
 	 * @since 0.1.4
 	 *
-	 * @param mixed  $capability Capability value.
-	 * @param string $checker    Checker method name (e.g. isTextGeneration).
-	 * @param string $value      Legacy scalar value (e.g. text-generation).
+	 * @param mixed        $capability Capability value.
+	 * @param string       $checker    Checker method name (e.g. isTextGeneration).
+	 * @param string|array $value      Legacy scalar value(s) (e.g. text-generation).
 	 * @return bool
 	 */
-	private static function capability_matches( $capability, string $checker, string $value ): bool {
+	private static function capability_matches( $capability, string $checker, $value ): bool {
+		$values = is_array( $value ) ? $value : array( $value );
 		if ( is_object( $capability ) ) {
 			$direct = self::try_capability_checker( $capability, $checker );
 			if ( null !== $direct ) {
@@ -147,13 +155,13 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 			}
 			if ( method_exists( $capability, 'getValue' ) ) {
 				try {
-					return $value === (string) $capability->getValue();
+					return in_array( (string) $capability->getValue(), $values, true );
 				} catch ( \Throwable ) {
 					return false;
 				}
 			}
 		} elseif ( is_string( $capability ) ) {
-			return $value === $capability;
+			return in_array( $capability, $values, true );
 		}
 		return false;
 	}

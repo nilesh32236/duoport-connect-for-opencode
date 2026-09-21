@@ -17,6 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use OpenCodeConnector\Http\SessionHeader;
+use OpenCodeConnector\Metadata\ModelAllowlist;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
@@ -82,5 +83,159 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			);
 		}
 		return array( 'type' => 'json_object' );
+	}
+
+	/**
+	 * Map function declarations to the OpenAI-compatible tools wire shape.
+	 *
+	 * Gated behind ModelAllowlist::isToolCapable(): unsupported, free,
+	 * DeepSeek, or unknown models return an empty array so the request
+	 * degrades to a plain-text completion instead of failing at the
+	 * gateway. Never throws; fail-open by design.
+	 *
+	 * Intentionally does not call parent::prepareToolsParam() so unit tests
+	 * stay runnable against SDK-free stubs and oldest installs without the
+	 * method keep working; the mapping below replicates the verified
+	 * upstream shape.
+	 *
+	 * @since 0.1.4
+	 *
+	 * @param array $function_declarations Function declarations.
+	 * @return array<int, array<string, mixed>>
+	 */
+	protected function prepareToolsParam( array $function_declarations ): array { // phpcs:ignore WordPress.NamingConventions.ValidVariableName.VariableNotSnakeCase
+		try {
+			if ( array() === $function_declarations ) {
+				return array();
+			}
+			if ( ! class_exists( ModelAllowlist::class ) ) {
+				return array();
+			}
+			$model_id = $this->model_id_for_tool_gate();
+			$catalog  = $this->catalog_key_for_tool_gate();
+			if ( '' === $model_id || '' === $catalog ) {
+				return array();
+			}
+			if ( ! method_exists( ModelAllowlist::class, 'isToolCapable' ) ) {
+				return array();
+			}
+			if ( ! ModelAllowlist::isToolCapable( $model_id, $catalog ) ) {
+				return array();
+			}
+			$tools = array();
+			foreach ( $function_declarations as $declaration ) {
+				try {
+					if ( ! is_object( $declaration ) || ! method_exists( $declaration, 'toArray' ) ) {
+						continue;
+					}
+					$declaration_array = $declaration->toArray();
+					if ( ! is_array( $declaration_array ) ) {
+						continue;
+					}
+					$tools[] = array(
+						'type'     => 'function',
+						'function' => $declaration_array,
+					);
+				} catch ( \Throwable $e ) {
+					continue;
+				}
+			}
+			return $tools;
+		} catch ( \Throwable $e ) {
+			return array();
+		}
+	}
+
+	/**
+	 * Resolve the model ID for the tool-capability gate.
+	 *
+	 * Probes SDK metadata accessors first, then protected properties via
+	 * reflection. Returns an empty string when unresolvable so the caller
+	 * fails open to plain text. Never throws.
+	 *
+	 * @since 0.1.4
+	 *
+	 * @return string
+	 */
+	private function model_id_for_tool_gate(): string {
+		try {
+			foreach ( array( 'metadata', 'getModelMetadata', 'getMetadata', 'getModel', 'model' ) as $accessor ) {
+				if ( ! method_exists( $this, $accessor ) ) {
+					continue;
+				}
+				try {
+					$metadata = $this->{$accessor}();
+				} catch ( \Throwable $e ) {
+					continue;
+				}
+				if ( is_object( $metadata ) && method_exists( $metadata, 'getId' ) ) {
+					try {
+						return (string) $metadata->getId();
+					} catch ( \Throwable $e ) {
+						continue;
+					}
+				}
+			}
+			try {
+				$reflection = new \ReflectionObject( $this );
+				foreach ( $reflection->getProperties() as $prop ) {
+					try {
+						if ( method_exists( $prop, 'setAccessible' ) ) {
+							$prop->setAccessible( true );
+						}
+						$candidate = $prop->getValue( $this );
+					} catch ( \Throwable $e ) {
+						continue;
+					}
+					if ( is_object( $candidate ) && method_exists( $candidate, 'getId' ) ) {
+						try {
+							$id = (string) $candidate->getId();
+						} catch ( \Throwable $e ) {
+							continue;
+						}
+						if ( '' !== $id ) {
+							return $id;
+						}
+					}
+				}
+			} catch ( \Throwable $e ) {
+				return '';
+			}
+		} catch ( \Throwable $e ) {
+			return '';
+		}
+		return '';
+	}
+
+	/**
+	 * Resolve the catalog key for the tool-capability gate.
+	 *
+	 * Derived from the bound provider class (Go vs Zen) so models never
+	 * share or alias catalog keys. Returns an empty string when
+	 * unresolvable so the caller fails open to plain text. Never throws.
+	 *
+	 * @since 0.1.4
+	 *
+	 * @return string
+	 */
+	private function catalog_key_for_tool_gate(): string {
+		try {
+			if ( ! method_exists( $this, 'providerClass' ) ) {
+				return '';
+			}
+			$cls = $this->providerClass();
+			if ( ! is_string( $cls ) || '' === $cls ) {
+				return '';
+			}
+			if ( false !== stripos( $cls, 'zen' ) ) {
+				return 'zen';
+			}
+			if ( false !== stripos( $cls, 'go' ) ) {
+				return 'go';
+			}
+		} catch ( \Throwable $e ) {
+			return '';
+		}
+		return '';
 	}
 }
