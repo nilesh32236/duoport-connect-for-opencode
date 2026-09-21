@@ -13,6 +13,9 @@
  * - Image model classes exist behind the capability check (provider routing).
  * - Metadata directory never advertises imageGeneration without an
  *   image-allowlisted ID.
+ * - Go image requests carry the stable session header + client User-Agent
+ *   (empty prompt omits the session fail-open; explicit headers preserved;
+ *   Zen stays header-free).
  * - ImageAttachmentSaver MIME/size/capability guards + Media Library save.
  *
  * @package OpenCodeConnector
@@ -234,6 +237,8 @@ namespace WordPress\AiClient\Providers\Http\Exception {
 
 namespace OpenCodeConnector\Tests\Unit {
 	use Brain\Monkey\Functions;
+	use OpenCodeConnector\Http\ClientUserAgent;
+	use OpenCodeConnector\Http\SessionHeader;
 	use OpenCodeConnector\Media\ImageAttachmentSaver;
 	use OpenCodeConnector\Metadata\ModelAllowlist;
 	use OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory;
@@ -246,6 +251,8 @@ namespace OpenCodeConnector\Tests\Unit {
 	use OpenCodeConnector\Providers\OpenCodeGoProvider;
 	use OpenCodeConnector\Providers\OpenCodeZenProvider;
 	use WordPress\AiClient\Providers\Http\DTO\Response;
+	use WordPress\AiClient\Providers\Http\DTO\Request;
+	use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 	use WordPress\AiClient\Providers\DTO\ProviderMetadata;
 	use WordPress\AiClient\Providers\Models\DTO\ModelMetadata;
 	use WordPress\AiClient\Providers\Models\Enums\CapabilityEnum;
@@ -617,6 +624,115 @@ namespace OpenCodeConnector\Tests\Unit {
 			self::assertSame( 'image/png', $seen_insert[0]['post_mime_type'] );
 			self::assertSame( '/uploads/sunset.png', $seen_insert[1] );
 			self::assertSame( array( 123, array( 'file' => 'sunset.png' ) ), $meta_seen );
+		}
+
+		/**
+		 * Sample image payload.
+		 *
+		 * @return array
+		 */
+		private static function image_payload(): array {
+			return array(
+				'model'  => 'opencode-go-image-model',
+				'prompt' => 'A lighthouse at dusk, watercolor.',
+			);
+		}
+
+		/**
+		 * Build an image model double routing through the given provider.
+		 *
+		 * Declared lazily (anonymous class) because the plugin autoloader is
+		 * only registered in setUpBeforeClass; a top-level subclass would
+		 * fatal at file-load time.
+		 *
+		 * @param class-string $provider_class Provider FQCN.
+		 * @return AbstractOpenCodeImageGenerationModel
+		 */
+		private function new_image_model( string $provider_class ): AbstractOpenCodeImageGenerationModel {
+			return new class( $provider_class ) extends AbstractOpenCodeImageGenerationModel {
+				private string $provider_class_name;
+				public function __construct( string $provider_class_name ) {
+					$this->provider_class_name = $provider_class_name;
+				}
+				protected function providerClass(): string {
+					return $this->provider_class_name;
+				}
+				protected function getRequestOptions(): array {
+					return array();
+				}
+				public function make_request( array $headers, $data ): Request {
+					return $this->createRequest( HttpMethodEnum::POST(), 'images/generations', $headers, $data );
+				}
+			};
+		}
+
+		/**
+		 * Go image requests carry a stable session matching derivation plus the UA.
+		 */
+		public function test_go_image_request_carries_stable_session_and_user_agent(): void {
+			$model = $this->new_image_model( OpenCodeGoProvider::class );
+
+			$first  = $model->make_request( array(), self::image_payload() );
+			$second = $model->make_request( array(), self::image_payload() );
+
+			$headers = $first->getHeaders();
+			self::assertArrayHasKey( SessionHeader::HEADER_NAME, $headers );
+			self::assertSame( $headers[ SessionHeader::HEADER_NAME ], $second->getHeaders()[ SessionHeader::HEADER_NAME ] );
+			self::assertSame( SessionHeader::derive_from_data( self::image_payload() ), $headers[ SessionHeader::HEADER_NAME ] );
+			self::assertMatchesRegularExpression( '/^[a-f0-9]{32}$/', $headers[ SessionHeader::HEADER_NAME ] );
+
+			self::assertArrayHasKey( ClientUserAgent::HEADER_NAME, $headers );
+			self::assertSame( ClientUserAgent::value(), $headers[ ClientUserAgent::HEADER_NAME ] );
+		}
+
+		/**
+		 * Empty prompts omit the session but still send the User-Agent.
+		 */
+		public function test_go_image_request_omits_session_on_empty_prompt_but_sets_user_agent(): void {
+			$model = $this->new_image_model( OpenCodeGoProvider::class );
+
+			foreach ( array( array( 'model' => 'x', 'prompt' => '' ), null ) as $data ) {
+				$headers = $model->make_request( array(), $data )->getHeaders();
+				self::assertArrayNotHasKey( SessionHeader::HEADER_NAME, $headers );
+				self::assertArrayHasKey( ClientUserAgent::HEADER_NAME, $headers );
+				self::assertSame( ClientUserAgent::value(), $headers[ ClientUserAgent::HEADER_NAME ] );
+			}
+		}
+
+		/**
+		 * Explicitly provided session/User-Agent values are never overwritten.
+		 */
+		public function test_go_image_request_preserves_explicit_headers(): void {
+			$model   = $this->new_image_model( OpenCodeGoProvider::class );
+			$request = $model->make_request(
+				array(
+					'X-OpenCode-Session' => 'caller-session',
+					'user-agent'         => 'Custom/1.0',
+				),
+				self::image_payload()
+			);
+
+			$headers = $request->getHeaders();
+			self::assertSame( 'caller-session', $headers['X-OpenCode-Session'] );
+			self::assertArrayNotHasKey( SessionHeader::HEADER_NAME, $headers );
+			self::assertSame( 'Custom/1.0', $headers['user-agent'] );
+			self::assertArrayNotHasKey( ClientUserAgent::HEADER_NAME, $headers );
+		}
+
+		/**
+		 * Zen image requests stay header-free (no session, no User-Agent).
+		 */
+		public function test_zen_image_request_stays_header_free(): void {
+			$model   = $this->new_image_model( OpenCodeZenProvider::class );
+			$request = $model->make_request( array(), self::image_payload() );
+			$headers = $request->getHeaders();
+
+			foreach ( $headers as $name => $value ) {
+				self::assertNotSame( 0, is_string( $name ) ? strcasecmp( $name, SessionHeader::HEADER_NAME ) : 1 );
+				self::assertNotSame( 0, is_string( $name ) ? strcasecmp( $name, ClientUserAgent::HEADER_NAME ) : 1 );
+			}
+			self::assertArrayNotHasKey( SessionHeader::HEADER_NAME, $headers );
+			self::assertArrayNotHasKey( ClientUserAgent::HEADER_NAME, $headers );
 		}
 	}
 }

@@ -14,6 +14,7 @@ declare(strict_types=1);
 namespace OpenCodeConnector\Tests\Unit;
 
 use Brain\Monkey\Functions;
+use OpenCodeConnector\Http\ClientUserAgent;
 use OpenCodeConnector\Http\SessionHeader;
 use OpenCodeConnector\Models\AbstractOpenCodeTextGenerationModel;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
@@ -270,6 +271,131 @@ final class SessionHeaderTest extends MonkeyTestCase {
 		$headers = $request->getHeaders();
 		self::assertSame( 'caller-value', $headers['X-OpenCode-Session'] );
 		self::assertArrayNotHasKey( SessionHeader::HEADER_NAME, $headers );
+	}
+
+	/**
+	 * Image prompt payloads derive a stable 32-hex session via the same scheme.
+	 *
+	 * @return void
+	 */
+	public function test_derive_from_prompt_returns_stable_32hex_value(): void {
+		$payload = array(
+			'model'  => 'opencode-go-image-model',
+			'prompt' => 'A lighthouse at dusk, watercolor.',
+		);
+
+		$first  = SessionHeader::derive_from_data( $payload );
+		$second = SessionHeader::derive_from_data( $payload );
+
+		self::assertIsString( $first );
+		self::assertSame( $first, $second );
+		self::assertMatchesRegularExpression( '/^[a-f0-9]{32}$/', $first );
+	}
+
+	/**
+	 * Prompt derivation varies with the prompt and the model.
+	 *
+	 * @return void
+	 */
+	public function test_derive_from_prompt_differs_per_prompt_and_model(): void {
+		$base = array(
+			'model'  => 'opencode-go-image-model',
+			'prompt' => 'A lighthouse at dusk, watercolor.',
+		);
+
+		$other_prompt           = $base;
+		$other_prompt['prompt'] = 'A lighthouse at dawn, oil painting.';
+		self::assertNotSame(
+			SessionHeader::derive_from_data( $base ),
+			SessionHeader::derive_from_data( $other_prompt )
+		);
+
+		$other_model          = $base;
+		$other_model['model'] = 'another-model';
+		self::assertNotSame(
+			SessionHeader::derive_from_data( $base ),
+			SessionHeader::derive_from_data( $other_model )
+		);
+	}
+
+	/**
+	 * Non-prompt keys (user ids, keys) never leak into the image value.
+	 *
+	 * @return void
+	 */
+	public function test_derive_from_prompt_ignores_non_prompt_keys(): void {
+		$plain = array(
+			'model'  => 'opencode-go-image-model',
+			'prompt' => 'A lighthouse at dusk, watercolor.',
+		);
+
+		$with_extras            = $plain;
+		$with_extras['user']    = 'user_12345';
+		$with_extras['api_key'] = 'sk-secret';
+		$with_size              = $plain;
+		$with_size['size']      = '1024x1024';
+
+		self::assertSame( SessionHeader::derive_from_data( $plain ), SessionHeader::derive_from_data( $with_extras ) );
+		self::assertSame( SessionHeader::derive_from_data( $plain ), SessionHeader::derive_from_data( $with_size ) );
+	}
+
+	/**
+	 * Empty/missing prompts omit the session (fail-open).
+	 *
+	 * @return void
+	 */
+	public function test_derive_returns_null_for_empty_prompt(): void {
+		self::assertNull( SessionHeader::derive_from_data( array( 'model' => 'x', 'prompt' => '' ) ) );
+		self::assertNull( SessionHeader::derive_from_data( array( 'model' => 'x', 'prompt' => null ) ) );
+		self::assertNull( SessionHeader::derive_from_data( array( 'model' => 'x' ) ) );
+	}
+
+	/**
+	 * Go text requests share the same client User-Agent as the Go image path.
+	 *
+	 * @return void
+	 */
+	public function test_go_text_request_sets_shared_user_agent(): void {
+		$model   = new SessionHeaderGoModel();
+		$request = $model->make_request( array(), self::conversation() );
+		$headers = $request->getHeaders();
+
+		self::assertArrayHasKey( SessionHeader::HEADER_NAME, $headers );
+		self::assertArrayHasKey( ClientUserAgent::HEADER_NAME, $headers );
+		self::assertSame( ClientUserAgent::value(), $headers[ ClientUserAgent::HEADER_NAME ] );
+		self::assertStringStartsWith( 'duoport-connect-for-opencode/', $headers[ ClientUserAgent::HEADER_NAME ] );
+	}
+
+	/**
+	 * Go text requests preserve an explicitly provided User-Agent (any case).
+	 *
+	 * @return void
+	 */
+	public function test_go_text_request_preserves_explicit_user_agent(): void {
+		$model   = new SessionHeaderGoModel();
+		$request = $model->make_request(
+			array( 'user-agent' => 'Custom/1.0' ),
+			self::conversation()
+		);
+
+		$headers = $request->getHeaders();
+		self::assertSame( 'Custom/1.0', $headers['user-agent'] );
+		self::assertArrayNotHasKey( ClientUserAgent::HEADER_NAME, $headers );
+	}
+
+	/**
+	 * Zen text requests carry neither the session header nor the User-Agent.
+	 *
+	 * @return void
+	 */
+	public function test_zen_text_request_has_no_user_agent(): void {
+		$model   = new SessionHeaderZenModel();
+		$request = $model->make_request( array(), self::conversation() );
+
+		foreach ( $request->getHeaders() as $name => $value ) {
+			self::assertNotSame( 0, is_string( $name ) ? strcasecmp( $name, ClientUserAgent::HEADER_NAME ) : 1 );
+		}
+		self::assertArrayNotHasKey( ClientUserAgent::HEADER_NAME, $request->getHeaders() );
 	}
 
 	/**
