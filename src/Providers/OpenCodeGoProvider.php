@@ -53,6 +53,9 @@ final class OpenCodeGoProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function displayName(): string {
+		if ( function_exists( '__' ) ) {
+			return __( 'OpenCode Go', 'duoport-connect-for-opencode' );
+		}
 		return 'OpenCode Go';
 	}
 
@@ -64,6 +67,9 @@ final class OpenCodeGoProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function description(): string {
+		if ( function_exists( '__' ) ) {
+			return __( 'Text generation with OpenCode Go.', 'duoport-connect-for-opencode' );
+		}
 		return 'Text generation with OpenCode Go.';
 	}
 

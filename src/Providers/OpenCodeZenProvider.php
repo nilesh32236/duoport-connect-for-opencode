@@ -53,6 +53,9 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function displayName(): string {
+		if ( function_exists( '__' ) ) {
+			return __( 'OpenCode Zen', 'duoport-connect-for-opencode' );
+		}
 		return 'OpenCode Zen';
 	}
 
@@ -64,6 +67,9 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function description(): string {
+		if ( function_exists( '__' ) ) {
+			return __( 'Text generation with OpenCode Zen, including free models.', 'duoport-connect-for-opencode' );
+		}
 		return 'Text generation with OpenCode Zen, including free models.';
 	}
 
