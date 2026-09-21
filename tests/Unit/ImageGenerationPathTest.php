@@ -50,6 +50,9 @@ namespace WordPress\AiClient\Providers\Models\Enums {
 			public function isImageGeneration(): bool {
 				return 'image-generation' === $this->value;
 			}
+			public function isChatHistory(): bool {
+				return in_array( $this->value, array( 'chat-history', 'chat_history' ), true );
+			}
 			public function getValue(): string {
 				return $this->value;
 			}
@@ -347,11 +350,39 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
+		 * Chat-history-only routing keeps conversations on the text models.
+		 */
+		public function test_create_model_routes_chat_history_to_text(): void {
+			$go_text  = $this->create_model_via( OpenCodeGoProvider::class, array( CapabilityEnum::chatHistory() ) );
+			$zen_text = $this->create_model_via( OpenCodeZenProvider::class, array( CapabilityEnum::chatHistory() ) );
+
+			self::assertInstanceOf( OpenCodeGoTextGenerationModel::class, $go_text );
+			self::assertInstanceOf( OpenCodeZenTextGenerationModel::class, $zen_text );
+		}
+
+		/**
+		 * Snake_case chat_history (real SDK shape) routes to text as well.
+		 */
+		public function test_create_model_routes_snake_case_chat_history_to_text(): void {
+			$snake = new class() {
+				public function __call( string $name, array $args ): ?bool {
+					return null;
+				}
+				public function getValue(): string {
+					return 'chat_history';
+				}
+			};
+
+			$go_text = $this->create_model_via( OpenCodeGoProvider::class, array( $snake ) );
+			self::assertInstanceOf( OpenCodeGoTextGenerationModel::class, $go_text );
+		}
+
+		/**
 		 * Unknown capabilities still throw.
 		 */
 		public function test_create_model_rejects_unknown_capability(): void {
 			$this->expectException( \WordPress\AiClient\Common\Exception\RuntimeException::class );
-			$this->create_model_via( OpenCodeGoProvider::class, array( CapabilityEnum::chatHistory() ) );
+			$this->create_model_via( OpenCodeGoProvider::class, array( 'no-such-capability' ) );
 		}
 
 		/**
