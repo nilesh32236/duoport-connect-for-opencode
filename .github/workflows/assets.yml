@@ -1,0 +1,64 @@
+name: Deploy Directory Assets
+
+# Syncs .wordpress-org/ (banner, icon) to the SVN assets/ directory without
+# cutting a release. The 10up deploy action only syncs assets during a
+# versioned release (and skips entirely if the tag exists), so asset-only
+# updates need this dedicated path.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-assets:
+    name: Sync Assets to SVN
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 1
+
+      - name: Install SVN
+        run: sudo apt-get update -y && sudo apt-get install -y subversion
+
+      - name: Sync .wordpress-org to SVN assets
+        env:
+          SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+          SLUG: duoport-connect-for-opencode
+        run: |
+          if [ -z "$SVN_USERNAME" ] || [ -z "$SVN_PASSWORD" ]; then
+            echo "::error::Set the SVN_USERNAME and SVN_PASSWORD secrets"
+            exit 1
+          fi
+          if [ ! -d ".wordpress-org" ]; then
+            echo "::error::No .wordpress-org directory found"
+            exit 1
+          fi
+          SVN_DIR="$HOME/svn-${SLUG}-assets"
+          svn checkout --depth immediates "https://plugins.svn.wordpress.org/${SLUG}/" "$SVN_DIR"
+          cd "$SVN_DIR"
+          svn update --set-depth infinity assets
+          rsync -rc --delete "$GITHUB_WORKSPACE/.wordpress-org/" assets/
+          svn add assets --force > /dev/null
+          svn status | grep '^\!' | sed 's/! *//' | xargs -I% svn rm %@ > /dev/null || true
+          # wp.org serves PNG/JPG/SVG correctly only with explicit mime types.
+          for f in assets/*.png; do [ -f "$f" ] && svn propset svn:mime-type "image/png" "$f" || true; done
+          for f in assets/*.jpg; do [ -f "$f" ] && svn propset svn:mime-type "image/jpeg" "$f" || true; done
+          for f in assets/*.svg; do [ -f "$f" ] && svn propset svn:mime-type "image/svg+xml" "$f" || true; done
+          svn update
+          if [ -z "$(svn status)" ]; then
+            echo "Assets already in sync — nothing to commit."
+            exit 0
+          fi
+          svn status
+          svn commit -m "Update directory assets (banner, icon) from GitHub" --no-auth-cache --non-interactive --username "$SVN_USERNAME" --password "$SVN_PASSWORD"
+          echo "Assets deployed."
