@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `c658df720408964d106895b9f14ea068b778207d` (`origin/main`)  
+**Merged baseline:** `a974fc73bc04248206d91607ec85ff32df12ad52` (`origin/main`)  
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -26,7 +26,7 @@ The merged plugin was synchronized to the live WordPress site and PHP-linted. Wo
 Local verification passed:
 
 - WPCS
-- PHPUnit: 92 tests, 339 assertions
+- PHPUnit: 93 tests, 344 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
@@ -36,14 +36,13 @@ Local verification passed:
 
 PR #49 merged deterministically at the exact reviewed head. The workflow guard now paginates all open PRs, trusts only the exact same-repository automation branch, fails closed on Git/GitHub/schema inspection errors, and has executable identity, recovery, and lease-race fixtures. The updater records exact active rulesets and uses PAT-backed events.
 
-## Remaining bounded work: OPS-003
+## OPS-003 result
 
-The post-merge re-audit found two final manifest-integrity gaps:
+PR #52 merged deterministically at the exact reviewed head. The shared validator now requires complete reviewer manifest provenance, exact release/CLI/ruleset/check values, and distinct architecture hashes. The branch inspector and offline verifier fail closed on omitted, invalid, equal, or mismatched integrity data, with behavioral fixtures covering each case.
 
-1. Current-branch inspection must require the complete reviewer manifest schema, including provenance, exact release/CLI/ruleset/check values, and both architecture hashes.
-2. The x64 and arm64 hashes must be distinct and individually bound to the installer assignments.
+## Next active item: PF-009
 
-OPS-003 is the only active queue item and issue #51; its PR is pending. No competing issue or PR is open. ARCH-001 is complete; PF-009 remains queued behind this integrity fix.
+PF-009 is the sole active queue item and issue #53; its PR is pending. It is limited to lightweight credential-blind compatibility diagnostics. No competing issue or PR is open. ARCH-001 is complete.
 
 ## Final boundaries
 
