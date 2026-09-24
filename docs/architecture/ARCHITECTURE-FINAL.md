@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `63afb3e5401fca7212eb3cd3bbd370331c5b00ff` (`origin/main`)
+**Merged baseline:** `0b8fd3a9568078977a13288dac4320ff12d98844` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -58,11 +58,15 @@ PR #66 merged the detailed-result correction. The backend now retains safe state
 
 ## PF-004 correction
 
-Issue #79 tracks the final causal CI fixture, direct malformed-input regressions, and source/dependency audit corrections. The shipped drift script fails closed when malformed evidence is the only drift signal, and the inventory records actual method boundaries and runtime dependencies.
+PR #80 merged the final causal CI fixture, direct malformed-input regressions, and source/dependency audit corrections. The shipped drift script fails closed when malformed evidence is the only drift signal, and the inventory records actual method boundaries and runtime dependencies.
 
-## Next active item: PF-004
+## PF-006 implementation
 
-PF-004 is the sole active queue item and issue #79; its correction PR #80 is pending. No competing issue or PR is open. ARCH-001 is complete.
+PR #82 adds `CapabilityAwareFallback`, a bounded selector invoked before tool shaping and text routing. It requires matching model identity, catalog, implemented endpoint family, capability, and verification records, rejects unknown/unsupported/duplicate/cyclic/exhausted candidates, rewrites the request model when selected, and fails closed when no candidate exists.
+
+## Next active item: PF-006
+
+PF-006 is the sole active queue item and issue #81; its implementation PR #82 is pending. No competing issue or PR is open. ARCH-001 is complete.
 
 ## Final boundaries
 

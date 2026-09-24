@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use OpenCodeConnector\Http\GoRequestHeaders;
-use OpenCodeConnector\Metadata\ModelAllowlist;
+use OpenCodeConnector\Metadata\CapabilityAwareFallback;
 use OpenCodeConnector\Metadata\ModelRegistry;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
@@ -34,6 +34,13 @@ use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCo
  * @since 0.1.0
  */
 abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompatibleTextGenerationModel {
+	/**
+	 * Fallback model selected during tool preparation for the next request.
+	 *
+	 * @var string|null
+	 */
+	private ?string $prepared_route_model_id = null;
+
 	/**
 	 * Provider class FQCN.
 	 *
@@ -63,17 +70,34 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * @throws UnsupportedEndpointFamilyException When route metadata or the model route is unsupported.
 	 */
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
-		$cls      = $this->providerClass();
-		$model_id = $this->route_model_id();
-		$catalog  = $this->catalog_key_for_tool_gate();
+		$cls               = $this->providerClass();
+		$prepared_model_id = $this->prepared_route_model_id;
+		$model_id          = null !== $prepared_model_id ? $prepared_model_id : $this->route_model_id();
+		$catalog           = $this->catalog_key_for_tool_gate();
 		if ( '' === $model_id || '' === $catalog ) {
 			throw new UnsupportedEndpointFamilyException( 'Model route metadata is unavailable.' );
+		}
+		$capability = null !== $prepared_model_id || ( is_array( $data ) && ! empty( $data['tools'] ) ) ? 'tools' : 'text';
+		$selection  = ( new CapabilityAwareFallback() )->select(
+			$catalog,
+			$model_id,
+			$capability,
+			$this->fallback_model_ids()
+		);
+		if ( ! is_string( $selection['selected_id'] ?? null ) ) {
+			throw new UnsupportedEndpointFamilyException( 'No verified model candidate is available for this route.' );
+		}
+		$model_id = $selection['selected_id'];
+		if ( is_array( $data ) ) {
+			$data['model'] = $model_id;
 		}
 		$path = EndpointRoute::pathForModel( $model_id, $catalog );
 		if ( OpenCodeGoProvider::class === $cls ) {
 			$headers = GoRequestHeaders::for_go( $headers, $data );
 		}
-		return new Request( $method, $cls::url( $path ), $headers, $data, $this->getRequestOptions() );
+		$request                       = new Request( $method, $cls::url( $path ), $headers, $data, $this->getRequestOptions() );
+		$this->prepared_route_model_id = null;
+		return $request;
 	}
 
 	/**
@@ -118,6 +142,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * @return array<int, array<string, mixed>>
 	 */
 	protected function prepareToolsParam( array $function_declarations ): array { // phpcs:ignore WordPress.NamingConventions.ValidVariableName.VariableNotSnakeCase
+		$this->prepared_route_model_id = null;
 		try {
 			if ( array() === $function_declarations ) {
 				return array();
@@ -130,6 +155,16 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			if ( '' === $model_id || '' === $catalog ) {
 				return array();
 			}
+			$selection = ( new CapabilityAwareFallback() )->select(
+				$catalog,
+				$model_id,
+				'tools',
+				$this->fallback_model_ids()
+			);
+			if ( ! is_string( $selection['selected_id'] ?? null ) ) {
+				return array();
+			}
+			$model_id = $selection['selected_id'];
 			if ( ! ModelRegistry::supports( $model_id, $catalog, 'tools' ) ) {
 				return array();
 			}
@@ -151,6 +186,9 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 					continue;
 				}
 			}
+			if ( array() !== $tools ) {
+				$this->prepared_route_model_id = $model_id;
+			}
 			return $tools;
 		} catch ( \Throwable ) {
 			return array();
@@ -167,6 +205,18 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 */
 	protected function route_model_id(): string {
 		return $this->model_id_for_tool_gate();
+	}
+
+	/**
+	 * Return explicitly reviewed same-catalog fallback IDs for this model.
+	 *
+	 * The default is empty: callers must opt into a bounded fallback list.
+	 * Selection still enforces endpoint, capability, and verification equality.
+	 *
+	 * @return array<int, string>
+	 */
+	protected function fallback_model_ids(): array {
+		return array();
 	}
 
 	/**

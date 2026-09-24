@@ -35,4 +35,13 @@ final class OpenCodeGoTextGenerationModel extends AbstractOpenCodeTextGeneration
 	protected function providerClass(): string {
 		return OpenCodeGoProvider::class;
 	}
+
+	/**
+	 * Curated same-catalog, same-endpoint fallback for tool requests.
+	 *
+	 * @return array<int, string>
+	 */
+	protected function fallback_model_ids(): array {
+		return array( 'glm-5.3' );
+	}
 }

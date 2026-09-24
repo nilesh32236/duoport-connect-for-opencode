@@ -2,11 +2,11 @@
 
 **Audit snapshot:** 2026-09-24
 
-**Baseline repository head:** `63afb3e5401fca7212eb3cd3bbd370331c5b00ff` (`origin/main`)
+**Baseline repository head:** `0b8fd3a9568078977a13288dac4320ff12d98844` (`origin/main`)
 
-**Active campaign PR:** pending for `PF-004` (the exact head will be captured in the merge gate)
+**Active campaign PR:** [#82](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/82) (the exact head is captured in the merge gate)
 
-**Active queue item:** `PF-004` / GitHub issue [#79](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/79) / PR #80
+**Active queue item:** `PF-006` / GitHub issue [#81](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/81) / PR #82
 
 **Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; both providers are registered in the available WordPress runtime.
 
@@ -67,15 +67,15 @@ Availability
 - `EndpointRoute` implements only the verified chat/completions transport family and fails closed for unresolved or unimplemented families.
 - `ConnectionDiagnostics` retains safe configured/verified/usable/state results through transient caching; the SDK boolean is only a compatibility projection.
 - `CatalogWatch` compares live catalog evidence with the registry without automatic promotion; the shipped drift script delegates to it.
-- The existing test suite covers registration, credential blindness, detailed availability, endpoint/capability gates, catalog drift, headers, tools, image safety, and compatibility guards.
+- `CapabilityAwareFallback` is an opt-in, bounded selector invoked before text routing; it accepts only same-catalog, same-endpoint, verified capability records and defaults to no fallback.
+- The existing test suite covers registration, credential blindness, detailed availability, endpoint/capability gates, catalog drift, bounded fallback, headers, tools, image safety, and compatibility guards.
 
 ## Current gaps and risks
 
-1. **Capability-aware fallback (active):** a bounded fallback may be added only for records whose model, catalog, endpoint, capability, and verification fields agree. It must not silently change endpoint families or capabilities.
-2. **Workflow dependency (controlled):** reviewer workflows pin the released reviewer v1.22.0 peeled commit and checksum-verified OpenCode CLI v1.18.31. `.github/reviewer-dependency.json` records the release identity, and `reviewer-update.yml` proposes a traceable stable-release update PR while deferring when a campaign PR is active. The updater still requires normal deterministic review/merge; it never silently switches to unreleased code.
-3. **Automation issue flood risk (medium):** scheduled audit/research/catalog jobs can create or update multiple open issues. The campaign reconciles them into one active queue item; future automation must preserve that invariant or report without opening a competing issue.
-4. **Settings responsibility drift (medium):** `Settings` currently knows cache key formats, model directory classes, and the AI Client cache shape. These are future extraction candidates, not a reason to grow a dashboard.
-5. **WordPress compatibility evidence (medium):** the live site is newer than the plugin minimum and has AI Client 1.3.1. The repository does not yet run a real WP 7.0 core-client matrix in CI; guarded source/unit tests are not a substitute for post-merge runtime verification.
+1. **Workflow dependency (controlled):** reviewer workflows pin the released reviewer v1.22.0 peeled commit and checksum-verified OpenCode CLI v1.18.31. `.github/reviewer-dependency.json` records the release identity, and `reviewer-update.yml` proposes a traceable stable-release update PR while deferring when a campaign PR is active. The updater still requires normal deterministic review/merge; it never silently switches to unreleased code.
+2. **Automation issue flood risk (medium):** scheduled audit/research/catalog jobs can create or update multiple open issues. The campaign reconciles them into one active queue item; future automation must preserve that invariant or report without opening a competing issue.
+3. **Settings responsibility drift (medium):** `Settings` currently knows cache key formats, model directory classes, and the AI Client cache shape. These are future extraction candidates, not a reason to grow a dashboard.
+4. **WordPress compatibility evidence (medium):** the live site is newer than the plugin minimum and has AI Client 1.3.1. The repository does not yet run a real WP 7.0 core-client matrix in CI; guarded source/unit tests are not a substitute for post-merge runtime verification.
 
 ## Architecture decisions
 
@@ -101,6 +101,6 @@ The reviewer updater is deliberately not a direct auto-merge path. It resolves o
 
 ## Baseline metrics
 
-The machine-readable inventory on the active PR head reports 25 PHP classes, 3,186 source lines, largest class `AbstractOpenCodeTextGenerationModel` (232 lines), largest method `CatalogWatch::compare` (118 lines), and the highest fan-in `OpenCodeGoProvider` (8) / fan-out `AbstractOpenCodeTextGenerationModel` (7) concentration. The previous pre-correction baseline was 19 classes and 1,843 source lines. These are measurements, not a target to optimize by splitting code merely to reduce numbers.
+The machine-readable inventory on the active PR head reports 26 PHP classes, 3,457 source lines, largest class `AbstractOpenCodeTextGenerationModel` (282 lines), largest method `CatalogWatch::compare` (118 lines), and the highest fan-in `OpenCodeGoProvider` (8) / fan-out `AbstractOpenCodeTextGenerationModel` (7) concentration. The previous pre-correction baseline was 19 classes and 1,843 source lines. These are measurements, not a target to optimize by splitting code merely to reduce numbers.
 
 The live unauthenticated catalogs returned 80 Zen IDs and 42 Go IDs at audit time, while the curated allowlist contains 17 IDs per catalog. The difference is intentional safety drift; new IDs require verification before promotion.

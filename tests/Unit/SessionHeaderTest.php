@@ -278,7 +278,9 @@ final class SessionHeaderTest extends MonkeyTestCase {
 		$headers = $first->getHeaders();
 		self::assertArrayHasKey( SessionHeader::HEADER_NAME, $headers );
 		self::assertSame( $headers[ SessionHeader::HEADER_NAME ], $second->getHeaders()[ SessionHeader::HEADER_NAME ] );
-		self::assertSame( SessionHeader::derive_from_data( self::conversation() ), $headers[ SessionHeader::HEADER_NAME ] );
+		$expected_data       = self::conversation();
+		$expected_data['model'] = 'glm-5.3';
+		self::assertSame( SessionHeader::derive_from_data( $expected_data ), $headers[ SessionHeader::HEADER_NAME ] );
 		self::assertStringEndsWith( '/chat/completions', $first->getUrl() );
 	}
 
