@@ -114,7 +114,7 @@ items:
     status: in_progress
     title: Detailed connection diagnostics
     github_issue: 61
-    github_pr: pending
+    github_pr: 62
     priority: high
     difficulty: medium
     depends_on: [AUDIT-041]
