@@ -70,7 +70,7 @@ items:
     status: in_progress
     title: Add lightweight compatibility diagnostics
     github_issue: 53
-    github_pr: pending
+    github_pr: 54
     priority: medium
     difficulty: low
     depends_on: [AUDIT-041]
