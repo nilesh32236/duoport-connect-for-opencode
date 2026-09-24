@@ -28,22 +28,21 @@ const OPTION_NAME = 'opencode_connector_settings';
 
 require_once __DIR__ . '/src/autoload.php';
 
-// Guard: WP < 7.0 or SDK missing — admin notice, bail.
+// Guard: report compatibility without reading connector settings.
 add_action(
 	'admin_notices',
 	static function (): void {
-		$wp_version = function_exists( 'get_bloginfo' ) ? (string) get_bloginfo( 'version' ) : '0.0.0';
-		$wp_ok      = version_compare( $wp_version, '7.0', '>=' );
-		$sdk_ok     = class_exists( \WordPress\AiClient\AiClient::class );
-		if ( $wp_ok && $sdk_ok ) {
+		$diagnostics = new Compatibility\CompatibilityDiagnostics();
+		$status      = $diagnostics->inspect();
+		if ( $status['ok'] ) {
 			return;
 		}
 		if ( ! function_exists( '__' ) || ! function_exists( 'esc_html' ) ) {
 			return;
 		}
-		$msg = ! $wp_ok
+		$msg = ! $status['wordpress_supported']
 			? __( 'DuoPort Connector for OpenCode requires WordPress 7.0+.', 'duoport-connect-for-opencode' )
-			: __( 'DuoPort Connector for OpenCode requires the WordPress AI Client (WordPress 7.0+ AI).', 'duoport-connect-for-opencode' );
+			: __( 'DuoPort Connector for OpenCode requires a compatible WordPress AI Client registry and provider surface.', 'duoport-connect-for-opencode' );
 		echo '<div class="notice notice-error"><p>' . esc_html( $msg ) . '</p></div>';
 	}
 );
