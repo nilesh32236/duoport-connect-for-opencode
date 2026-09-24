@@ -2,11 +2,11 @@
 
 **Audit snapshot:** 2026-09-24
 
-**Baseline repository head:** `981105eaf076694ad435b80b3012d5351c98ea36` (`origin/main`)
+**Baseline repository head:** `5f67d1dc3cf4a8329afc5f81dce799a04e626f21` (`origin/main`)
 
 **Active campaign PR:** pending for `PF-003` (the exact head will be captured in the merge gate)
 
-**Active queue item:** `PF-003` / GitHub issue [#61](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/61) / PR pending
+**Active queue item:** `PF-003` / GitHub issue [#65](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/65) / PR pending
 
 **Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; both providers are registered in the available WordPress runtime.
 

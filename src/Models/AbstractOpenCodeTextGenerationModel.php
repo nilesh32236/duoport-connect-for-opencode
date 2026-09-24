@@ -18,6 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use OpenCodeConnector\Http\GoRequestHeaders;
 use OpenCodeConnector\Metadata\ModelAllowlist;
+use OpenCodeConnector\Metadata\ModelRegistry;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
 use OpenCodeConnector\Transport\EndpointRoute;
@@ -100,8 +101,9 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	/**
 	 * Map function declarations to the OpenAI-compatible tools wire shape.
 	 *
-	 * Gated behind ModelAllowlist::isToolCapable(): unsupported, free,
-	 * DeepSeek, or unknown models return an empty array so the request
+	 * Gated behind the canonical ModelRegistry capability record: unsupported,
+	 * free, unimplemented-endpoint, DeepSeek, or unknown models return an empty array
+	 * so the request
 	 * degrades to a plain-text completion instead of failing at the
 	 * gateway. Never throws; fail-open by design.
 	 *
@@ -120,7 +122,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			if ( array() === $function_declarations ) {
 				return array();
 			}
-			if ( ! class_exists( ModelAllowlist::class ) ) {
+			if ( ! class_exists( ModelRegistry::class ) || ! method_exists( ModelRegistry::class, 'supports' ) ) {
 				return array();
 			}
 			$model_id = $this->model_id_for_tool_gate();
@@ -128,10 +130,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			if ( '' === $model_id || '' === $catalog ) {
 				return array();
 			}
-			if ( ! method_exists( ModelAllowlist::class, 'isToolCapable' ) ) {
-				return array();
-			}
-			if ( ! ModelAllowlist::isToolCapable( $model_id, $catalog ) ) {
+			if ( ! ModelRegistry::supports( $model_id, $catalog, 'tools' ) ) {
 				return array();
 			}
 			$tools = array();

@@ -1,6 +1,6 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: 981105eaf076694ad435b80b3012d5351c98ea36
+source_commit: 5f67d1dc3cf4a8329afc5f81dce799a04e626f21
 last_audited: 2026-09-24
 rule: exactly_one_active_item
 active_item: PF-003
@@ -113,16 +113,18 @@ items:
   - id: PF-003
     status: in_progress
     title: Detailed connection diagnostics
-    github_issue: 61
-    github_pr: 64
+    github_issue: 65
+    github_pr: 66
     priority: high
     difficulty: medium
     depends_on: [AUDIT-041]
     evidence: Current boolean availability contract conflates invalid key, no credits, throttling, and transport failure.
     acceptance:
-      - Backend result retains configured, verified, usable, and detailed state.
+      - Backend result retains configured, verified, usable, and detailed state through the transient cache.
+      - Stable states and current usability are distinct from the legacy boolean projection.
       - 2xx, invalid key, CreditsError, 429, 5xx, and network errors are tested.
       - No key values are read, logged, or rendered by plugin code.
+    status_note: PF-003 base implementation merged in PR #64; issue #65 tracks the detailed-result retention correction.
   - id: PF-004
     status: pending
     title: Catalog freshness and verification status

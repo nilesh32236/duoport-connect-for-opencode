@@ -49,29 +49,66 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	}
 
 	/**
-	 * Whether the provider is configured.
+	 * Whether the provider is configured, preserving the legacy boolean contract.
 	 *
 	 * @since 0.1.0
 	 *
 	 * @return bool
 	 */
 	public function isConfigured(): bool {
-		try {
-			$this->getRequestAuthentication();
-		} catch ( \Throwable ) {
-			return false;
-		}
+		$result = $this->probe();
+		return in_array( $result['state'], array( 'verified', 'no_credits', 'rate_limited' ), true );
+	}
 
+	/**
+	 * Run or reuse the detailed, credential-blind probe result.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function diagnose(): array {
+		return $this->probe();
+	}
+
+	/**
+	 * Return the most recent safe detailed result.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function getLastResult(): array {
+		return $this->last_result ?? ( new ConnectionDiagnostics() )->unknown();
+	}
+
+	/**
+	 * Probe, classify, and briefly cache the safe result.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function probe(): array {
 		$tkey   = 'opencode_connector_avail_' . $this->catalog;
 		$cached = get_transient( $tkey );
-		if ( false !== $cached ) {
-			return (bool) $cached;
+		if ( is_array( $cached ) && isset( $cached['state'] ) ) {
+			$this->last_result = $cached;
+			return $cached;
+		}
+		if ( false !== $cached && is_bool( $cached ) ) {
+			$diagnostics       = new ConnectionDiagnostics();
+			$this->last_result = $cached ? $diagnostics->verified() : $diagnostics->notConfigured();
+			return $this->last_result;
 		}
 
 		// Stampede protection: short lock so concurrent requests share one probe.
 		$lock_key = $tkey . '_lock';
 		if ( false !== get_transient( $lock_key ) ) {
-			return false;
+			$this->last_result = ( new ConnectionDiagnostics() )->unknown();
+			return $this->last_result;
+		}
+
+		$diagnostics = new ConnectionDiagnostics();
+		try {
+			$this->getRequestAuthentication();
+		} catch ( \Throwable $exception ) {
+			$this->last_result = $diagnostics->notConfigured();
+			return $this->last_result;
 		}
 
 		// Set lock before network I/O (10s).
@@ -108,17 +145,23 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			$probe_data
 		);
 		try {
-			$req         = $this->getRequestAuthentication()->authenticateRequest( $req );
-			$res         = $this->getHttpTransporter()->send( $req );
-			$diagnostics = new ConnectionDiagnostics();
-			$ok          = $diagnostics->classify( $res->getStatusCode(), $res->getData() )['usable'];
-		} catch ( \Throwable ) {
-			$ok = false;
+			$req               = $this->getRequestAuthentication()->authenticateRequest( $req );
+			$res               = $this->getHttpTransporter()->send( $req );
+			$this->last_result = $diagnostics->classify( $res->getStatusCode(), $res->getData() );
+		} catch ( \Throwable $exception ) {
+			$this->last_result = $diagnostics->classify( 0, null, $exception );
 		}
 		// Stagger expiry ±60s to avoid synchronized stampedes.
 		$ttl = 5 * MINUTE_IN_SECONDS + wp_rand( -60, 60 );
 		delete_transient( $lock_key );
-		set_transient( $tkey, (int) $ok, max( 60, $ttl ) );
-		return $ok;
+		set_transient( $tkey, $this->last_result, max( 60, $ttl ) );
+		return $this->last_result;
 	}
+
+	/**
+	 * Last safe result retained for a caller.
+	 *
+	 * @var array<string, mixed>|null
+	 */
+	private ?array $last_result = null;
 }

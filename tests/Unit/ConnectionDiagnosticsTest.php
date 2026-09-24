@@ -25,7 +25,7 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 		self::assertTrue( $success['configured'] );
 		self::assertTrue( $success['verified'] );
 		self::assertTrue( $success['usable'] );
-		self::assertTrue( $limited['usable'] );
+		self::assertFalse( $limited['usable'] );
 		self::assertSame( 'rate_limited', $limited['state'] );
 	}
 
@@ -42,8 +42,8 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 		self::assertFalse( $invalid['usable'] );
 		self::assertTrue( $credits['configured'] );
 		self::assertTrue( $credits['verified'] );
-		self::assertTrue( $credits['usable'] );
-		self::assertSame( 'credits_exhausted', $credits['state'] );
+		self::assertFalse( $credits['usable'] );
+		self::assertSame( 'no_credits', $credits['state'] );
 	}
 
 	/**

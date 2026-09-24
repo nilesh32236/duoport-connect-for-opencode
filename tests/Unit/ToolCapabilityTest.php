@@ -39,7 +39,15 @@ final class ToolCapabilityTest extends MonkeyTestCase {
 		self::assertTrue( ModelAllowlist::isToolCapable( 'kimi-k3', 'go' ) );
 		self::assertTrue( ModelAllowlist::isToolCapable( 'mimo-v2.5', 'go' ) );
 		self::assertTrue( ModelAllowlist::isToolCapable( 'glm-5', 'zen' ) );
-		self::assertTrue( ModelAllowlist::isToolCapable( 'minimax-m3', 'zen' ) );
+	}
+
+	/**
+	 * Unimplemented Zen endpoint records are not tool-capable.
+	 */
+	public function test_unimplemented_zen_routes_are_not_tool_capable(): void {
+		foreach ( array( 'minimax-m3', 'minimax-m2.7', 'minimax-m2.5' ) as $id ) {
+			self::assertFalse( \OpenCodeConnector\Metadata\ModelRegistry::supports( $id, 'zen', 'tools' ) );
+		}
 	}
 
 	/**

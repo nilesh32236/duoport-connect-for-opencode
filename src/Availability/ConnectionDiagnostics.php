@@ -34,22 +34,49 @@ final class ConnectionDiagnostics {
 			return $this->result( 'network_error', false, false, false, 0, 'network_failure' );
 		}
 		if ( $status >= 200 && $status < 300 ) {
-			return $this->result( 'available', true, true, true, $status, 'ok' );
+			return $this->result( 'verified', true, true, true, $status, 'ok' );
 		}
 		if ( 401 === $status ) {
 			$error_type = is_array( $data ) ? (string) ( $data['error']['type'] ?? '' ) : '';
 			if ( 'CreditsError' === $error_type ) {
-				return $this->result( 'credits_exhausted', true, true, true, $status, 'credits_error' );
+				return $this->result( 'no_credits', true, true, false, $status, 'credits_error' );
 			}
-			return $this->result( 'invalid_auth', false, true, false, $status, 'invalid_auth' );
+			return $this->result( 'invalid_key', false, true, false, $status, 'invalid_key' );
 		}
 		if ( 429 === $status ) {
-			return $this->result( 'rate_limited', true, true, true, $status, 'rate_limited' );
+			return $this->result( 'rate_limited', true, true, false, $status, 'rate_limited' );
 		}
 		if ( $status >= 500 && $status < 600 ) {
 			return $this->result( 'server_error', true, true, false, $status, 'server_error' );
 		}
-		return $this->result( 'http_error', true, true, false, $status, 'http_error' );
+		return $this->result( 'unknown', true, true, false, $status, 'unknown' );
+	}
+
+	/**
+	 * Build a not-configured result.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function notConfigured(): array {
+		return $this->result( 'not_configured', false, false, false, 0, 'not_configured' );
+	}
+
+	/**
+	 * Build a verified result for legacy boolean cache compatibility.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function verified(): array {
+		return $this->result( 'verified', true, true, true, 200, 'ok' );
+	}
+
+	/**
+	 * Build an unknown result for a concurrent probe.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function unknown(): array {
+		return $this->result( 'unknown', false, false, false, 0, 'unknown' );
 	}
 
 	/**
