@@ -193,7 +193,7 @@ items:
     status: in_progress
     title: Enforce complete reviewer manifest integrity
     github_issue: 51
-    github_pr: pending
+    github_pr: 52
     priority: high
     difficulty: medium
     evidence: Final post-merge review found omitted provenance/schema fields and equal x64/arm64 hashes could pass current contracts.
