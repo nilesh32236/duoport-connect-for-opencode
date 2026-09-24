@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `a34cf5f681badcd73aa80410e01a5cc4d41b108b` (`origin/main`)
+**Merged baseline:** `cab8d78aaa0d72351c557357b59be89f0b0885d3` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -56,13 +56,13 @@ PR #60 merged deterministically at the exact reviewed head. The first routing pa
 
 PR #66 merged the detailed-result correction. The backend now retains safe state/flags through transient caching, separates current usability from the legacy boolean projection, and routes tool preparation through the canonical registry so unsupported Zen routes cannot advertise or prepare tools.
 
-## PF-004 implementation
+## PF-004 result
 
-The active campaign adds a deterministic, credential-free `CatalogWatch` comparator. It reports new, retired, allowlisted, endpoint/capability/metadata changed, and verification-required states while never promoting discovery IDs automatically.
+PR #68 merged deterministically at the exact reviewed head. The deterministic, credential-free `CatalogWatch` comparator reports new, retired, allowlisted, endpoint/capability/metadata changed, and verification-required states while never promoting discovery IDs automatically.
 
-## Next active item: PF-004
+## Next active item: PF-006
 
-PF-004 is the sole active queue item and issue #67; its PR is pending. It tracks catalog freshness and verification status without automatic promotion. No competing issue or PR is open. ARCH-001 is complete.
+PF-006 is the sole active queue item and issue #69; its PR is pending. It will add bounded capability-aware fallback only after the verified registry, endpoint, and availability contracts. No competing issue or PR is open. ARCH-001 is complete.
 
 ## Final boundaries
 
