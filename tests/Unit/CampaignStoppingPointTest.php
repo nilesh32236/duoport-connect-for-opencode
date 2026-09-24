@@ -18,6 +18,7 @@ final class CampaignStoppingPointTest extends MonkeyTestCase {
 		$queue = (string) file_get_contents( dirname( __DIR__, 2 ) . '/docs/architecture/refactor-queue.yaml' );
 		$scope = (string) file_get_contents( dirname( __DIR__, 2 ) . '/docs/architecture/PRODUCT-SCOPE.md' );
 
+		self::assertStringContainsString( 'source_commit: de27b6c1270ace0565bc92e940aaa265a168758d', $queue );
 		self::assertStringContainsString( 'active_item: none', $queue );
 		self::assertStringContainsString( 'status: completed', $queue );
 		self::assertStringContainsString( 'PF-005', $queue );
