@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `5f67d1dc3cf4a8329afc5f81dce799a04e626f21` (`origin/main`)
+**Merged baseline:** `a34cf5f681badcd73aa80410e01a5cc4d41b108b` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -54,11 +54,11 @@ PR #60 merged deterministically at the exact reviewed head. The first routing pa
 
 ## PF-003 implementation
 
-The merged base adds a small credential-blind `ConnectionDiagnostics` classifier. The active correction retains the full safe result through transient caching, separates current `usable` from the legacy boolean projection, and routes the request capability gate through the canonical registry so unsupported Zen routes cannot advertise or prepare tools.
+PR #66 merged the detailed-result correction. The backend now retains safe state/flags through transient caching, separates current usability from the legacy boolean projection, and routes tool preparation through the canonical registry so unsupported Zen routes cannot advertise or prepare tools.
 
-## Next active item: PF-003
+## Next active item: PF-004
 
-PF-003 is the sole active queue item and issue #65; its correction PR is pending. No competing issue or PR is open. ARCH-001 is complete.
+PF-004 is the sole active queue item and issue #67; its PR is pending. It tracks catalog freshness and verification status without automatic promotion. No competing issue or PR is open. ARCH-001 is complete.
 
 ## Final boundaries
 
