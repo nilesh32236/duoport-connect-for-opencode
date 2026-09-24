@@ -145,7 +145,7 @@ items:
     title: WordPress AI request-log integration
     reason: Core AI Client already owns request logging; duplicating it would add dashboard scope and data handling.
   - id: OPS-001
-    status: in_progress
+    status: completed
     title: Repair reviewer and OpenCode CLI workflow dependency
     github_issue: 46
     github_pr: 47
@@ -164,7 +164,26 @@ items:
       - Scheduled automations preserve one active campaign issue/PR invariant.
       - Main ruleset 23935160 requires the exact-head PHP 8.2 and 8.3 checks.
       - Main ruleset 23935219 requires changes to arrive through a pull request.
-    status_note: Sole active issue #46; no competing issue or PR is open.
+    status_note: Completed by merged PR #47 at afe9fdd70d0842864308f5defcea3c46caebe06f; post-merge WordPress verification passed.
+  - id: OPS-002
+    status: in_progress
+    title: Close bounded workflow guard and lease gaps
+    github_issue: 48
+    github_pr: pending
+    priority: high
+    difficulty: medium
+    evidence: Post-merge review found YAML CI path coverage, bounded PR enumeration, absent-branch lease, exact architecture hash binding, and fail-open branch-inspection gaps.
+    scope:
+      - Cover both .yml and .yaml workflow extensions in CI and contract paths.
+      - Enumerate all open PRs, fail closed on inspection errors, and exempt only same-repository automation branches.
+      - Use explicit empty/existing leases for both push paths and fail closed on branch inspection errors.
+      - Bind manifest checksums to architecture assignments and add behavioral transition fixtures.
+      - Verify the exact active ruleset IDs and required-check list rather than positive membership alone.
+    acceptance:
+      - No valid workflow extension or active PR can bypass the guard.
+      - Current or missing dependency PR recovery is deterministic and never force-pushes over an unexpected ref.
+      - Manifest hash drift and installer architecture swaps are rejected.
+      - Exactly one queue item, issue, and PR remain active.
   - id: ARCH-001
     status: pending
     title: Re-audit after workflow and transport milestones
@@ -174,8 +193,8 @@ items:
     acceptance:
       - Refresh all architecture artifacts and produce ARCHITECTURE-FINAL.md.
 reconciled_github_items:
-  closed_issues: [11, 14, 17, 21, 28, 30, 34, 36, 38, 39, 40, 43]
-  closed_pull_requests: [22, 23, 24]
+  closed_issues: [11, 14, 17, 21, 28, 30, 34, 36, 38, 39, 40, 43, 46]
+  closed_pull_requests: [22, 23, 24, 47]
   reason: Preserve history while enforcing one active campaign issue and one active campaign PR.
 future_candidates_not_issues:
   - PF-005
