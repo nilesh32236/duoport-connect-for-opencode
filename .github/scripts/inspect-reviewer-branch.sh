@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+# Inspect the reviewer dependency branch without rewriting it on errors.
+#
+# Output states: absent, stale, ensure_pr, or has_pr:<number>.
+# Any Git object or GitHub API inspection failure exits non-zero.
+
+set -euo pipefail
+
+TAG="${1:?release tag is required}"
+COMMIT="${2:?release commit is required}"
+BRANCH="${3:?branch is required}"
+REPOSITORY="${4:?repository is required}"
+EXPECTED_REPOSITORY="${5:?repository full name is required}"
+GH_BIN="${GH_BIN:-gh}"
+REF="refs/heads/${BRANCH}"
+if [[ "$REPOSITORY" != "$EXPECTED_REPOSITORY" ]]; then
+  echo "Repository identity arguments do not match." >&2
+  exit 1
+fi
+
+if ! REMOTE_OUTPUT=$(git ls-remote origin "$REF"); then
+  echo "Unable to inspect reviewer branch ref; refusing to continue." >&2
+  exit 1
+fi
+EXISTING_SHA=$(printf '%s\n' "$REMOTE_OUTPUT" | awk 'NF { print $1; exit }')
+if [ -z "$EXISTING_SHA" ]; then
+  echo absent
+  exit 0
+fi
+if [[ ! "$EXISTING_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+  echo "Invalid reviewer branch SHA; refusing to continue." >&2
+  exit 1
+fi
+
+if ! git fetch origin "$BRANCH"; then
+  echo "Unable to fetch reviewer dependency branch; refusing to continue." >&2
+  exit 1
+fi
+EXISTING_SHA=$(git rev-parse FETCH_HEAD)
+if ! MANIFEST=$(git show "${EXISTING_SHA}:.github/reviewer-dependency.json" 2>/dev/null); then
+  echo "Unable to inspect existing dependency manifest; refusing to continue." >&2
+  exit 1
+fi
+if ! jq -e '
+  type == "object" and
+  (.release_tag | type == "string") and
+  (.release_commit | type == "string") and
+  (.opencode_cli | type == "object") and
+  (.opencode_cli.version | type == "string") and
+  (.opencode_cli.sha256 | type == "object") and
+  (.opencode_cli.sha256["linux-x64"] | type == "string" and test("^[a-f0-9]{64}$")) and
+  (.opencode_cli.sha256["linux-arm64"] | type == "string" and test("^[a-f0-9]{64}$")) and
+  (.merge_gate | type == "object") and
+  (.merge_gate.ruleset_id | type == "number") and
+  (.merge_gate.pull_request_ruleset_id | type == "number") and
+  (.merge_gate.required_checks | type == "array" and length == 2)
+' >/dev/null <<<"$MANIFEST"; then
+  echo "Existing dependency manifest schema is invalid; refusing to continue." >&2
+  exit 1
+fi
+if ! jq -e --arg tag "$TAG" --arg commit "$COMMIT" '.release_tag == $tag and .release_commit == $commit' >/dev/null <<<"$MANIFEST"; then
+  echo stale
+  exit 0
+fi
+
+set +e
+REF_OUTPUT=$(git grep -h -F -e "uses: nilesh32236/opencode-ai-reviewer@${COMMIT} # ${TAG}" "$EXISTING_SHA" -- '.github/workflows/*.yml' '.github/workflows/*.yaml')
+GREP_STATUS=$?
+set -e
+if [ "$GREP_STATUS" -gt 1 ]; then
+  echo "Unable to inspect existing workflow references; refusing to continue." >&2
+  exit 1
+fi
+REF_COUNT=$(printf '%s\n' "$REF_OUTPUT" | awk 'NF { count++ } END { print count + 0 }')
+if [ "$REF_COUNT" -lt 4 ]; then
+  echo stale
+  exit 0
+fi
+
+if ! PR_TSV=$("$GH_BIN" api --paginate "repos/${REPOSITORY}/pulls?state=open&per_page=100" --jq '.[] | [.head.ref, (.head.repo.full_name // ""), .number] | @tsv'); then
+  echo "Unable to inspect existing dependency PR; refusing to continue." >&2
+  exit 1
+fi
+PR_NUMBER=$(printf '%s\n' "$PR_TSV" | awk -F '\t' -v branch="$BRANCH" -v repository="$EXPECTED_REPOSITORY" '$1 == branch && $2 == repository { print $3 }')
+if [ -n "$PR_NUMBER" ]; then
+  echo "has_pr:${PR_NUMBER}"
+else
+  echo ensure_pr
+fi

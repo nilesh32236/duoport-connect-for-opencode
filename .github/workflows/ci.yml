@@ -10,8 +10,10 @@ on:
       - 'phpcs.xml'
       - 'phpunit.xml.dist'
       - '.github/workflows/*.yml'
+      - '.github/workflows/*.yaml'
       - '.github/scripts/*.php'
       - '.github/scripts/*.sh'
+      - 'tests/Unit/*.sh'
       - '.github/reviewer-dependency.json'
   pull_request:
     branches: ["main", "master"]
@@ -22,8 +24,10 @@ on:
       - 'phpcs.xml'
       - 'phpunit.xml.dist'
       - '.github/workflows/*.yml'
+      - '.github/workflows/*.yaml'
       - '.github/scripts/*.php'
       - '.github/scripts/*.sh'
+      - 'tests/Unit/*.sh'
       - '.github/reviewer-dependency.json'
 
 permissions:
@@ -64,6 +68,11 @@ jobs:
 
       - name: Unit tests
         run: vendor/bin/phpunit
+
+      - name: Reviewer branch contracts
+        run: |
+          bash tests/Unit/reviewer-push-contract.sh
+          bash tests/Unit/reviewer-branch-inspection-contract.sh
 
       - name: PHP compatibility (8.2+)
         run: vendor/bin/phpcs --standard=PHPCompatibilityWP --runtime-set testVersion 8.2- --ignore=vendor/*,.github/* .

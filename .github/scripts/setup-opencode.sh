@@ -20,22 +20,20 @@ fi
 
 echo "::group::Setting up OpenCode ${OPENCODE_VERSION}"
 
+declare -A OPENCODE_SHA256=(
+  [linux-x64]="e9312be75ed803b7415fc2aeabda1f4fe938912a39673762dc0c38c0e11ebde4"
+  [linux-arm64]="d4e332f46b227448582c0d9fc75f6f826dfe95c9f751bc2011fc4d937a042be6"
+)
 ARCH="linux-x64"
-EXPECTED_SHA256="e9312be75ed803b7415fc2aeabda1f4fe938912a39673762dc0c38c0e11ebde4"
 case "$(uname -m)" in
-  aarch64|arm64)
-    ARCH="linux-arm64"
-    EXPECTED_SHA256="d4e332f46b227448582c0d9fc75f6f826dfe95c9f751bc2011fc4d937a042be6"
-    ;;
-  x86_64|amd64)
-    ARCH="linux-x64"
-    ;;
+  aarch64|arm64) ARCH="linux-arm64" ;;
+  x86_64|amd64) ARCH="linux-x64" ;;
   *)
     echo "Error: Unsupported architecture: $(uname -m)" >&2
     exit 1
     ;;
 esac
-
+EXPECTED_SHA256="${OPENCODE_SHA256[$ARCH]}"
 RELEASE_URL="https://api.github.com/repos/anomalyco/opencode/releases/tags/${OPENCODE_VERSION}"
 RELEASE_JSON=$(curl -fsSL -H "Authorization: Bearer ${GITHUB_TOKEN:-}" "$RELEASE_URL" 2>/dev/null || echo '{"message":"API error"}')
 if echo "$RELEASE_JSON" | jq -e '.message' >/dev/null 2>&1; then

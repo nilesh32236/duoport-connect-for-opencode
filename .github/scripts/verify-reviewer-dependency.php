@@ -42,17 +42,18 @@ foreach (array('linux-x64', 'linux-arm64') as $arch) {
     }
 }
 $merge_gate = $manifest['merge_gate'] ?? array();
-if (!is_array($merge_gate) || (int) ($merge_gate['ruleset_id'] ?? 0) < 1) {
-    $errors[] = 'merge_gate.ruleset_id must identify the required-check ruleset';
+$expected_ruleset_id = 23935160;
+$expected_pr_ruleset_id = 23935219;
+if (!is_array($merge_gate) || (int) ($merge_gate['ruleset_id'] ?? 0) !== $expected_ruleset_id) {
+    $errors[] = "merge_gate.ruleset_id must be the active exact-check ruleset {$expected_ruleset_id}";
 }
-if (!is_array($merge_gate) || (int) ($merge_gate['pull_request_ruleset_id'] ?? 0) < 1) {
-    $errors[] = 'merge_gate.pull_request_ruleset_id must identify the pull-request ruleset';
+if (!is_array($merge_gate) || (int) ($merge_gate['pull_request_ruleset_id'] ?? 0) !== $expected_pr_ruleset_id) {
+    $errors[] = "merge_gate.pull_request_ruleset_id must be the active pull-request ruleset {$expected_pr_ruleset_id}";
 }
-$required_checks = (array) ($merge_gate['required_checks'] ?? array());
-foreach (array('PHPCS + PHPUnit (PHP 8.2)', 'PHPCS + PHPUnit (PHP 8.3)') as $check) {
-    if (!in_array($check, $required_checks, true)) {
-        $errors[] = "merge_gate.required_checks is missing {$check}";
-    }
+$required_checks = $merge_gate['required_checks'] ?? null;
+$expected_checks = array('PHPCS + PHPUnit (PHP 8.2)', 'PHPCS + PHPUnit (PHP 8.3)');
+if ($required_checks !== $expected_checks) {
+    $errors[] = 'merge_gate.required_checks must be exactly the PHP 8.2 and PHP 8.3 matrix checks';
 }
 
 $workflow_dir = $root . '/.github/workflows';
@@ -101,8 +102,23 @@ foreach (array('ai-review.yml' => $review_source, 'daily-audit.yml' => $audit_so
 }
 foreach (array('linux-x64', 'linux-arm64') as $arch) {
     $manifest_hash = (string) (($cli['sha256'] ?? array())[$arch] ?? '');
-    if ('' === $manifest_hash || !str_contains($setup_source, $manifest_hash)) {
-        $errors[] = "manifest hash for {$arch} is not bound to setup-opencode.sh";
+    $escaped_arch = preg_quote($arch, '/');
+    $assignment_count = preg_match_all('/\[' . $escaped_arch . '\]\s*=\s*"([a-f0-9]{64})"/', $setup_source, $matches);
+    if (1 !== $assignment_count) {
+        $errors[] = "setup-opencode.sh must have exactly one SHA-256 assignment for {$arch}";
+        continue;
+    }
+    if ($manifest_hash !== ($matches[1][0] ?? '')) {
+        $errors[] = "manifest hash for {$arch} does not match setup-opencode.sh architecture assignment";
+    }
+}
+foreach (array(
+    'aarch64|arm64' => 'linux-arm64',
+    'x86_64|amd64' => 'linux-x64',
+) as $machine_arch => $asset_arch) {
+    $pattern = '/' . preg_quote($machine_arch, '/') . '\)\s*ARCH\s*=\s*"' . preg_quote($asset_arch, '/') . '"/';
+    if (1 !== preg_match($pattern, $setup_source)) {
+        $errors[] = "setup-opencode.sh must map {$machine_arch} to {$asset_arch}";
     }
 }
 if (substr_count($research_source, 'OPENCODE_VERSION: v1.18.31') !== 2) {
@@ -115,8 +131,39 @@ $updater_source = (string) file_get_contents($workflow_dir . '/reviewer-update.y
 $guard_path = $root . '/.github/scripts/reviewer-pr-guard.sh';
 if (!is_file($guard_path) || !is_executable($guard_path)) {
     $errors[] = 'reviewer-pr-guard.sh must be present and executable';
+} else {
+    $guard_source = (string) file_get_contents($guard_path);
+    if (!str_contains($guard_source, 'head.repo.full_name') || !str_contains($guard_source, '--paginate')) {
+        $errors[] = 'reviewer-pr-guard.sh must paginate exact repository identities';
+    }
 }
-foreach (array('releases/latest', 'reviewer-dependency.json', 'pull-requests: write', 'concurrency:', 'GH_PAT', 'force-with-lease', 'Campaign PR guard failed', 'Skip already-current dependency branch', 'proceed=false', 'headRepositoryOwner', 'ensure_pr', 'reviewer-pr-guard.sh') as $needle) {
+$push_path = $root . '/.github/scripts/push-reviewer-branch.sh';
+if (!is_file($push_path) || !is_executable($push_path)) {
+    $errors[] = 'push-reviewer-branch.sh must be present and executable';
+} else {
+    $push_source = (string) file_get_contents($push_path);
+    foreach (array('--force-with-lease="${REF}:${EXISTING_SHA}"', '--atomic') as $lease_form) {
+        if (!str_contains($push_source, $lease_form)) {
+            $errors[] = 'push-reviewer-branch.sh is missing an explicit existing/empty lease';
+            break;
+        }
+    }
+}
+$inspect_path = $root . '/.github/scripts/inspect-reviewer-branch.sh';
+if (!is_file($inspect_path) || !is_executable($inspect_path)) {
+    $errors[] = 'inspect-reviewer-branch.sh must be present and executable';
+} else {
+    $inspect_source = (string) file_get_contents($inspect_path);
+    foreach (array('git show', 'git grep', 'gh') as $needle) {
+        if (!str_contains($inspect_source, $needle)) {
+            $errors[] = 'inspect-reviewer-branch.sh is missing fail-closed inspection: ' . $needle;
+        }
+    }
+    if (str_contains($inspect_source, '|| true')) {
+        $errors[] = 'inspect-reviewer-branch.sh must not mask inspection errors';
+    }
+}
+foreach (array('releases/latest', 'reviewer-dependency.json', 'pull-requests: write', 'concurrency:', 'GH_PAT', 'Campaign PR guard failed', 'Skip already-current dependency branch', 'proceed=false', 'gh api --paginate', 'per_page=100', 'ensure_pr', 'reviewer-pr-guard.sh', 'push-reviewer-branch.sh', 'inspect-reviewer-branch.sh') as $needle) {
     if (!str_contains($updater_source, $needle)) {
         $errors[] = 'reviewer-update.yml is missing required traceability/safety contract: ' . $needle;
     }
