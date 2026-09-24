@@ -10,7 +10,7 @@ permissions:
   pull-requests: write
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: reviewer-update-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
@@ -24,11 +24,22 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Require a PAT for traceable PR events
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          if [ -z "$GH_PAT" ]; then
+            echo "GH_PAT is required so the dependency PR receives pull_request checks."
+            exit 1
+          fi
 
       - name: Resolve latest stable release
         id: release
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           RELEASE_JSON=$(gh api repos/nilesh32236/opencode-ai-reviewer/releases/latest)
@@ -43,10 +54,14 @@ jobs:
       - name: Avoid competing campaign pull requests
         id: campaign
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          OPEN=$(gh pr list -R "${{ github.repository }}" --state open --json headRefName --jq '.[].headRefName' | grep -v '^automation/opencode-ai-reviewer$' || true)
+          if ! PR_LIST=$(gh pr list -R "${{ github.repository }}" --state open --json headRefName --jq '.[].headRefName'); then
+            echo "Unable to inspect open pull requests; refusing to update dependencies."
+            exit 1
+          fi
+          OPEN=$(printf '%s\n' "$PR_LIST" | grep -v '^automation/opencode-ai-reviewer$' || true)
           if [ -n "$OPEN" ]; then
             echo "A campaign pull request is active; deferring reviewer update."
             printf '%s\n' "$OPEN"
@@ -75,7 +90,7 @@ jobs:
       - name: Commit and open traceable dependency PR
         if: steps.campaign.outputs.proceed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.release.outputs.tag }}
           COMMIT: ${{ steps.release.outputs.commit }}
           PUBLISHED: ${{ steps.release.outputs.published }}
@@ -106,6 +121,16 @@ jobs:
           The updater reads only the latest stable GitHub release, validates the
           semver tag and full commit SHA, updates all reviewer action references
           and the traceability manifest, and does not auto-merge."
+          if ! PR_LIST=$(gh pr list -R "${{ github.repository }}" --state open --json headRefName --jq '.[].headRefName'); then
+            echo "Unable to recheck open pull requests; leaving the branch without a PR."
+            exit 1
+          fi
+          OPEN=$(printf '%s\n' "$PR_LIST" | grep -v '^automation/opencode-ai-reviewer$' || true)
+          if [ -n "$OPEN" ]; then
+            echo "A campaign PR appeared during update; leaving the branch without a competing PR."
+            printf '%s\n' "$OPEN"
+            exit 0
+          fi
           EXISTING=$(gh pr list -R "${{ github.repository }}" --head "$REMOTE_BRANCH" --state open --json number --jq '.[0].number' || true)
           if [ -n "$EXISTING" ]; then
             gh pr edit "$EXISTING" -R "${{ github.repository }}" --title "ci: update OpenCode AI Reviewer to $TAG" --body "$BODY"

@@ -24,7 +24,9 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		exec( 'php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
 
 		self::assertSame( 0, $status, implode( "\n", $output ) );
-		self::assertStringContainsString( 'v1.22.0', implode( "\n", $output ) );
+		$manifest = json_decode( (string) file_get_contents( $root . '/.github/reviewer-dependency.json' ), true );
+		self::assertIsArray( $manifest );
+		self::assertStringContainsString( (string) $manifest['release_tag'], implode( "\n", $output ) );
 	}
 
 	/**

@@ -87,7 +87,7 @@ if (!str_contains($setup_source, 'OPENCODE_VERSION="${OPENCODE_VERSION:-v1.18.31
     $errors[] = 'setup-opencode.sh must default to v1.18.31 and verify its archive checksum';
 }
 $updater_source = (string) file_get_contents($workflow_dir . '/reviewer-update.yml');
-foreach (array('releases/latest', 'reviewer-dependency.json', 'pull-requests: write', 'concurrency:') as $needle) {
+foreach (array('releases/latest', 'reviewer-dependency.json', 'pull-requests: write', 'concurrency:', 'GH_PAT', 'force-with-lease', 'Unable to inspect open pull requests') as $needle) {
     if (!str_contains($updater_source, $needle)) {
         $errors[] = 'reviewer-update.yml is missing required traceability/safety contract: ' . $needle;
     }
