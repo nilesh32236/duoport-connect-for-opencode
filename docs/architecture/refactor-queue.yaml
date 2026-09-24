@@ -129,7 +129,7 @@ items:
     status: in_progress
     title: Catalog freshness and verification status
     github_issue: 71
-    github_pr: pending
+    github_pr: 72
     priority: medium
     difficulty: medium
     depends_on: [PF-001]
