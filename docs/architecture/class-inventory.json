@@ -1075,7 +1075,10 @@
         "OpenCodeConnector\\Providers\\OpenCodeZenProvider",
         "WordPress\\AiClient\\Providers\\Http\\DTO\\Request",
         "WordPress\\AiClient\\Providers\\Http\\Enums\\HttpMethodEnum",
-        "WordPress\\AiClient\\Providers\\OpenAiCompatibleImplementation\\AbstractOpenAiCompatibleTextGenerationModel"
+        "WordPress\\AiClient\\Providers\\OpenAiCompatibleImplementation\\AbstractOpenAiCompatibleTextGenerationModel",
+        "OpenCodeConnector\\Metadata\\ModelRegistry",
+        "OpenCodeConnector\\Transport\\EndpointRoute",
+        "OpenCodeConnector\\Transport\\UnsupportedEndpointFamilyException"
       ],
       "wordpress_dependencies": true,
       "opencode_dependencies": true,
@@ -1090,7 +1093,10 @@
         "OpenCodeConnector\\Http\\GoRequestHeaders",
         "OpenCodeConnector\\Metadata\\ModelAllowlist",
         "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
-        "OpenCodeConnector\\Providers\\OpenCodeZenProvider"
+        "OpenCodeConnector\\Providers\\OpenCodeZenProvider",
+        "OpenCodeConnector\\Metadata\\ModelRegistry",
+        "OpenCodeConnector\\Transport\\EndpointRoute",
+        "OpenCodeConnector\\Transport\\UnsupportedEndpointFamilyException"
       ]
     },
     {

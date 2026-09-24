@@ -235,6 +235,21 @@
     },
     {
       "from": "settings",
+      "to": "compatibility",
+      "kind": "runtime diagnostics"
+    },
+    {
+      "from": "compatibility",
+      "to": "ai-client",
+      "kind": "registry compatibility"
+    },
+    {
+      "from": "compatibility",
+      "to": "providers",
+      "kind": "provider compatibility"
+    },
+    {
+      "from": "settings",
       "to": "availability",
       "kind": "compatibility projection (planned)"
     },
