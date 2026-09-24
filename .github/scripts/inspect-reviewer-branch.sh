@@ -41,7 +41,20 @@ if ! MANIFEST=$(git show "${EXISTING_SHA}:.github/reviewer-dependency.json" 2>/d
   echo "Unable to inspect existing dependency manifest; refusing to continue." >&2
   exit 1
 fi
-if ! jq -e 'type == "object" and (.release_tag | type == "string") and (.release_commit | type == "string")' >/dev/null <<<"$MANIFEST"; then
+if ! jq -e '
+  type == "object" and
+  (.release_tag | type == "string") and
+  (.release_commit | type == "string") and
+  (.opencode_cli | type == "object") and
+  (.opencode_cli.version | type == "string") and
+  (.opencode_cli.sha256 | type == "object") and
+  (.opencode_cli.sha256["linux-x64"] | type == "string" and test("^[a-f0-9]{64}$")) and
+  (.opencode_cli.sha256["linux-arm64"] | type == "string" and test("^[a-f0-9]{64}$")) and
+  (.merge_gate | type == "object") and
+  (.merge_gate.ruleset_id | type == "number") and
+  (.merge_gate.pull_request_ruleset_id | type == "number") and
+  (.merge_gate.required_checks | type == "array" and length == 2)
+' >/dev/null <<<"$MANIFEST"; then
   echo "Existing dependency manifest schema is invalid; refusing to continue." >&2
   exit 1
 fi

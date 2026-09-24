@@ -36,16 +36,20 @@ exec "$REAL_GIT" "$@"
 EOF
 chmod +x "$FAKEBIN/git"
 
-# Use a real competing commit so the object is reachable to the bare remote.
+# Use divergent local and competing commits so a non-forced create cannot
+# fast-forward over a concurrently created ref.
+BASE_SHA=$(git -C "$WORKTREE" rev-parse HEAD)
+LOCAL_BRANCH=$(git -C "$WORKTREE" symbolic-ref --short HEAD)
+printf '%s\n' local >"$WORKTREE/local.txt"
+git -C "$WORKTREE" add local.txt
+git -C "$WORKTREE" commit -qm local
+git -C "$WORKTREE" checkout -q -b competitor-work "$BASE_SHA"
 printf '%s\n' competitor >"$WORKTREE/competitor.txt"
 git -C "$WORKTREE" add competitor.txt
 git -C "$WORKTREE" commit -qm competitor
 COMPETING_SHA=$(git -C "$WORKTREE" rev-parse HEAD)
 git -C "$WORKTREE" push -q origin HEAD:refs/heads/competitor
-printf '%s\n' local >"$WORKTREE/local.txt"
-git -C "$WORKTREE" add local.txt
-git -C "$WORKTREE" commit -qm local
-
+git -C "$WORKTREE" checkout -q "$LOCAL_BRANCH"
 # Empty-ref race: the branch is absent, then appears after the helper's lease read.
 git -C "$WORKTREE" push -q origin :refs/heads/$BRANCH || true
 export PATH="$FAKEBIN:$PATH" REAL_GIT RACE_REMOTE="$REMOTE" RACE_REF="refs/heads/$BRANCH" RACE_SHA="$COMPETING_SHA" RACE_MARKER="$TMP/raced"
@@ -55,8 +59,15 @@ if (cd "$WORKTREE" && "$HELPER" origin "$BRANCH" HEAD >/dev/null 2>&1); then
 fi
 [ "$(git --git-dir="$REMOTE" rev-parse "refs/heads/$BRANCH")" = "$COMPETING_SHA" ]
 
+# A genuinely absent ref must still be created successfully without a race.
+git -C "$WORKTREE" push -q origin :refs/heads/$BRANCH || true
+export RACE_MARKER="$TMP/raced-disabled"
+touch "$RACE_MARKER"
+(cd "$WORKTREE" && "$HELPER" origin "$BRANCH" HEAD)
+[ "$(git --git-dir="$REMOTE" rev-parse "refs/heads/$BRANCH")" = "$(git -C "$WORKTREE" rev-parse HEAD)" ]
+
 # Reuse the now-existing branch and verify the normal lease accepts a clean push.
-rm -f "$RACE_MARKER"
+export RACE_MARKER="$TMP/raced-disabled"
 (cd "$WORKTREE" && "$HELPER" origin "$BRANCH" HEAD)
 [ "$(git --git-dir="$REMOTE" rev-parse "refs/heads/$BRANCH")" = "$(git -C "$WORKTREE" rev-parse HEAD)" ]
 

@@ -71,6 +71,17 @@ fi
 git -C "$WORKTREE" push -q --force origin "$CURRENT_SHA:refs/heads/$BRANCH"
 git -C "$WORKTREE" reset -q --hard "$CURRENT_SHA"
 
+printf '{"release_tag":"v1.22.0","release_commit":"103082c963f64cb2cf979ae14b729ec41d40866e"}\n' >"$WORKTREE/.github/reviewer-dependency.json"
+git -C "$WORKTREE" add .github/reviewer-dependency.json
+git -C "$WORKTREE" commit -qm partial-manifest
+git -C "$WORKTREE" push -q origin HEAD:refs/heads/$BRANCH
+if (cd "$WORKTREE" && "$INSPECT" "$TAG" "$COMMIT" "$BRANCH" "$REPO" "$EXPECTED_REPOSITORY" >/dev/null 2>&1); then
+  echo "branch inspector accepted a partial manifest" >&2
+  exit 1
+fi
+git -C "$WORKTREE" push -q --force origin "$CURRENT_SHA:refs/heads/$BRANCH"
+git -C "$WORKTREE" reset -q --hard "$CURRENT_SHA"
+
 # A release mismatch is stale and may be regenerated from main.
 git -C "$WORKTREE" checkout -q main
 jq '.release_tag = "v0.0.0"' "$WORKTREE/.github/reviewer-dependency.json" >"$WORKTREE/manifest.tmp"

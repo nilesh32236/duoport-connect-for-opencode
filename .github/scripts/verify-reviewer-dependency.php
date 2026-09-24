@@ -142,7 +142,7 @@ if (!is_file($push_path) || !is_executable($push_path)) {
     $errors[] = 'push-reviewer-branch.sh must be present and executable';
 } else {
     $push_source = (string) file_get_contents($push_path);
-    foreach (array('--force-with-lease="${REF}:${EXISTING_SHA}"', '--force-with-lease="${REF}:1111111111111111111111111111111111111111"') as $lease_form) {
+    foreach (array('--force-with-lease="${REF}:${EXISTING_SHA}"', '--atomic') as $lease_form) {
         if (!str_contains($push_source, $lease_form)) {
             $errors[] = 'push-reviewer-branch.sh is missing an explicit existing/empty lease';
             break;

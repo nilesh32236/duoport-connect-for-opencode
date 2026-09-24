@@ -90,7 +90,7 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		self::assertStringNotContainsString( '|| true', $inspect );
 		$push = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/scripts/push-reviewer-branch.sh' );
 		self::assertStringContainsString( '--force-with-lease="${REF}:${EXISTING_SHA}"', $push );
-		self::assertStringContainsString( '--force-with-lease="${REF}:1111111111111111111111111111111111111111"', $push );
+		self::assertStringContainsString( '--atomic', $push );
 	}
 
 	/**

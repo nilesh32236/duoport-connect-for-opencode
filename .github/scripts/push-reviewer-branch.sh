@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Push the reviewer updater branch with an exact existing-or-empty ref lease.
+# Push the reviewer updater branch with an exact existing-ref lease or an
+# atomic, non-forced create when the ref is absent.
 
 set -euo pipefail
 
@@ -17,7 +18,7 @@ EXISTING_SHA=$(git ls-remote "$REMOTE" "$REF" | awk '{print $1}')
 if [ -n "$EXISTING_SHA" ]; then
   git push --force-with-lease="${REF}:${EXISTING_SHA}" "$REMOTE" "${HEAD_REF}:${BRANCH}"
 else
-  # Git treats an all-zero expected SHA like an unconstrained lease; use a
-  # non-existent sentinel so a ref appearing after ls-remote is rejected.
-  git push --force-with-lease="${REF}:1111111111111111111111111111111111111111" "$REMOTE" "${HEAD_REF}:${BRANCH}"
+  # A normal atomic create succeeds only when the ref is absent or is a
+  # fast-forward. It never force-overwrites a ref created after ls-remote.
+  git push --atomic "$REMOTE" "${HEAD_REF}:${BRANCH}"
 fi
