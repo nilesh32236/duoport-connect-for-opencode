@@ -85,7 +85,7 @@ items:
     status: in_progress
     title: Capability-aware model registry
     github_issue: 55
-    github_pr: pending
+    github_pr: 56
     priority: high
     difficulty: medium
     depends_on: [AUDIT-041, PF-009]
