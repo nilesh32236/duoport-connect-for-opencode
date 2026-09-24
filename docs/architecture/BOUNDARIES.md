@@ -57,7 +57,7 @@ model ID
 + curated allowlist status
 ```
 
-Unknown models, unknown catalogs, unknown endpoint families, and unknown capabilities are rejected or omitted. The current image and web-search lists remain empty/default-deny. A `show_all_models` display setting must not bypass the capability gate.
+Unknown models, unknown catalogs, unknown endpoint families, and unknown capabilities are rejected or omitted. The current image and web-search lists remain empty/default-deny. The legacy `show_all_models` setting may expose unknown text rows for compatibility, but it must not add an unverified tool, web-search, image, or endpoint capability; those rows remain potentially failing until verified.
 
 ## Transport boundary
 

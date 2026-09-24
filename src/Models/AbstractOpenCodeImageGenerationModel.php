@@ -48,7 +48,7 @@ abstract class AbstractOpenCodeImageGenerationModel extends AbstractOpenAiCompat
 	 * Header failures always fall back to a headerless send; never fatal.
 	 *
 	 * @since 0.1.4
-	 * @since 0.1.4 Added Go session header and client User-Agent.
+	 * @since 0.1.5 Added Go session header and client User-Agent.
 	 *
 	 * @param HttpMethodEnum $method  HTTP method.
 	 * @param string         $path    Request path.

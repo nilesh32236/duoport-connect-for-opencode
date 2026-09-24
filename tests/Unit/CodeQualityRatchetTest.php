@@ -15,17 +15,30 @@ namespace OpenCodeConnector\Tests\Unit;
 final class CodeQualityRatchetTest extends MonkeyTestCase {
 
 	/**
-	 * Product source must not document an unreleased version.
+	 * Release metadata and post-0.1.4 API annotations are synchronized.
 	 */
-	public function test_product_source_has_no_future_since_tags(): void {
+	public function test_prepared_release_metadata_is_synchronized(): void {
 		$root = dirname( __DIR__, 2 );
-		$files = array( $root . '/src/Http/ClientUserAgent.php', $root . '/src/Http/SessionHeader.php', $root . '/src/Models/AbstractOpenCodeTextGenerationModel.php', $root . '/src/Models/AbstractOpenCodeImageGenerationModel.php' );
+		$main = (string) file_get_contents( $root . '/duoport-connect-for-opencode.php' );
+		$readme = (string) file_get_contents( $root . '/readme.txt' );
 
-		foreach ( $files as $file ) {
-			self::assertStringNotContainsString(
+		self::assertStringContainsString( 'Version:           0.1.5', $main );
+		self::assertStringContainsString( "const VERSION     = '0.1.5';", $main );
+		self::assertStringContainsString( 'Stable tag: 0.1.5', $readme );
+		self::assertStringContainsString( '= 0.1.5 =', $readme );
+
+		$post_release_files = array(
+			$root . '/src/Http/ClientUserAgent.php',
+			$root . '/src/Http/GoRequestHeaders.php',
+			$root . '/src/Http/SessionHeader.php',
+			$root . '/src/Models/AbstractOpenCodeTextGenerationModel.php',
+			$root . '/src/Models/AbstractOpenCodeImageGenerationModel.php',
+		);
+		foreach ( $post_release_files as $file ) {
+			self::assertStringContainsString(
 				'@since 0.1.5',
 				(string) file_get_contents( $file ),
-				basename( $file ) . ' must not document a version before release preparation.'
+				basename( $file ) . ' must document the post-0.1.4 API in the prepared release.'
 			);
 		}
 	}

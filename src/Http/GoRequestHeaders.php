@@ -6,7 +6,7 @@
  * request paths cannot drift apart on the next header change.
  *
  * @package OpenCodeConnector
- * @since 0.1.4
+ * @since 0.1.5
  */
 
 declare(strict_types=1);
@@ -27,7 +27,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * (fail-open, behavior unchanged).
  *
  * @package OpenCodeConnector
- * @since 0.1.4
+ * @since 0.1.5
  */
 final class GoRequestHeaders {
 	/**
@@ -38,7 +38,7 @@ final class GoRequestHeaders {
 	 * case-insensitively). Returns the headers unchanged when derivation
 	 * fails. Never throws.
 	 *
-	 * @since 0.1.4
+	 * @since 0.1.5
 	 *
 	 * @param array $headers Request headers.
 	 * @param mixed $data    Request data.

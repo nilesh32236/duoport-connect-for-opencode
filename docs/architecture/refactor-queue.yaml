@@ -14,16 +14,18 @@ items:
     priority: high
     difficulty: low
     scope:
-      - Retag unreleased 0.1.5 documentation to the current 0.1.4 release.
+      - Prepare the 0.1.5 release metadata because the new header APIs landed after the v0.1.4 tag.
       - Centralize the Go session/User-Agent header pair.
       - Make catalog matching exact and remove dead reflection compatibility code.
       - Keep DeepSeek prefix checks on the PHP 8.2 str_starts_with API.
+      - Synchronize the main header, VERSION constant, readme stable tag, changelog, upgrade notice, and post-tag @since annotations.
     acceptance:
       - vendor/bin/phpcs passes.
       - vendor/bin/phpunit passes.
       - PHPCompatibilityWP 8.2+ passes.
       - CI is green on the exact PR head.
       - No credential option reads, setting aliases, or secret logging are introduced.
+      - Version header, VERSION, Stable tag, Changelog, Upgrade Notice, and post-tag @since tags agree on 0.1.5.
     metrics_before:
       source_classes: 18
       source_class_lines: 1827
@@ -38,7 +40,14 @@ items:
       largest_method: OpenCodeConnector\\Metadata\\AbstractOpenCodeModelMetadataDirectory::parseResponseToModelMetadataList
       duplicated_header_blocks: 1
       unreleased_since_tags: 0
+      release_prepared: 0.1.5
     status_note: Existing PR retained as the single active campaign PR; stale competing issues and PRs were closed after history reconciliation.
+    merge_gate:
+      expected_head: "Capture from GitHub immediately before merge; merge with --match-head-commit."
+      ci: "Required: all checks SUCCESS on the expected head."
+      review: "Required: independent review has no unresolved blocking findings."
+      stale_head: "Rejected if any newer push appears after capture."
+      post_merge: "Required: WordPress runtime verification, WPCS, PHPUnit, and release checks."
   - id: PF-009
     status: pending
     title: Add lightweight compatibility diagnostics

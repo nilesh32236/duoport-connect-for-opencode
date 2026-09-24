@@ -50,7 +50,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * never fatal.
 	 *
 	 * @since 0.1.0
-	 * @since 0.1.4 Added shared client User-Agent on the Go path.
+	 * @since 0.1.5 Added shared client User-Agent on the Go path.
 	 *
 	 * @param HttpMethodEnum $method  HTTP method.
 	 * @param string         $path    Request path.

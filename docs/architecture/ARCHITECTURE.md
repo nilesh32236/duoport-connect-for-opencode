@@ -35,8 +35,8 @@ Provider metadata directory
 
 WordPress AI Client model request
   -> provider factory selects Go/Zen text or image class
-  -> AbstractOpenCodeTextGenerationModel / AbstractOpenCodeImageGenerationModel
-  -> Request DTO at chat/completions (current implementation)
+  -> AbstractOpenCodeTextGenerationModel -> chat/completions (current text implementation)
+  -> AbstractOpenCodeImageGenerationModel -> images/generations (opt-in image implementation)
   -> SDK authentication/transporter
 
 Availability
@@ -63,7 +63,7 @@ Availability
 - Go and Zen have distinct provider IDs and distinct WordPress key setting names.
 - Bootstrap and cache-bust hooks fail closed around missing SDK classes and never inspect connector option values.
 - Provider classes are registered through the WordPress AI Client registry rather than a competing settings system.
-- `ModelAllowlist` is a curated safety boundary; `show_all_models` is opt-in and does not automatically promote unknown models to verified capabilities.
+- `ModelAllowlist` is a curated safety boundary; `show_all_models` is an explicit advanced listing that bypasses the text allowlist but still does not add unverified tools, web-search, or image capabilities. Unknown text rows remain a documented compatibility behavior and may fail upstream.
 - Web search and image capability lists are default-deny; image support is inert until a model is explicitly allowlisted and response handling exists.
 - The existing test suite covers registration, credential blindness, probe semantics, headers, tools, image safety, and compatibility guards.
 

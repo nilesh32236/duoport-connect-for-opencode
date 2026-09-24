@@ -51,7 +51,7 @@ final class SessionHeader {
 	 * omit the header (fail-open, behavior unchanged). Never throws.
 	 *
 	 * @since 0.1.4
-	 * @since 0.1.4 Added image `prompt` payload support.
+	 * @since 0.1.5 Added image `prompt` payload support.
 	 *
 	 * @param mixed $data Request data.
 	 * @return string|null Opaque hex session value, or null when omitted.
@@ -116,7 +116,7 @@ final class SessionHeader {
 	 * only `model` + normalized `prompt` feed the hash so no other keys
 	 * (user ids, keys) can leak into the value. Never throws.
 	 *
-	 * @since 0.1.4
+	 * @since 0.1.5
 	 *
 	 * @param array $data Request data with `prompt`.
 	 * @return string|null Opaque hex session value, or null when omitted.
@@ -140,7 +140,7 @@ final class SessionHeader {
 	 * Uses `wp_json_encode()` when available, plain `json_encode()` outside
 	 * a WP context (e.g. unit tests). Never throws.
 	 *
-	 * @since 0.1.4
+	 * @since 0.1.5
 	 *
 	 * @param array $canonical Canonical payload.
 	 * @return string|null Hex session value, or null when unencodable.
