@@ -21,6 +21,7 @@ use OpenCodeConnector\Metadata\ModelAllowlist;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
 use OpenCodeConnector\Transport\EndpointRoute;
+use OpenCodeConnector\Transport\UnsupportedEndpointFamilyException;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleTextGenerationModel;
@@ -58,14 +59,16 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * @param array          $headers Request headers.
 	 * @param mixed          $data    Request data.
 	 * @return Request
+	 * @throws UnsupportedEndpointFamilyException When route metadata or the model route is unsupported.
 	 */
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
 		$cls      = $this->providerClass();
-		$model_id = $this->model_id_for_tool_gate();
+		$model_id = $this->route_model_id();
 		$catalog  = $this->catalog_key_for_tool_gate();
-		if ( '' !== $model_id && '' !== $catalog ) {
-			$path = EndpointRoute::pathForModel( $model_id, $catalog );
+		if ( '' === $model_id || '' === $catalog ) {
+			throw new UnsupportedEndpointFamilyException( 'Model route metadata is unavailable.' );
 		}
+		$path = EndpointRoute::pathForModel( $model_id, $catalog );
 		if ( OpenCodeGoProvider::class === $cls ) {
 			$headers = GoRequestHeaders::for_go( $headers, $data );
 		}
@@ -153,6 +156,18 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 		} catch ( \Throwable ) {
 			return array();
 		}
+	}
+
+	/**
+	 * Resolve the model ID used for endpoint routing.
+	 *
+	 * Protected as a test seam for SDK-free model doubles; production models
+	 * use the metadata/reflection resolver below.
+	 *
+	 * @return string
+	 */
+	protected function route_model_id(): string {
+		return $this->model_id_for_tool_gate();
 	}
 
 	/**

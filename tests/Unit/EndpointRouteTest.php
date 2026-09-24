@@ -23,11 +23,17 @@ final class EndpointRouteTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Known family names have explicit paths.
+	 * Unimplemented endpoint kinds are explicitly denied.
 	 */
-	public function test_supported_family_paths_are_explicit(): void {
-		self::assertSame( 'responses', EndpointRoute::pathForEndpointKind( 'responses' ) );
-		self::assertSame( 'messages', EndpointRoute::pathForEndpointKind( 'messages' ) );
+	public function test_unimplemented_family_paths_are_denied(): void {
+		foreach ( array( 'responses', 'messages', 'provider-specific' ) as $kind ) {
+			try {
+				EndpointRoute::pathForEndpointKind( $kind );
+				self::fail( 'Expected an unsupported endpoint kind exception.' );
+			} catch ( UnsupportedEndpointFamilyException ) {
+				self::assertTrue( true );
+			}
+		}
 	}
 
 	/**
