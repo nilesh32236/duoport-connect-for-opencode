@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `4fe854dc6f746c46ab6c1b9a9d08aa100e04a398` (`origin/main`)
+**Merged baseline:** `05cf13c33796228454c06e5d1e103d152572d980` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -26,7 +26,7 @@ The merged plugin was synchronized to the live WordPress site and PHP-linted. Wo
 Local verification passed:
 
 - WPCS
-- PHPUnit: 100 tests, 377 assertions
+- PHPUnit: 105 tests, 385 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
@@ -48,9 +48,13 @@ PR #54 merged deterministically at the exact reviewed head. The plugin now has a
 
 PR #56 merged deterministically at the exact reviewed head. The curated registry now records endpoint family, capabilities, free status, verification status, and review date per catalog, and metadata filtering uses those records while unknown models and capabilities remain default-deny.
 
+## PF-002 correction
+
+The first routing pass is narrowed to the only complete transport contract: chat/completions. Unresolved metadata now fails before Request construction, and responses/messages/provider-specific families are explicitly denied until their payload, parser, and authentication adapters are verified. Issue #59 tracks this correction.
+
 ## Next active item: PF-002
 
-PF-002 is the sole active queue item and issue #57; its PR is pending. It adds explicit endpoint-family routing with no chat fallback for unknown families. No competing issue or PR is open. ARCH-001 is complete.
+PF-002 is the sole active queue item and issue #59; its correction PR is pending. No competing issue or PR is open. ARCH-001 is complete.
 
 ## Final boundaries
 
