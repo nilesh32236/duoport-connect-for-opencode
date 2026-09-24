@@ -52,7 +52,7 @@ items:
     status: in_progress
     title: Make build-release verification exit successfully
     github_issue: 44
-    github_pr: pending
+    github_pr: 45
     owner: campaign-lead
     priority: high
     difficulty: low
