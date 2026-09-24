@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `a974fc73bc04248206d91607ec85ff32df12ad52` (`origin/main`)  
+**Merged baseline:** `87fde80e714d1544dfc117a47981b793987ec63e` (`origin/main`)  
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -26,7 +26,7 @@ The merged plugin was synchronized to the live WordPress site and PHP-linted. Wo
 Local verification passed:
 
 - WPCS
-- PHPUnit: 93 tests, 344 assertions
+- PHPUnit: 97 tests, 358 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
@@ -40,9 +40,13 @@ PR #49 merged deterministically at the exact reviewed head. The workflow guard n
 
 PR #52 merged deterministically at the exact reviewed head. The shared validator now requires complete reviewer manifest provenance, exact release/CLI/ruleset/check values, and distinct architecture hashes. The branch inspector and offline verifier fail closed on omitted, invalid, equal, or mismatched integrity data, with behavioral fixtures covering each case.
 
-## Next active item: PF-009
+## PF-009 result
 
-PF-009 is the sole active queue item and issue #53; its PR is pending. It is limited to lightweight credential-blind compatibility diagnostics. No competing issue or PR is open. ARCH-001 is complete.
+PR #54 merged deterministically at the exact reviewed head. The plugin now has a small credential-blind compatibility seam for WordPress, AI Client registry shape, and provider registration. It does not read connector options and keeps Settings presentation-only.
+
+## Next active item: PF-001
+
+PF-001 is the sole active queue item and issue #55; its PR is pending. It begins the curated capability-aware model registry milestone. No competing issue or PR is open. ARCH-001 is complete.
 
 ## Final boundaries
 
