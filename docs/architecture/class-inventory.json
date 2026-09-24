@@ -1,10 +1,10 @@
 {
   "summary": {
-    "generated_from_commit": "a8c3f940a889689bf959f98e41c2caaaf7962bb8",
+    "generated_from_commit": "cab8d78aaa0d72351c557357b59be89f0b0885d3",
     "generated_at": "2026-09-24",
-    "file_count": 21,
-    "class_count": 19,
-    "source_lines": 1843,
+    "file_count": 26,
+    "class_count": 24,
+    "source_lines": 3183,
     "largest_class": "OpenCodeConnector\\Settings\\Settings",
     "largest_class_lines": 222,
     "largest_method": {
@@ -1141,6 +1141,293 @@
       "fan_out": [
         "OpenCodeConnector\\Metadata\\OpenCodeGoModelMetadataDirectory",
         "OpenCodeConnector\\Metadata\\OpenCodeZenModelMetadataDirectory"
+      ]
+    },
+    {
+      "file": "src/Metadata/ModelRegistry.php",
+      "class": "OpenCodeConnector\\Metadata\\ModelRegistry",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": null,
+      "implements": null,
+      "start_line": 23,
+      "end_line": 127,
+      "lines": 105,
+      "methods": [
+        {
+          "name": "endpointFamily",
+          "visibility": "private",
+          "static": true,
+          "line": 58
+        },
+        {
+          "name": "record",
+          "visibility": "public",
+          "static": true,
+          "line": 72
+        },
+        {
+          "name": "records",
+          "visibility": "public",
+          "static": true,
+          "line": 104
+        },
+        {
+          "name": "supports",
+          "visibility": "public",
+          "static": true,
+          "line": 123
+        }
+      ],
+      "method_count": 4,
+      "public_methods": [
+        "record",
+        "records",
+        "supports"
+      ],
+      "protected_methods": [],
+      "private_methods": [
+        "endpointFamily"
+      ],
+      "dependencies": [
+        "OpenCodeConnector\\Metadata\\ModelAllowlist"
+      ],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": false,
+      "http_dependencies": false,
+      "settings_dependencies": false,
+      "static_state": true,
+      "fan_in": [
+        "OpenCodeConnector\\Metadata\\CatalogWatch",
+        "OpenCodeConnector\\Transport\\EndpointRoute",
+        "OpenCodeConnector\\Metadata\\AbstractOpenCodeModelMetadataDirectory",
+        "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Metadata\\ModelAllowlist"
+      ]
+    },
+    {
+      "file": "src/Metadata/CatalogWatch.php",
+      "class": "OpenCodeConnector\\Metadata\\CatalogWatch",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": null,
+      "implements": null,
+      "start_line": 20,
+      "end_line": 214,
+      "lines": 195,
+      "methods": [
+        {
+          "name": "compare",
+          "visibility": "public",
+          "static": false,
+          "line": 39
+        },
+        {
+          "name": "normalize",
+          "visibility": "private",
+          "static": false,
+          "line": 148
+        },
+        {
+          "name": "capabilities_changed",
+          "visibility": "private",
+          "static": false,
+          "line": 168
+        },
+        {
+          "name": "metadata_changed",
+          "visibility": "private",
+          "static": false,
+          "line": 187
+        },
+        {
+          "name": "result",
+          "visibility": "private",
+          "static": false,
+          "line": 205
+        }
+      ],
+      "method_count": 5,
+      "public_methods": [
+        "compare"
+      ],
+      "protected_methods": [],
+      "private_methods": [
+        "normalize",
+        "capabilities_changed",
+        "metadata_changed",
+        "result"
+      ],
+      "dependencies": [
+        "OpenCodeConnector\\Metadata\\ModelRegistry"
+      ],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": false,
+      "http_dependencies": false,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "check-catalog-drift.php"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Metadata\\ModelRegistry"
+      ]
+    },
+    {
+      "file": "src/Availability/ConnectionDiagnostics.php",
+      "class": "OpenCodeConnector\\Availability\\ConnectionDiagnostics",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": null,
+      "implements": null,
+      "start_line": 20,
+      "end_line": 103,
+      "lines": 84,
+      "methods": [
+        {
+          "name": "classify",
+          "visibility": "public",
+          "static": false,
+          "line": 32
+        },
+        {
+          "name": "notConfigured",
+          "visibility": "public",
+          "static": false,
+          "line": 60
+        },
+        {
+          "name": "verified",
+          "visibility": "public",
+          "static": false,
+          "line": 69
+        },
+        {
+          "name": "unknown",
+          "visibility": "public",
+          "static": false,
+          "line": 78
+        },
+        {
+          "name": "result",
+          "visibility": "private",
+          "static": false,
+          "line": 93
+        }
+      ],
+      "method_count": 5,
+      "public_methods": [
+        "classify",
+        "notConfigured",
+        "verified",
+        "unknown"
+      ],
+      "protected_methods": [],
+      "private_methods": [
+        "result"
+      ],
+      "dependencies": [],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": false,
+      "http_dependencies": false,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Availability\\OpenCodeProviderAvailability"
+      ],
+      "fan_out": []
+    },
+    {
+      "file": "src/Transport/EndpointRoute.php",
+      "class": "OpenCodeConnector\\Transport\\EndpointRoute",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": null,
+      "implements": null,
+      "start_line": 21,
+      "end_line": 80,
+      "lines": 60,
+      "methods": [
+        {
+          "name": "endpointKindForModel",
+          "visibility": "public",
+          "static": true,
+          "line": 43
+        },
+        {
+          "name": "pathForModel",
+          "visibility": "public",
+          "static": true,
+          "line": 63
+        },
+        {
+          "name": "pathForEndpointKind",
+          "visibility": "public",
+          "static": true,
+          "line": 74
+        }
+      ],
+      "method_count": 3,
+      "public_methods": [
+        "endpointKindForModel",
+        "pathForModel",
+        "pathForEndpointKind"
+      ],
+      "protected_methods": [],
+      "private_methods": [],
+      "dependencies": [
+        "OpenCodeConnector\\Metadata\\ModelRegistry",
+        "OpenCodeConnector\\Transport\\UnsupportedEndpointFamilyException"
+      ],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": false,
+      "http_dependencies": false,
+      "settings_dependencies": false,
+      "static_state": true,
+      "fan_in": [
+        "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
+        "check-catalog-drift.php"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Metadata\\ModelRegistry",
+        "OpenCodeConnector\\Transport\\UnsupportedEndpointFamilyException"
+      ]
+    },
+    {
+      "file": "src/Transport/UnsupportedEndpointFamilyException.php",
+      "class": "OpenCodeConnector\\Transport\\UnsupportedEndpointFamilyException",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": "RuntimeException",
+      "implements": null,
+      "start_line": 19,
+      "end_line": 20,
+      "lines": 2,
+      "methods": [],
+      "method_count": 0,
+      "public_methods": [],
+      "protected_methods": [],
+      "private_methods": [],
+      "dependencies": [
+        "OpenCodeConnector\\Transport\\EndpointRoute"
+      ],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": false,
+      "http_dependencies": false,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Transport\\EndpointRoute"
+      ],
+      "fan_out": [
+        "RuntimeException"
       ]
     }
   ]

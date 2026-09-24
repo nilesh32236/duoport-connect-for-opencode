@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `a34cf5f681badcd73aa80410e01a5cc4d41b108b` (`origin/main`)
+**Merged baseline:** `cab8d78aaa0d72351c557357b59be89f0b0885d3` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -26,7 +26,7 @@ The merged plugin was synchronized to the live WordPress site and PHP-linted. Wo
 Local verification passed:
 
 - WPCS
-- PHPUnit: 118 tests, 498 assertions
+- PHPUnit: 121 tests, 509 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
@@ -56,13 +56,13 @@ PR #60 merged deterministically at the exact reviewed head. The first routing pa
 
 PR #66 merged the detailed-result correction. The backend now retains safe state/flags through transient caching, separates current usability from the legacy boolean projection, and routes tool preparation through the canonical registry so unsupported Zen routes cannot advertise or prepare tools.
 
-## PF-004 implementation
+## PF-004 correction
 
-The active campaign adds a deterministic, credential-free `CatalogWatch` comparator. It reports new, retired, allowlisted, endpoint/capability/metadata changed, and verification-required states while never promoting discovery IDs automatically.
+The merged base introduced `CatalogWatch`; issue #71 corrects the shipped drift script and malformed-input handling. The comparator is now used by production tooling, unknown capabilities and needs-adapter records require verification, and mixed malformed evidence cannot falsely retire baseline records.
 
 ## Next active item: PF-004
 
-PF-004 is the sole active queue item and issue #67; its PR is pending. It tracks catalog freshness and verification status without automatic promotion. No competing issue or PR is open. ARCH-001 is complete.
+PF-004 is the sole active queue item and issue #71; its correction PR is pending. No competing issue or PR is open. ARCH-001 is complete.
 
 ## Final boundaries
 

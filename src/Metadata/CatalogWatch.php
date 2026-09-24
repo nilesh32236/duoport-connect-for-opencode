@@ -43,33 +43,69 @@ final class CatalogWatch {
 
 		$baseline = array();
 		foreach ( ModelRegistry::records( $catalog ) as $record ) {
-			$baseline[ $record['id'] ] = $record;
+			$baseline[ 'id:' . $record['id'] ] = $record;
 		}
 
-		$current   = array();
-		$saw_valid = false;
+		$current       = array();
+		$invalid_ids   = array();
+		$saw_valid     = false;
+		$has_malformed = false;
 		foreach ( $discovered as $row ) {
 			if ( ! is_array( $row ) || ! isset( $row['id'] ) || ! is_string( $row['id'] ) || '' === $row['id'] ) {
+				$has_malformed = true;
 				continue;
 			}
-			$saw_valid             = true;
-			$current[ $row['id'] ] = $this->normalize( $row );
+			$id = (string) $row['id'];
+			if ( ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $id ) ) {
+				$has_malformed = true;
+				continue;
+			}
+			if ( ( array_key_exists( 'endpoint_family', $row ) && ! is_string( $row['endpoint_family'] ) )
+				|| ( array_key_exists( 'display_name', $row ) && ! is_string( $row['display_name'] ) )
+				|| ( array_key_exists( 'free', $row ) && ! is_bool( $row['free'] ) )
+				|| ( array_key_exists( 'capabilities', $row ) && ! is_array( $row['capabilities'] ) ) ) {
+				$has_malformed = true;
+				continue;
+			}
+			$key = 'id:' . $id;
+			if ( isset( $invalid_ids[ $key ] ) ) {
+				$has_malformed = true;
+				continue;
+			}
+			if ( isset( $current[ $key ] ) ) {
+				$has_malformed       = true;
+				$invalid_ids[ $key ] = true;
+				unset( $current[ $key ] );
+				continue;
+			}
+			$saw_valid       = true;
+			$current[ $key ] = array(
+				'id'       => $id,
+				'snapshot' => $this->normalize( $row ),
+			);
 		}
 		if ( count( $discovered ) > 0 && ! $saw_valid ) {
 			return array();
 		}
 
 		$results = array();
-		foreach ( $current as $id => $snapshot ) {
-			$states = array();
-			if ( ! isset( $baseline[ $id ] ) ) {
+		foreach ( $current as $entry ) {
+			$id       = $entry['id'];
+			$snapshot = $entry['snapshot'];
+			$key      = 'id:' . $id;
+			$states   = array();
+			if ( ! isset( $baseline[ $key ] ) ) {
 				$states[] = 'new';
 				$states[] = 'verification_required';
 				$status   = 'verification_required';
 			} else {
 				$states[] = 'allowlisted';
 				$status   = 'allowlisted';
-				$record   = $baseline[ $id ];
+				$record   = $baseline[ $key ];
+				if ( 'needs-adapter' === ( $record['verification_status'] ?? '' ) ) {
+					$states[] = 'verification_required';
+					$status   = 'verification_required';
+				}
 				if ( array_key_exists( 'endpoint_family', $snapshot ) && $snapshot['endpoint_family'] !== $record['endpoint_family'] ) {
 					$states[] = 'endpoint_changed';
 					$states[] = 'verification_required';
@@ -86,19 +122,25 @@ final class CatalogWatch {
 					$status   = 'verification_required';
 				}
 			}
-			$results[] = $this->result( $id, $status, $states, isset( $baseline[ $id ] ) );
+			if ( $has_malformed ) {
+				$states[] = 'input_invalid';
+			}
+			$results[] = $this->result( $id, $status, $states, isset( $baseline[ $key ] ) );
 		}
 
-		foreach ( $baseline as $id => $record ) {
-			if ( isset( $current[ $id ] ) ) {
-				continue;
+		if ( ! $has_malformed ) {
+			foreach ( $baseline as $entry ) {
+				$key = 'id:' . $entry['id'];
+				if ( isset( $current[ $key ] ) ) {
+					continue;
+				}
+				$results[] = $this->result(
+					$entry['id'],
+					'retired',
+					array( 'retired', 'verification_required' ),
+					true
+				);
 			}
-			$results[] = $this->result(
-				$id,
-				'retired',
-				array( 'retired', 'verification_required' ),
-				true
-			);
 		}
 
 		usort(
@@ -141,7 +183,7 @@ final class CatalogWatch {
 			return false;
 		}
 		foreach ( $snapshot['capabilities'] as $capability => $value ) {
-			if ( array_key_exists( $capability, $record['capabilities'] ) && $value !== $record['capabilities'][ $capability ] ) {
+			if ( ! array_key_exists( $capability, $record['capabilities'] ) || $value !== $record['capabilities'][ $capability ] ) {
 				return true;
 			}
 		}

@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "generated_at": "2026-09-24",
-  "source_commit": "22dcc2668706fc491d1174336794718709fb6add",
-  "product_code_snapshot": "a8c3f940a889689bf959f98e41c2caaaf7962bb8",
-  "snapshot_note": "Product class metrics are from the a8c3f94 code snapshot; automation edges reflect the current merged main baseline and OPS-001 changes.",
+  "source_commit": "cab8d78aaa0d72351c557357b59be89f0b0885d3",
+  "product_code_snapshot": "cab8d78aaa0d72351c557357b59be89f0b0885d3",
+  "snapshot_note": "Product and automation edges reflect the current merged main baseline; the PF-004 correction adds the shipped CatalogWatch integration.",
   "scope": "product runtime and campaign automation",
   "nodes": [
     {"id":"wordpress","kind":"platform","label":"WordPress 7.0+ / Connectors"},
