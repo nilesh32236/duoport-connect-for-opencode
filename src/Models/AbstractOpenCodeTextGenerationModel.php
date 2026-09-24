@@ -76,10 +76,11 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			'text',
 			$this->fallback_model_ids()
 		);
-		if ( is_string( $selection['selected_id'] ?? null ) ) {
-			$model_id = $selection['selected_id'];
+		if ( ! is_string( $selection['selected_id'] ?? null ) ) {
+			throw new UnsupportedEndpointFamilyException( 'No verified model candidate is available for this route.' );
 		}
-		$path = EndpointRoute::pathForModel( $model_id, $catalog );
+		$model_id = $selection['selected_id'];
+		$path     = EndpointRoute::pathForModel( $model_id, $catalog );
 		if ( OpenCodeGoProvider::class === $cls ) {
 			$headers = GoRequestHeaders::for_go( $headers, $data );
 		}
