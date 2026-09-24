@@ -2,11 +2,11 @@
 
 **Audit snapshot:** 2026-09-24
 
-**Baseline repository head:** `36df42501b0d7e20e2be1951b78d9d90606dd5d6` (`origin/main`)
+**Baseline repository head:** `22dcc2668706fc491d1174336794718709fb6add` (`origin/main`)
 
-**Active campaign PR:** [#42](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/42) (the exact head is captured in the merge gate)
+**Active campaign PR:** [#47](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/47) (the exact head is captured in the merge gate)
 
-**Active queue item:** `AUDIT-041` / GitHub issue [#41](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/41) / PR [#42](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/42)
+**Active queue item:** `OPS-001` / GitHub issue [#46](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/46) / PR [#47](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/47)
 
 **Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; both providers are registered in the available WordPress runtime.
 
@@ -72,7 +72,7 @@ Availability
 1. **Transport-family gap (high):** the official OpenCode Zen and Go documentation currently maps models to `chat/completions`, `responses`, `messages`, and provider-specific model paths. The plugin sends every text request to `chat/completions`; this can silently route a model to the wrong endpoint. The next transport work must use a verified registry and reject unknown families clearly.
 2. **Capability evidence gap (high):** current capability gates are conservative but mostly static lists. There is no canonical `model + catalog + endpoint + verification` record, no endpoint family in `ModelMetadata`, and no explicit unsupported-capability result for embeddings or unknown capabilities.
 3. **Availability contract gap (high):** the SDK-facing contract is intentionally boolean and preserves the legacy 2xx/429/CreditsError behavior, but the backend does not retain a detailed result such as invalid key, no credits, rate limited, network error, or server error.
-4. **Workflow dependency gap (high):** reviewer workflows use `nilesh32236/opencode-ai-reviewer@main`, and the reviewer action defaults to a checksum-required floating OpenCode CLI. The daily audit currently fails before auditing because the downloaded `latest` CLI has no verifiable checksum. The safe migration is a released reviewer reference plus a pinned, checksum-verified OpenCode CLI (`v1.18.31` is documented by the reviewer), with exact reviewer tag/SHA/date recorded at execution time.
+4. **Workflow dependency (controlled):** reviewer workflows now pin the released reviewer v1.22.0 peeled commit and checksum-verified OpenCode CLI v1.18.31. `.github/reviewer-dependency.json` records the release identity, and `reviewer-update.yml` proposes a traceable stable-release update PR while deferring when a campaign PR is active. The updater still requires normal deterministic review/merge; it never silently switches to unreleased code.
 5. **Automation issue flood risk (medium):** scheduled audit/research/catalog jobs can create or update multiple open issues. The campaign reconciles them into one active queue item; future automation must preserve that invariant or report without opening a competing issue.
 6. **Settings responsibility drift (medium):** `Settings` currently knows cache key formats, model directory classes, and the AI Client cache shape. These are future extraction candidates, not a reason to grow a dashboard.
 7. **WordPress compatibility evidence (medium):** the live site is newer than the plugin minimum and has AI Client 1.3.1. The repository does not yet run a real WP 7.0 core-client matrix in CI; guarded source/unit tests are not a substitute for post-merge runtime verification.
@@ -88,7 +88,10 @@ Availability
 - Prefer a small transport interface only where multiple verified endpoint families exist; do not add a DI container.
 - Keep scheduled automations idempotent and ensure only one campaign issue/PR is active.
 
-## Evidence links
+## Reviewer automation safety contract
+
+The reviewer updater is deliberately not a direct auto-merge path. It resolves only the latest stable GitHub release, validates the semver tag and full commit SHA, updates both `.yml` and `.yaml` action references, and records release identity in `.github/reviewer-dependency.json`. It requires a repository PAT (`GH_PAT`) so the generated pull request receives normal `pull_request` CI/reviewer events; a missing PAT fails closed. A fixed repository-wide concurrency group, same-repository campaign-PR guard, immediate pre-create recheck, and lease-safe push preserve the one-active-campaign invariant. A current automation branch is never recreated when it already represents the desired release: if its same-repository PR is missing, the workflow recreates the PR without rewriting the branch. Main requires a pull request (ruleset 23935219) and exact-head CI checks (ruleset 23935160); the updater never bypasses those gates.
+
 
 - [OpenCode Zen documentation](https://opencode.ai/docs/zen/) — endpoint table, model metadata, pricing/limits, privacy, and `/models` contract.
 - [OpenCode Go documentation](https://opencode.ai/docs/go/) — endpoint table, session-header requirement, model list, and usage limits.

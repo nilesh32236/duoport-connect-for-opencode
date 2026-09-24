@@ -28,6 +28,9 @@ jobs:
       - name: Install PHP Dependencies
         run: composer install --no-dev --optimize-autoloader --no-progress --prefer-dist
 
+      - name: Verify reviewer dependency contract
+        run: php .github/scripts/verify-reviewer-dependency.php
+
       - name: Create Plugin ZIP
         id: build_zip
         run: |

@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: composer install --ignore-platform-reqs
 
+      - name: Verify reviewer dependency contract
+        run: php .github/scripts/verify-reviewer-dependency.php
+
       - name: Run verification suite
         id: verify
         run: |
@@ -120,7 +123,7 @@ jobs:
       # automatically — no manual triggering needed.
       - name: AI Codebase Audit
         id: ai-audit
-        uses: nilesh32236/opencode-ai-reviewer@main
+        uses: nilesh32236/opencode-ai-reviewer@103082c963f64cb2cf979ae14b729ec41d40866e # v1.22.0
         with:
           mode: audit
           github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -134,6 +137,8 @@ jobs:
           audit_auto_fix: true
           audit_labels: 'audit,autofix-trigger'
           audit_target_dirs: 'src'
+          opencode_version: v1.18.31
+          require_opencode_checksum: true
           enable_mcp: false
           project_context: >
             DuoPort Connector for OpenCode — WordPress 7.0+ AI provider plugin, PHP 8.2+.

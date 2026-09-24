@@ -9,6 +9,10 @@ on:
       - 'composer.lock'
       - 'phpcs.xml'
       - 'phpunit.xml.dist'
+      - '.github/workflows/*.yml'
+      - '.github/scripts/*.php'
+      - '.github/scripts/*.sh'
+      - '.github/reviewer-dependency.json'
   pull_request:
     branches: ["main", "master"]
     paths:
@@ -17,6 +21,10 @@ on:
       - 'composer.lock'
       - 'phpcs.xml'
       - 'phpunit.xml.dist'
+      - '.github/workflows/*.yml'
+      - '.github/scripts/*.php'
+      - '.github/scripts/*.sh'
+      - '.github/reviewer-dependency.json'
 
 permissions:
   contents: read
@@ -43,6 +51,9 @@ jobs:
 
       - name: Install Dependencies
         run: composer install --no-progress --prefer-dist
+
+      - name: Verify reviewer dependency contract
+        run: php .github/scripts/verify-reviewer-dependency.php
 
       - name: PHP syntax check
         run: |

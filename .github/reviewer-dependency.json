@@ -1,0 +1,24 @@
+{
+  "reviewer_repository": "nilesh32236/opencode-ai-reviewer",
+  "release_tag": "v1.22.0",
+  "release_commit": "103082c963f64cb2cf979ae14b729ec41d40866e",
+  "release_published_at": "2026-09-22T12:21:25Z",
+  "release_url": "https://github.com/nilesh32236/opencode-ai-reviewer/releases/tag/v1.22.0",
+  "updated_at": "2026-09-24T11:15:00Z",
+  "opencode_cli": {
+    "version": "v1.18.31",
+    "release_url": "https://github.com/anomalyco/opencode/releases/tag/v1.18.31",
+    "sha256": {
+      "linux-x64": "e9312be75ed803b7415fc2aeabda1f4fe938912a39673762dc0c38c0e11ebde4",
+      "linux-arm64": "d4e332f46b227448582c0d9fc75f6f826dfe95c9f751bc2011fc4d937a042be6"
+    }
+  },
+  "merge_gate": {
+    "ruleset_id": 23935160,
+    "pull_request_ruleset_id": 23935219,
+    "required_checks": [
+      "PHPCS + PHPUnit (PHP 8.2)",
+      "PHPCS + PHPUnit (PHP 8.3)"
+    ]
+  }
+}

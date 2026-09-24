@@ -1,0 +1,187 @@
+name: Update OpenCode AI Reviewer
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: reviewer-update-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Propose latest stable reviewer release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+          ref: main
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Require a PAT for traceable PR events
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          if [ -z "$GH_PAT" ]; then
+            echo "GH_PAT is required so the dependency PR receives pull_request checks."
+            exit 1
+          fi
+
+      - name: Resolve latest stable release
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          RELEASE_JSON=$(gh api repos/nilesh32236/opencode-ai-reviewer/releases/latest)
+          TAG=$(jq -er '.tag_name | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))' <<<"$RELEASE_JSON")
+          PUBLISHED=$(jq -er '.published_at | select(test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T"))' <<<"$RELEASE_JSON")
+          COMMIT=$(gh api "repos/nilesh32236/opencode-ai-reviewer/commits/${TAG}" --jq .sha)
+          [[ "$COMMIT" =~ ^[a-f0-9]{40}$ ]]
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "commit=$COMMIT" >> "$GITHUB_OUTPUT"
+          echo "published=$PUBLISHED" >> "$GITHUB_OUTPUT"
+
+      - name: Avoid competing campaign pull requests
+        id: campaign
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if ! OPEN=$(.github/scripts/reviewer-pr-guard.sh "${{ github.repository }}" "${{ github.repository_owner }}"); then
+            echo "Campaign PR guard failed; refusing to update dependencies."
+            exit 1
+          fi
+          if [ -n "$OPEN" ]; then
+            echo "A campaign pull request is active; deferring reviewer update."
+            printf '%s\n' "$OPEN"
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Skip already-current dependency branch
+        id: existing
+        if: steps.campaign.outputs.proceed == 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          COMMIT: ${{ steps.release.outputs.commit }}
+        run: |
+          set -euo pipefail
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+          echo "ensure_pr=false" >> "$GITHUB_OUTPUT"
+          REMOTE_BRANCH="automation/opencode-ai-reviewer"
+          EXISTING_SHA=$(git ls-remote origin "refs/heads/${REMOTE_BRANCH}" | awk '{print $1}')
+          if [ -z "$EXISTING_SHA" ]; then
+            exit 0
+          fi
+          if ! git fetch origin "$REMOTE_BRANCH"; then
+            echo "Unable to inspect the existing dependency branch; refusing to rewrite it."
+            exit 1
+          fi
+          EXISTING_SHA=$(git rev-parse FETCH_HEAD)
+          if MANIFEST=$(git show "${EXISTING_SHA}:.github/reviewer-dependency.json" 2>/dev/null); then
+            if jq -e --arg tag "$TAG" --arg commit "$COMMIT" '.release_tag == $tag and .release_commit == $commit' >/dev/null <<<"$MANIFEST"; then
+              REF_COUNT=$(git grep -h -F -e "uses: nilesh32236/opencode-ai-reviewer@${COMMIT} # ${TAG}" "$EXISTING_SHA" -- '.github/workflows/*.yml' '.github/workflows/*.yaml' | wc -l || true)
+              if [ "$REF_COUNT" -ge 4 ]; then
+                if ! PR_JSON=$(gh pr list -R "${{ github.repository }}" --state open --json number,headRefName,headRepositoryOwner); then
+                  echo "Unable to inspect the existing dependency PR; refusing to assume completion."
+                  exit 1
+                fi
+                PR_NUMBER=$(jq -r --arg branch "$REMOTE_BRANCH" --arg owner "${{ github.repository_owner }}" '.[] | select(.headRefName == $branch and (.headRepositoryOwner.login // "") == $owner) | .number' <<<"$PR_JSON")
+                if [ -n "$PR_NUMBER" ]; then
+                  echo "Dependency branch already has PR #${PR_NUMBER}; no rewrite needed."
+                  echo "proceed=false" >> "$GITHUB_OUTPUT"
+                else
+                  echo "Dependency branch is current but has no same-repository PR; ensuring one is created."
+                  echo "ensure_pr=true" >> "$GITHUB_OUTPUT"
+                fi
+                exit 0
+              fi
+            fi
+          fi
+
+      - name: Prepare dependency update branch
+        if: steps.campaign.outputs.proceed == 'true' && steps.existing.outputs.proceed != 'false' && steps.existing.outputs.ensure_pr != 'true'
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git switch -C automation/opencode-ai-reviewer origin/main
+
+      - name: Update manifest and workflow references
+        if: steps.campaign.outputs.proceed == 'true' && steps.existing.outputs.proceed != 'false' && steps.existing.outputs.ensure_pr != 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          COMMIT: ${{ steps.release.outputs.commit }}
+          PUBLISHED: ${{ steps.release.outputs.published }}
+        run: |
+          set -euo pipefail
+          php .github/scripts/update-opencode-reviewer.php --tag "$TAG" --commit "$COMMIT" --published "$PUBLISHED"
+
+      - name: Commit and open traceable dependency PR
+        if: steps.campaign.outputs.proceed == 'true' && steps.existing.outputs.proceed != 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release.outputs.tag }}
+          COMMIT: ${{ steps.release.outputs.commit }}
+          PUBLISHED: ${{ steps.release.outputs.published }}
+          ENSURE_PR: ${{ steps.existing.outputs.ensure_pr }}
+        run: |
+          set -euo pipefail
+          REMOTE_BRANCH="automation/opencode-ai-reviewer"
+          if [ "$ENSURE_PR" != "true" ]; then
+            if git diff --quiet; then
+              echo "Reviewer dependency is already current: $TAG @ $COMMIT"
+              exit 0
+            fi
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add .github/reviewer-dependency.json .github/workflows
+            git commit -m "ci: update OpenCode AI Reviewer to $TAG"
+            EXISTING_SHA=$(git ls-remote origin "refs/heads/${REMOTE_BRANCH}" | awk '{print $1}')
+            if [ -n "$EXISTING_SHA" ]; then
+              git push --force-with-lease="refs/heads/${REMOTE_BRANCH}:${EXISTING_SHA}" origin "HEAD:${REMOTE_BRANCH}"
+            else
+              git push origin "HEAD:${REMOTE_BRANCH}"
+            fi
+          else
+            echo "Dependency branch is already current; ensuring its same-repository PR exists."
+          fi
+          BODY="## Reviewer dependency update
+
+          - Release: \`$TAG\`
+          - Commit: \`$COMMIT\`
+          - Published: \`$PUBLISHED\`
+          - Updated: \`$(date -u +%Y-%m-%dT%H:%M:%SZ)\`
+
+          The updater reads only the latest stable GitHub release, validates the
+          semver tag and full commit SHA, updates all reviewer action references
+          and the traceability manifest, and does not auto-merge."
+          if ! OPEN=$(.github/scripts/reviewer-pr-guard.sh "${{ github.repository }}" "${{ github.repository_owner }}"); then
+            echo "Campaign PR recheck failed; leaving the branch without a PR."
+            exit 1
+          fi
+          if [ -n "$OPEN" ]; then
+            echo "A campaign PR appeared during update; leaving the branch without a competing PR."
+            printf '%s\n' "$OPEN"
+            exit 0
+          fi
+          if ! PR_JSON=$(gh pr list -R "${{ github.repository }}" --state open --json headRefName,headRepositoryOwner,number); then
+            echo "Unable to inspect the dependency PR; leaving the branch without a PR."
+            exit 1
+          fi
+          EXISTING=$(jq -r --arg branch "$REMOTE_BRANCH" --arg owner "${{ github.repository_owner }}" '.[] | select(.headRefName == $branch and (.headRepositoryOwner.login // "") == $owner) | .number' <<<"$PR_JSON")
+          if [ -n "$EXISTING" ]; then
+            gh pr edit "$EXISTING" -R "${{ github.repository }}" --title "ci: update OpenCode AI Reviewer to $TAG" --body "$BODY"
+          else
+            gh pr create -R "${{ github.repository }}" --head "$REMOTE_BRANCH" --base main --title "ci: update OpenCode AI Reviewer to $TAG" --body "$BODY"
+          fi
