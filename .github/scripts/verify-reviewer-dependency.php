@@ -103,12 +103,22 @@ foreach (array('ai-review.yml' => $review_source, 'daily-audit.yml' => $audit_so
 foreach (array('linux-x64', 'linux-arm64') as $arch) {
     $manifest_hash = (string) (($cli['sha256'] ?? array())[$arch] ?? '');
     $escaped_arch = preg_quote($arch, '/');
-    if (1 !== preg_match('/\[' . $escaped_arch . '\]\s*=\s*"([a-f0-9]{64})"/', $setup_source, $matches)) {
-        $errors[] = "setup-opencode.sh has no exact SHA-256 assignment for {$arch}";
+    $assignment_count = preg_match_all('/\[' . $escaped_arch . '\]\s*=\s*"([a-f0-9]{64})"/', $setup_source, $matches);
+    if (1 !== $assignment_count) {
+        $errors[] = "setup-opencode.sh must have exactly one SHA-256 assignment for {$arch}";
         continue;
     }
-    if ($manifest_hash !== ($matches[1] ?? '')) {
+    if ($manifest_hash !== ($matches[1][0] ?? '')) {
         $errors[] = "manifest hash for {$arch} does not match setup-opencode.sh architecture assignment";
+    }
+}
+foreach (array(
+    'aarch64|arm64' => 'linux-arm64',
+    'x86_64|amd64' => 'linux-x64',
+) as $machine_arch => $asset_arch) {
+    $pattern = '/' . preg_quote($machine_arch, '/') . '\)\s*ARCH\s*=\s*"' . preg_quote($asset_arch, '/') . '"/';
+    if (1 !== preg_match($pattern, $setup_source)) {
+        $errors[] = "setup-opencode.sh must map {$machine_arch} to {$asset_arch}";
     }
 }
 if (substr_count($research_source, 'OPENCODE_VERSION: v1.18.31') !== 2) {

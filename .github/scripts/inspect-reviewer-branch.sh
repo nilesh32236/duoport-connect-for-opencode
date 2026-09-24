@@ -10,7 +10,7 @@ TAG="${1:?release tag is required}"
 COMMIT="${2:?release commit is required}"
 BRANCH="${3:?branch is required}"
 REPOSITORY="${4:?repository is required}"
-OWNER="${5:?repository owner is required}"
+EXPECTED_REPOSITORY="${5:?repository full name is required}"
 GH_BIN="${GH_BIN:-gh}"
 REF="refs/heads/${BRANCH}"
 
@@ -37,8 +37,8 @@ if ! MANIFEST=$(git show "${EXISTING_SHA}:.github/reviewer-dependency.json" 2>/d
   echo "Unable to inspect existing dependency manifest; refusing to continue." >&2
   exit 1
 fi
-if ! jq -e 'type == "object"' >/dev/null <<<"$MANIFEST"; then
-  echo "Existing dependency manifest is invalid JSON; refusing to continue." >&2
+if ! jq -e 'type == "object" and (.release_tag | type == "string") and (.release_commit | type == "string")' >/dev/null <<<"$MANIFEST"; then
+  echo "Existing dependency manifest schema is invalid; refusing to continue." >&2
   exit 1
 fi
 if ! jq -e --arg tag "$TAG" --arg commit "$COMMIT" '.release_tag == $tag and .release_commit == $commit' >/dev/null <<<"$MANIFEST"; then
@@ -60,11 +60,11 @@ if [ "$REF_COUNT" -lt 4 ]; then
   exit 0
 fi
 
-if ! PR_TSV=$("$GH_BIN" api --paginate "repos/${REPOSITORY}/pulls?state=open&per_page=100" --jq '.[] | [.head.ref, (.head.repo.owner.login // ""), .number] | @tsv'); then
+if ! PR_TSV=$("$GH_BIN" api --paginate "repos/${REPOSITORY}/pulls?state=open&per_page=100" --jq '.[] | [.head.ref, (.head.repo.full_name // ""), .number] | @tsv'); then
   echo "Unable to inspect existing dependency PR; refusing to continue." >&2
   exit 1
 fi
-PR_NUMBER=$(printf '%s\n' "$PR_TSV" | awk -F '\t' -v branch="$BRANCH" -v owner="$OWNER" '$1 == branch && $2 == owner { print $3 }')
+PR_NUMBER=$(printf '%s\n' "$PR_TSV" | awk -F '\t' -v branch="$BRANCH" -v repository="$EXPECTED_REPOSITORY" '$1 == branch && $2 == repository { print $3 }')
 if [ -n "$PR_NUMBER" ]; then
   echo "has_pr:${PR_NUMBER}"
 else

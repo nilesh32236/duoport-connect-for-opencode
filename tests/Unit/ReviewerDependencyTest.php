@@ -73,6 +73,7 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		$updater = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/workflows/reviewer-update.yml' );
 		self::assertStringContainsString( 'Skip already-current dependency branch', $updater );
 		self::assertStringContainsString( 'GH_PAT', $updater );
+		self::assertStringContainsString( 'GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}', $updater );
 		self::assertStringContainsString( 'proceed=false', $updater );
 		self::assertStringContainsString( 'ensure_pr', $updater );
 		self::assertStringContainsString( 'gh api --paginate', $updater );
@@ -138,6 +139,46 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * Installer architecture mapping and duplicate assignments must fail closed.
+	 */
+	public function test_verifier_rejects_installer_architecture_drift(): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$path = $root . '/.github/scripts/setup-opencode.sh';
+			$source = (string) file_get_contents( $path );
+			$source = str_replace( 'aarch64|arm64) ARCH="linux-arm64"', 'aarch64|arm64) ARCH="linux-x64"', $source );
+			file_put_contents( $path, $source );
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status );
+			self::assertStringContainsString( 'must map aarch64|arm64 to linux-arm64', implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
+	 * A duplicate architecture hash assignment must not be accepted.
+	 */
+	public function test_verifier_rejects_duplicate_installer_assignments(): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$path = $root . '/.github/scripts/setup-opencode.sh';
+			$source = (string) file_get_contents( $path );
+			$source .= "\n[linux-x64]=\"" . str_repeat( 'f', 64 ) . "\"\n";
+			file_put_contents( $path, $source );
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status );
+			self::assertStringContainsString( 'exactly one SHA-256 assignment for linux-x64', implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
 	 * A mutable .yaml workflow reference must not bypass the verifier.
 	 */
 	public function test_verifier_scans_yaml_workflows(): void {
@@ -188,14 +229,14 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		try {
 			$fake = $temp . '/gh';
 			$log = $temp . '/args';
-			file_put_contents( $fake, "#!/usr/bin/env bash\nprintf '%s\\n' \"\$@\" > \"\${GH_LOG}\"\nprintf 'automation/opencode-ai-reviewer\\tnilesh32236\\n'\nfor i in \$(seq 1 35); do printf 'filler-%02d\\tattacker\\n' \"\$i\"; done\nprintf 'automation/opencode-ai-reviewer\\tattacker\\ncampaign\\tnilesh32236\\n'\n" );
+			file_put_contents( $fake, "#!/usr/bin/env bash\nprintf '%s\\n' \"\$@\" > \"\${GH_LOG}\"\nprintf 'automation/opencode-ai-reviewer\\tnilesh32236/duoport-connect-for-opencode\\n'\nfor i in \$(seq 1 35); do printf 'filler-%02d\\tattacker/other\\n' \"\$i\"; done\nprintf 'automation/opencode-ai-reviewer\\tattacker/other\\ncampaign\\tnilesh32236/duoport-connect-for-opencode\\n'\n" );
 			chmod( $fake, 0777 );
 			$guard = dirname( __DIR__, 2 ) . '/.github/scripts/reviewer-pr-guard.sh';
 			$output = array();
 			$status = 0;
-			exec( 'GH_LOG=' . escapeshellarg( $log ) . ' GH_BIN=' . escapeshellarg( $fake ) . ' ' . escapeshellarg( $guard ) . ' repo nilesh32236 2>&1', $output, $status );
+			exec( 'GH_LOG=' . escapeshellarg( $log ) . ' GH_BIN=' . escapeshellarg( $fake ) . ' ' . escapeshellarg( $guard ) . ' repo nilesh32236/duoport-connect-for-opencode 2>&1', $output, $status );
 			self::assertSame( 0, $status, implode( "\n", $output ) );
-			self::assertSame( array( 'campaign' ), $output );
+			self::assertSame( array( 'automation/opencode-ai-reviewer', 'campaign' ), $output );
 			$args = (string) file_get_contents( $log );
 			self::assertStringContainsString( 'api', $args );
 			self::assertStringContainsString( '--paginate', $args );
@@ -205,7 +246,7 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 			chmod( $fake, 0777 );
 			$unused = array();
 			$failure_status = 0;
-			exec( 'GH_BIN=' . escapeshellarg( $fake ) . ' ' . escapeshellarg( $guard ) . ' repo nilesh32236 >/dev/null 2>&1', $unused, $failure_status );
+			exec( 'GH_BIN=' . escapeshellarg( $fake ) . ' ' . escapeshellarg( $guard ) . ' repo nilesh32236/duoport-connect-for-opencode >/dev/null 2>&1', $unused, $failure_status );
 			self::assertSame( 1, $failure_status );
 		} finally {
 			$this->remove_fixture( $temp );

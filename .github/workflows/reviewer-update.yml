@@ -57,7 +57,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          if ! OPEN=$(.github/scripts/reviewer-pr-guard.sh "${{ github.repository }}" "${{ github.repository_owner }}"); then
+          if ! OPEN=$(.github/scripts/reviewer-pr-guard.sh "${{ github.repository }}" "${{ github.repository }}"); then
             echo "Campaign PR guard failed; refusing to update dependencies."
             exit 1
           fi
@@ -73,13 +73,14 @@ jobs:
         id: existing
         if: steps.campaign.outputs.proceed == 'true'
         env:
+          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.release.outputs.tag }}
           COMMIT: ${{ steps.release.outputs.commit }}
         run: |
           set -euo pipefail
           echo "proceed=true" >> "$GITHUB_OUTPUT"
           echo "ensure_pr=false" >> "$GITHUB_OUTPUT"
-          if ! STATE=$(.github/scripts/inspect-reviewer-branch.sh "$TAG" "$COMMIT" "automation/opencode-ai-reviewer" "${{ github.repository }}" "${{ github.repository_owner }}"); then
+          if ! STATE=$(.github/scripts/inspect-reviewer-branch.sh "$TAG" "$COMMIT" "automation/opencode-ai-reviewer" "${{ github.repository }}" "${{ github.repository }}"); then
             echo "Existing dependency branch inspection failed; refusing to rewrite it."
             exit 1
           fi
@@ -151,7 +152,7 @@ jobs:
           The updater reads only the latest stable GitHub release, validates the
           semver tag and full commit SHA, updates all reviewer action references
           and the traceability manifest, and does not auto-merge."
-          if ! OPEN=$(.github/scripts/reviewer-pr-guard.sh "${{ github.repository }}" "${{ github.repository_owner }}"); then
+          if ! OPEN=$(.github/scripts/reviewer-pr-guard.sh "${{ github.repository }}" "${{ github.repository }}"); then
             echo "Campaign PR recheck failed; leaving the branch without a PR."
             exit 1
           fi
@@ -160,11 +161,11 @@ jobs:
             printf '%s\n' "$OPEN"
             exit 0
           fi
-          if ! PR_TSV=$(gh api --paginate "repos/${{ github.repository }}/pulls?state=open&per_page=100" --jq '.[] | [.head.ref, (.head.repo.owner.login // ""), .number] | @tsv'); then
+          if ! PR_TSV=$(gh api --paginate "repos/${{ github.repository }}/pulls?state=open&per_page=100" --jq '.[] | [.head.ref, (.head.repo.full_name // ""), .number] | @tsv'); then
             echo "Unable to inspect the dependency PR; leaving the branch without a PR."
             exit 1
           fi
-          EXISTING=$(printf '%s\n' "$PR_TSV" | awk -F '\t' -v branch="$REMOTE_BRANCH" -v owner="${{ github.repository_owner }}" '$1 == branch && $2 == owner { print $3 }')
+          EXISTING=$(printf '%s\n' "$PR_TSV" | awk -F '\t' -v branch="$REMOTE_BRANCH" -v repository="${{ github.repository }}" '$1 == branch && $2 == repository { print $3 }')
           if [ -n "$EXISTING" ]; then
             gh pr edit "$EXISTING" -R "${{ github.repository }}" --title "ci: update OpenCode AI Reviewer to $TAG" --body "$BODY"
           else
