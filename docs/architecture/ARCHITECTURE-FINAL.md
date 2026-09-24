@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `05cf13c33796228454c06e5d1e103d152572d980` (`origin/main`)
+**Merged baseline:** `f95dbe76ad936c60bc68832e0fb57ef26c836b61` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -50,11 +50,11 @@ PR #56 merged deterministically at the exact reviewed head. The curated registry
 
 ## PF-002 correction
 
-The first routing pass is narrowed to the only complete transport contract: chat/completions. Unresolved metadata now fails before Request construction, and responses/messages/provider-specific families are explicitly denied until their payload, parser, and authentication adapters are verified. Issue #59 tracks this correction.
+PR #60 merged deterministically at the exact reviewed head. The first routing pass is narrowed to the only complete transport contract: chat/completions. Unresolved metadata now fails before Request construction, and responses/messages/provider-specific families are explicitly denied until their payload, parser, and authentication adapters are verified.
 
-## Next active item: PF-002
+## Next active item: PF-003
 
-PF-002 is the sole active queue item and issue #59; its correction PR is pending. No competing issue or PR is open. ARCH-001 is complete.
+PF-003 is the sole active queue item and issue #61; its PR is pending. It adds bounded connection diagnostics without credential access. No competing issue or PR is open. ARCH-001 is complete.
 
 ## Final boundaries
 
