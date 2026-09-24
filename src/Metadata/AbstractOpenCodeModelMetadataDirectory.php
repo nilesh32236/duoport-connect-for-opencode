@@ -105,12 +105,13 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 			if ( ! $id ) {
 				continue;
 			}
-			$is_image = ModelAllowlist::isImageCapable( $id, $this->catalogKey() );
-			if ( ! $is_image && ! $show_all && ! ModelAllowlist::isAllowed( $id, $this->catalogKey() ) ) {
+			$record   = ModelRegistry::record( $id, $this->catalogKey() );
+			$is_image = (bool) ( $record['capabilities']['image'] ?? false );
+			if ( ! $is_image && ! $show_all && null === $record ) {
 				continue;
 			}
-			$name = ModelAllowlist::displayName( $id );
-			if ( ModelAllowlist::isFree( $id ) ) {
+			$name = (string) ( $record['display_name'] ?? ModelAllowlist::displayName( $id ) );
+			if ( (bool) ( $record['free'] ?? ModelAllowlist::isFree( $id ) ) ) {
 				$name .= ' ' . __( '(Free)', 'duoport-connect-for-opencode' );
 			}
 			if ( $is_image ) {
@@ -138,10 +139,10 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 			// tool-verified models advertise it and stop being filtered out of
 			// Abilities-API tool tasks. Web search stays gated until the
 			// chat/completions payload is gateway-verified (fail-open default).
-			if ( ModelAllowlist::isToolCapable( $id, $this->catalogKey() ) ) {
+			if ( ModelRegistry::supports( $id, $this->catalogKey(), 'tools' ) ) {
 				$opts[] = new SupportedOption( OptionEnum::functionDeclarations() );
 			}
-			if ( ModelAllowlist::isWebSearchCapable( $id, $this->catalogKey() ) ) {
+			if ( ModelRegistry::supports( $id, $this->catalogKey(), 'web_search' ) ) {
 				$opts[] = new SupportedOption( OptionEnum::webSearch() );
 			}
 			$list[] = new ModelMetadata( $id, $name, array( CapabilityEnum::textGeneration(), CapabilityEnum::chatHistory() ), $opts );
