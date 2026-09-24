@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generated_from_commit": "c3cd382",
+    "generated_from_commit": "63afb3e5401fca7212eb3cd3bbd370331c5b00ff",
     "generated_at": "2026-09-24",
     "file_count": 26,
     "class_count": 25,
@@ -8,12 +8,12 @@
     "largest_class": "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
     "largest_class_lines": 232,
     "largest_method": {
-      "class": "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
-      "method": "providerClass",
-      "lines": 189
+      "class": "OpenCodeConnector\\Metadata\\CatalogWatch",
+      "method": "compare",
+      "lines": 118
     },
     "highest_fan_in": "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
-    "highest_fan_in_count": 6,
+    "highest_fan_in_count": 7,
     "highest_fan_out": "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider",
     "highest_fan_out_count": 7,
     "highest_dependency_concentration": "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider",
@@ -36,31 +36,41 @@
           "name": "classify",
           "visibility": "public",
           "static": false,
-          "line": 32
+          "line": 32,
+          "end_line": 53,
+          "lines": 22
         },
         {
           "name": "notConfigured",
           "visibility": "public",
           "static": false,
-          "line": 60
+          "line": 60,
+          "end_line": 62,
+          "lines": 3
         },
         {
           "name": "verified",
           "visibility": "public",
           "static": false,
-          "line": 69
+          "line": 69,
+          "end_line": 71,
+          "lines": 3
         },
         {
           "name": "unknown",
           "visibility": "public",
           "static": false,
-          "line": 78
+          "line": 78,
+          "end_line": 80,
+          "lines": 3
         },
         {
           "name": "result",
           "visibility": "private",
           "static": false,
-          "line": 93
+          "line": 93,
+          "end_line": 102,
+          "lines": 10
         }
       ],
       "method_count": 5,
@@ -101,31 +111,41 @@
           "name": "__construct",
           "visibility": "public",
           "static": false,
-          "line": 47
+          "line": 47,
+          "end_line": 49,
+          "lines": 3
         },
         {
           "name": "isConfigured",
           "visibility": "public",
           "static": false,
-          "line": 58
+          "line": 58,
+          "end_line": 61,
+          "lines": 4
         },
         {
           "name": "diagnose",
           "visibility": "public",
           "static": false,
-          "line": 68
+          "line": 68,
+          "end_line": 70,
+          "lines": 3
         },
         {
           "name": "getLastResult",
           "visibility": "public",
           "static": false,
-          "line": 77
+          "line": 77,
+          "end_line": 79,
+          "lines": 3
         },
         {
           "name": "probe",
           "visibility": "private",
           "static": false,
-          "line": 86
+          "line": 86,
+          "end_line": 159,
+          "lines": 74
         }
       ],
       "method_count": 5,
@@ -181,19 +201,25 @@
           "name": "__construct",
           "visibility": "public",
           "static": false,
-          "line": 43
+          "line": 43,
+          "end_line": 45,
+          "lines": 3
         },
         {
           "name": "inspect",
           "visibility": "public",
           "static": false,
-          "line": 57
+          "line": 57,
+          "end_line": 130,
+          "lines": 74
         },
         {
           "name": "get_wordpress_version",
           "visibility": "private",
           "static": false,
-          "line": 137
+          "line": 137,
+          "end_line": 139,
+          "lines": 3
         }
       ],
       "method_count": 3,
@@ -207,14 +233,24 @@
       ],
       "extends": null,
       "implements": null,
-      "dependencies": [],
-      "wordpress_dependencies": false,
-      "opencode_dependencies": false,
+      "dependencies": [
+        "WordPress\\AiClient\\AiClient",
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
+        "OpenCodeConnector\\Providers\\OpenCodeZenProvider"
+      ],
+      "wordpress_dependencies": true,
+      "opencode_dependencies": true,
       "http_dependencies": false,
       "settings_dependencies": false,
       "static_state": false,
-      "fan_in": [],
-      "fan_out": []
+      "fan_in": [
+        "OpenCodeConnector\\Settings\\Settings"
+      ],
+      "fan_out": [
+        "WordPress\\AiClient\\AiClient",
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
+        "OpenCodeConnector\\Providers\\OpenCodeZenProvider"
+      ]
     },
     {
       "file": "src/Http/ClientUserAgent.php",
@@ -232,13 +268,17 @@
           "name": "value",
           "visibility": "public",
           "static": true,
-          "line": 72
+          "line": 72,
+          "end_line": 85,
+          "lines": 14
         },
         {
           "name": "inject_into_headers",
           "visibility": "public",
           "static": true,
-          "line": 98
+          "line": 98,
+          "end_line": 110,
+          "lines": 13
         }
       ],
       "method_count": 2,
@@ -275,7 +315,9 @@
           "name": "for_go",
           "visibility": "public",
           "static": true,
-          "line": 47
+          "line": 47,
+          "end_line": 60,
+          "lines": 14
         }
       ],
       "method_count": 1,
@@ -315,37 +357,49 @@
           "name": "derive_from_data",
           "visibility": "public",
           "static": true,
-          "line": 59
+          "line": 59,
+          "end_line": 75,
+          "lines": 17
         },
         {
           "name": "derive_from_messages",
           "visibility": "private",
           "static": true,
-          "line": 85
+          "line": 85,
+          "end_line": 110,
+          "lines": 26
         },
         {
           "name": "derive_from_prompt",
           "visibility": "private",
           "static": true,
-          "line": 124
+          "line": 124,
+          "end_line": 135,
+          "lines": 12
         },
         {
           "name": "hash_canonical",
           "visibility": "private",
           "static": true,
-          "line": 148
+          "line": 148,
+          "end_line": 167,
+          "lines": 20
         },
         {
           "name": "inject_into_headers",
           "visibility": "public",
           "static": true,
-          "line": 181
+          "line": 181,
+          "end_line": 198,
+          "lines": 18
         },
         {
           "name": "normalize_content",
           "visibility": "private",
           "static": true,
-          "line": 208
+          "line": 208,
+          "end_line": 228,
+          "lines": 21
         }
       ],
       "method_count": 6,
@@ -388,31 +442,41 @@
           "name": "is_allowed_mime",
           "visibility": "public",
           "static": true,
-          "line": 56
+          "line": 56,
+          "end_line": 58,
+          "lines": 3
         },
         {
           "name": "is_within_size_limit",
           "visibility": "public",
           "static": true,
-          "line": 68
+          "line": 68,
+          "end_line": 70,
+          "lines": 3
         },
         {
           "name": "validate",
           "visibility": "public",
           "static": true,
-          "line": 86
+          "line": 86,
+          "end_line": 126,
+          "lines": 41
         },
         {
           "name": "detect_mime",
           "visibility": "private",
           "static": true,
-          "line": 140
+          "line": 140,
+          "end_line": 154,
+          "lines": 15
         },
         {
           "name": "save_to_media_library",
           "visibility": "public",
           "static": true,
-          "line": 166
+          "line": 166,
+          "end_line": 223,
+          "lines": 58
         }
       ],
       "method_count": 5,
@@ -451,25 +515,33 @@
           "name": "providerClass",
           "visibility": "protected",
           "static": false,
-          "line": 44
+          "line": 44,
+          "end_line": 44,
+          "lines": 1
         },
         {
           "name": "catalogKey",
           "visibility": "protected",
           "static": false,
-          "line": 53
+          "line": 53,
+          "end_line": 53,
+          "lines": 1
         },
         {
           "name": "createRequest",
           "visibility": "protected",
           "static": false,
-          "line": 66
+          "line": 66,
+          "end_line": 69,
+          "lines": 4
         },
         {
           "name": "parseResponseToModelMetadataList",
           "visibility": "protected",
           "static": false,
-          "line": 80
+          "line": 80,
+          "end_line": 165,
+          "lines": 86
         }
       ],
       "method_count": 4,
@@ -522,31 +594,41 @@
           "name": "compare",
           "visibility": "public",
           "static": false,
-          "line": 39
+          "line": 39,
+          "end_line": 156,
+          "lines": 118
         },
         {
           "name": "normalize",
           "visibility": "private",
           "static": false,
-          "line": 164
+          "line": 164,
+          "end_line": 175,
+          "lines": 12
         },
         {
           "name": "capabilities_changed",
           "visibility": "private",
           "static": false,
-          "line": 184
+          "line": 184,
+          "end_line": 194,
+          "lines": 11
         },
         {
           "name": "metadata_changed",
           "visibility": "private",
           "static": false,
-          "line": 203
+          "line": 203,
+          "end_line": 210,
+          "lines": 8
         },
         {
           "name": "result",
           "visibility": "private",
           "static": false,
-          "line": 221
+          "line": 221,
+          "end_line": 229,
+          "lines": 9
         }
       ],
       "method_count": 5,
@@ -591,43 +673,57 @@
           "name": "isAllowed",
           "visibility": "public",
           "static": true,
-          "line": 131
+          "line": 131,
+          "end_line": 133,
+          "lines": 3
         },
         {
           "name": "allowedIds",
           "visibility": "public",
           "static": true,
-          "line": 143
+          "line": 143,
+          "end_line": 145,
+          "lines": 3
         },
         {
           "name": "isImageCapable",
           "visibility": "public",
           "static": true,
-          "line": 159
+          "line": 159,
+          "end_line": 161,
+          "lines": 3
         },
         {
           "name": "isFree",
           "visibility": "public",
           "static": true,
-          "line": 171
+          "line": 171,
+          "end_line": 173,
+          "lines": 3
         },
         {
           "name": "isToolCapable",
           "visibility": "public",
           "static": true,
-          "line": 192
+          "line": 192,
+          "end_line": 203,
+          "lines": 12
         },
         {
           "name": "isWebSearchCapable",
           "visibility": "public",
           "static": true,
-          "line": 221
+          "line": 221,
+          "end_line": 223,
+          "lines": 3
         },
         {
           "name": "displayName",
           "visibility": "public",
           "static": true,
-          "line": 233
+          "line": 233,
+          "end_line": 237,
+          "lines": 5
         }
       ],
       "method_count": 7,
@@ -670,25 +766,33 @@
           "name": "endpointFamily",
           "visibility": "private",
           "static": true,
-          "line": 58
+          "line": 58,
+          "end_line": 63,
+          "lines": 6
         },
         {
           "name": "record",
           "visibility": "public",
           "static": true,
-          "line": 72
+          "line": 72,
+          "end_line": 96,
+          "lines": 25
         },
         {
           "name": "records",
           "visibility": "public",
           "static": true,
-          "line": 104
+          "line": 104,
+          "end_line": 113,
+          "lines": 10
         },
         {
           "name": "supports",
           "visibility": "public",
           "static": true,
-          "line": 123
+          "line": 123,
+          "end_line": 126,
+          "lines": 4
         }
       ],
       "method_count": 4,
@@ -735,13 +839,17 @@
           "name": "providerClass",
           "visibility": "protected",
           "static": false,
-          "line": 35
+          "line": 35,
+          "end_line": 37,
+          "lines": 3
         },
         {
           "name": "catalogKey",
           "visibility": "protected",
           "static": false,
-          "line": 46
+          "line": 46,
+          "end_line": 48,
+          "lines": 3
         }
       ],
       "method_count": 2,
@@ -784,13 +892,17 @@
           "name": "providerClass",
           "visibility": "protected",
           "static": false,
-          "line": 35
+          "line": 35,
+          "end_line": 37,
+          "lines": 3
         },
         {
           "name": "catalogKey",
           "visibility": "protected",
           "static": false,
-          "line": 46
+          "line": 46,
+          "end_line": 48,
+          "lines": 3
         }
       ],
       "method_count": 2,
@@ -833,13 +945,17 @@
           "name": "providerClass",
           "visibility": "protected",
           "static": false,
-          "line": 39
+          "line": 39,
+          "end_line": 39,
+          "lines": 1
         },
         {
           "name": "createRequest",
           "visibility": "protected",
           "static": false,
-          "line": 59
+          "line": 59,
+          "end_line": 65,
+          "lines": 7
         }
       ],
       "method_count": 2,
@@ -886,43 +1002,57 @@
           "name": "providerClass",
           "visibility": "protected",
           "static": false,
-          "line": 44
+          "line": 44,
+          "end_line": 44,
+          "lines": 1
         },
         {
           "name": "createRequest",
           "visibility": "protected",
           "static": false,
-          "line": 65
+          "line": 65,
+          "end_line": 77,
+          "lines": 13
         },
         {
           "name": "prepareResponseFormatParam",
           "visibility": "protected",
           "static": false,
-          "line": 87
+          "line": 87,
+          "end_line": 99,
+          "lines": 13
         },
         {
           "name": "prepareToolsParam",
           "visibility": "protected",
           "static": false,
-          "line": 120
+          "line": 120,
+          "end_line": 158,
+          "lines": 39
         },
         {
           "name": "route_model_id",
           "visibility": "protected",
           "static": false,
-          "line": 168
+          "line": 168,
+          "end_line": 170,
+          "lines": 3
         },
         {
           "name": "model_id_for_tool_gate",
           "visibility": "private",
           "static": false,
-          "line": 183
+          "line": 183,
+          "end_line": 234,
+          "lines": 52
         },
         {
           "name": "catalog_key_for_tool_gate",
           "visibility": "private",
           "static": false,
-          "line": 247
+          "line": 247,
+          "end_line": 266,
+          "lines": 20
         }
       ],
       "method_count": 7,
@@ -979,7 +1109,9 @@
           "name": "providerClass",
           "visibility": "protected",
           "static": false,
-          "line": 35
+          "line": 35,
+          "end_line": 37,
+          "lines": 3
         }
       ],
       "method_count": 1,
@@ -1020,7 +1152,9 @@
           "name": "providerClass",
           "visibility": "protected",
           "static": false,
-          "line": 35
+          "line": 35,
+          "end_line": 37,
+          "lines": 3
         }
       ],
       "method_count": 1,
@@ -1061,7 +1195,9 @@
           "name": "providerClass",
           "visibility": "protected",
           "static": false,
-          "line": 35
+          "line": 35,
+          "end_line": 37,
+          "lines": 3
         }
       ],
       "method_count": 1,
@@ -1102,7 +1238,9 @@
           "name": "providerClass",
           "visibility": "protected",
           "static": false,
-          "line": 35
+          "line": 35,
+          "end_line": 37,
+          "lines": 3
         }
       ],
       "method_count": 1,
@@ -1143,61 +1281,81 @@
           "name": "providerId",
           "visibility": "protected",
           "static": true,
-          "line": 50
+          "line": 50,
+          "end_line": 50,
+          "lines": 1
         },
         {
           "name": "catalogKey",
           "visibility": "protected",
           "static": true,
-          "line": 59
+          "line": 59,
+          "end_line": 59,
+          "lines": 1
         },
         {
           "name": "displayName",
           "visibility": "protected",
           "static": true,
-          "line": 68
+          "line": 68,
+          "end_line": 68,
+          "lines": 1
         },
         {
           "name": "description",
           "visibility": "protected",
           "static": true,
-          "line": 77
+          "line": 77,
+          "end_line": 77,
+          "lines": 1
         },
         {
           "name": "createModel",
           "visibility": "protected",
           "static": true,
-          "line": 89
+          "line": 89,
+          "end_line": 130,
+          "lines": 42
         },
         {
           "name": "capability_matches",
           "visibility": "private",
           "static": true,
-          "line": 149
+          "line": 149,
+          "end_line": 167,
+          "lines": 19
         },
         {
           "name": "try_capability_checker",
           "visibility": "private",
           "static": true,
-          "line": 181
+          "line": 181,
+          "end_line": 191,
+          "lines": 11
         },
         {
           "name": "createProviderMetadata",
           "visibility": "protected",
           "static": true,
-          "line": 201
+          "line": 201,
+          "end_line": 231,
+          "lines": 31
         },
         {
           "name": "createProviderAvailability",
           "visibility": "protected",
           "static": true,
-          "line": 240
+          "line": 240,
+          "end_line": 242,
+          "lines": 3
         },
         {
           "name": "createModelMetadataDirectory",
           "visibility": "protected",
           "static": true,
-          "line": 251
+          "line": 251,
+          "end_line": 255,
+          "lines": 5
         }
       ],
       "method_count": 10,
@@ -1269,31 +1427,41 @@
           "name": "providerId",
           "visibility": "protected",
           "static": true,
-          "line": 33
+          "line": 33,
+          "end_line": 35,
+          "lines": 3
         },
         {
           "name": "catalogKey",
           "visibility": "protected",
           "static": true,
-          "line": 44
+          "line": 44,
+          "end_line": 46,
+          "lines": 3
         },
         {
           "name": "displayName",
           "visibility": "protected",
           "static": true,
-          "line": 55
+          "line": 55,
+          "end_line": 60,
+          "lines": 6
         },
         {
           "name": "description",
           "visibility": "protected",
           "static": true,
-          "line": 69
+          "line": 69,
+          "end_line": 74,
+          "lines": 6
         },
         {
           "name": "baseUrl",
           "visibility": "protected",
           "static": true,
-          "line": 83
+          "line": 83,
+          "end_line": 85,
+          "lines": 3
         }
       ],
       "method_count": 5,
@@ -1314,6 +1482,7 @@
       "static_state": false,
       "fan_in": [
         "OpenCodeConnector\\Availability\\OpenCodeProviderAvailability",
+        "OpenCodeConnector\\Compatibility\\CompatibilityDiagnostics",
         "OpenCodeConnector\\Metadata\\OpenCodeGoModelMetadataDirectory",
         "OpenCodeConnector\\Models\\AbstractOpenCodeImageGenerationModel",
         "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
@@ -1340,31 +1509,41 @@
           "name": "providerId",
           "visibility": "protected",
           "static": true,
-          "line": 33
+          "line": 33,
+          "end_line": 35,
+          "lines": 3
         },
         {
           "name": "catalogKey",
           "visibility": "protected",
           "static": true,
-          "line": 44
+          "line": 44,
+          "end_line": 46,
+          "lines": 3
         },
         {
           "name": "displayName",
           "visibility": "protected",
           "static": true,
-          "line": 55
+          "line": 55,
+          "end_line": 60,
+          "lines": 6
         },
         {
           "name": "description",
           "visibility": "protected",
           "static": true,
-          "line": 69
+          "line": 69,
+          "end_line": 74,
+          "lines": 6
         },
         {
           "name": "baseUrl",
           "visibility": "protected",
           "static": true,
-          "line": 83
+          "line": 83,
+          "end_line": 85,
+          "lines": 3
         }
       ],
       "method_count": 5,
@@ -1385,6 +1564,7 @@
       "static_state": false,
       "fan_in": [
         "OpenCodeConnector\\Availability\\OpenCodeProviderAvailability",
+        "OpenCodeConnector\\Compatibility\\CompatibilityDiagnostics",
         "OpenCodeConnector\\Metadata\\OpenCodeZenModelMetadataDirectory",
         "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
         "OpenCodeConnector\\Models\\OpenCodeZenImageGenerationModel",
@@ -1410,49 +1590,65 @@
           "name": "register",
           "visibility": "public",
           "static": false,
-          "line": 35
+          "line": 35,
+          "end_line": 50,
+          "lines": 16
         },
         {
           "name": "sanitize",
           "visibility": "public",
           "static": false,
-          "line": 60
+          "line": 60,
+          "end_line": 65,
+          "lines": 6
         },
         {
           "name": "bustCaches",
           "visibility": "public",
           "static": false,
-          "line": 76
+          "line": 76,
+          "end_line": 90,
+          "lines": 15
         },
         {
           "name": "bustCachesAdd",
           "visibility": "public",
           "static": false,
-          "line": 101
+          "line": 101,
+          "end_line": 114,
+          "lines": 14
         },
         {
           "name": "clearModelCaches",
           "visibility": "private",
           "static": false,
-          "line": 123
+          "line": 123,
+          "end_line": 154,
+          "lines": 32
         },
         {
           "name": "modelCacheKey",
           "visibility": "private",
           "static": false,
-          "line": 166
+          "line": 166,
+          "end_line": 169,
+          "lines": 4
         },
         {
           "name": "menu",
           "visibility": "public",
           "static": false,
-          "line": 178
+          "line": 178,
+          "end_line": 180,
+          "lines": 3
         },
         {
           "name": "render",
           "visibility": "public",
           "static": false,
-          "line": 189
+          "line": 189,
+          "end_line": 247,
+          "lines": 59
         }
       ],
       "method_count": 8,
@@ -1499,19 +1695,25 @@
           "name": "endpointKindForModel",
           "visibility": "public",
           "static": true,
-          "line": 43
+          "line": 43,
+          "end_line": 53,
+          "lines": 11
         },
         {
           "name": "pathForModel",
           "visibility": "public",
           "static": true,
-          "line": 63
+          "line": 63,
+          "end_line": 65,
+          "lines": 3
         },
         {
           "name": "pathForEndpointKind",
           "visibility": "public",
           "static": true,
-          "line": 74
+          "line": 74,
+          "end_line": 79,
+          "lines": 6
         }
       ],
       "method_count": 3,
