@@ -89,7 +89,13 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .github/reviewer-dependency.json .github/workflows
           git commit -m "ci: update OpenCode AI Reviewer to $TAG"
-          git push --force-with-lease origin HEAD:automation/opencode-ai-reviewer
+          REMOTE_BRANCH="automation/opencode-ai-reviewer"
+          EXISTING_SHA=$(git ls-remote origin "refs/heads/${REMOTE_BRANCH}" | awk '{print $1}')
+          if [ -n "$EXISTING_SHA" ]; then
+            git push --force-with-lease="refs/heads/${REMOTE_BRANCH}:${EXISTING_SHA}" origin "HEAD:${REMOTE_BRANCH}"
+          else
+            git push origin "HEAD:${REMOTE_BRANCH}"
+          fi
           BODY="## Reviewer dependency update
 
           - Release: \`$TAG\`
@@ -100,9 +106,9 @@ jobs:
           The updater reads only the latest stable GitHub release, validates the
           semver tag and full commit SHA, updates all reviewer action references
           and the traceability manifest, and does not auto-merge."
-          EXISTING=$(gh pr list -R "${{ github.repository }}" --head automation/opencode-ai-reviewer --state open --json number --jq '.[0].number' || true)
+          EXISTING=$(gh pr list -R "${{ github.repository }}" --head "$REMOTE_BRANCH" --state open --json number --jq '.[0].number' || true)
           if [ -n "$EXISTING" ]; then
             gh pr edit "$EXISTING" -R "${{ github.repository }}" --title "ci: update OpenCode AI Reviewer to $TAG" --body "$BODY"
           else
-            gh pr create -R "${{ github.repository }}" --head automation/opencode-ai-reviewer --base main --title "ci: update OpenCode AI Reviewer to $TAG" --body "$BODY"
+            gh pr create -R "${{ github.repository }}" --head "$REMOTE_BRANCH" --base main --title "ci: update OpenCode AI Reviewer to $TAG" --body "$BODY"
           fi
