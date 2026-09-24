@@ -279,6 +279,7 @@ final class SessionHeaderTest extends MonkeyTestCase {
 		self::assertArrayHasKey( SessionHeader::HEADER_NAME, $headers );
 		self::assertSame( $headers[ SessionHeader::HEADER_NAME ], $second->getHeaders()[ SessionHeader::HEADER_NAME ] );
 		self::assertSame( SessionHeader::derive_from_data( self::conversation() ), $headers[ SessionHeader::HEADER_NAME ] );
+		self::assertStringEndsWith( '/chat/completions', $first->getUrl() );
 	}
 
 	/**
@@ -294,6 +295,7 @@ final class SessionHeaderTest extends MonkeyTestCase {
 			self::assertNotSame( 0, is_string( $name ) ? strcasecmp( $name, SessionHeader::HEADER_NAME ) : 1 );
 		}
 		self::assertArrayNotHasKey( SessionHeader::HEADER_NAME, $request->getHeaders() );
+		self::assertStringEndsWith( '/chat/completions', $request->getUrl() );
 	}
 
 	/**
