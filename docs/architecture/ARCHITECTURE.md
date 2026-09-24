@@ -2,7 +2,7 @@
 
 **Audit snapshot:** 2026-09-24
 
-**Baseline repository head:** `5f1abb68e2f564e79094340c51946ca82af6b515` (`origin/main`)
+**Baseline repository head:** `de27b6c1270ace0565bc92e940aaa265a168758d` (`origin/main`)
 
 **Active campaign PR:** none; campaign is at a documented stopping point
 

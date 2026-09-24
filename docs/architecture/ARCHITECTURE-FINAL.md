@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `5f1abb68e2f564e79094340c51946ca82af6b515` (`origin/main`)
+**Merged baseline:** `de27b6c1270ace0565bc92e940aaa265a168758d` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
