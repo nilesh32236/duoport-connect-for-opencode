@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "generated_at": "2026-09-24",
-  "source_commit": "8e14c59",
-  "product_code_snapshot": "8e14c59",
+  "source_commit": "cc22c2f",
+  "product_code_snapshot": "cc22c2f",
   "snapshot_note": "Product and automation edges reflect the current merged main baseline; the PF-004 correction adds the shipped CatalogWatch integration.",
   "scope": "product runtime and campaign automation",
   "nodes": [
@@ -45,7 +45,8 @@
         "src/Metadata/AbstractOpenCodeModelMetadataDirectory.php",
         "src/Metadata/ModelAllowlist.php",
         "src/Metadata/ModelRegistry.php",
-        "src/Metadata/CatalogWatch.php"
+        "src/Metadata/CatalogWatch.php",
+        "src/Metadata/CapabilityAwareFallback.php"
       ]
     },
     {
@@ -143,6 +144,11 @@
     }
   ],
   "edges": [
+    {
+      "from": "models",
+      "to": "metadata",
+      "kind": "bounded capability fallback"
+    },
     {
       "from": "entrypoint",
       "to": "compatibility",

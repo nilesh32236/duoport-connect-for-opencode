@@ -60,9 +60,13 @@ PR #66 merged the detailed-result correction. The backend now retains safe state
 
 PR #80 merged the final causal CI fixture, direct malformed-input regressions, and source/dependency audit corrections. The shipped drift script fails closed when malformed evidence is the only drift signal, and the inventory records actual method boundaries and runtime dependencies.
 
+## PF-006 implementation
+
+PR #82 adds `CapabilityAwareFallback`, an opt-in bounded selector invoked before text routing. It requires matching catalog, endpoint family, capability, and verification records, rejects unknown/unsupported/duplicate/cyclic/exhausted candidates, and defaults to no fallback.
+
 ## Next active item: PF-006
 
-PF-006 is the sole active queue item and issue #81; its implementation PR is pending. No competing issue or PR is open. ARCH-001 is complete.
+PF-006 is the sole active queue item and issue #81; its implementation PR #82 is pending. No competing issue or PR is open. ARCH-001 is complete.
 
 ## Final boundaries
 

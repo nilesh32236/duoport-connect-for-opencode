@@ -17,6 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use OpenCodeConnector\Http\GoRequestHeaders;
+use OpenCodeConnector\Metadata\CapabilityAwareFallback;
 use OpenCodeConnector\Metadata\ModelAllowlist;
 use OpenCodeConnector\Metadata\ModelRegistry;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
@@ -68,6 +69,15 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 		$catalog  = $this->catalog_key_for_tool_gate();
 		if ( '' === $model_id || '' === $catalog ) {
 			throw new UnsupportedEndpointFamilyException( 'Model route metadata is unavailable.' );
+		}
+		$selection = ( new CapabilityAwareFallback() )->select(
+			$catalog,
+			$model_id,
+			'text',
+			$this->fallback_model_ids()
+		);
+		if ( is_string( $selection['selected_id'] ?? null ) ) {
+			$model_id = $selection['selected_id'];
 		}
 		$path = EndpointRoute::pathForModel( $model_id, $catalog );
 		if ( OpenCodeGoProvider::class === $cls ) {
@@ -167,6 +177,18 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 */
 	protected function route_model_id(): string {
 		return $this->model_id_for_tool_gate();
+	}
+
+	/**
+	 * Return explicitly reviewed same-catalog fallback IDs for this model.
+	 *
+	 * The default is empty: callers must opt into a bounded fallback list.
+	 * Selection still enforces endpoint, capability, and verification equality.
+	 *
+	 * @return array<int, string>
+	 */
+	protected function fallback_model_ids(): array {
+		return array();
 	}
 
 	/**

@@ -1,12 +1,12 @@
 {
   "summary": {
-    "generated_from_commit": "8e14c59",
+    "generated_from_commit": "cc22c2ff415c23319f75cbe8211c5e90f1759342",
     "generated_at": "2026-09-24",
-    "file_count": 26,
-    "class_count": 25,
-    "source_lines": 3186,
+    "file_count": 27,
+    "class_count": 26,
+    "source_lines": 3399,
     "largest_class": "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
-    "largest_class_lines": 232,
+    "largest_class_lines": 253,
     "largest_method": {
       "class": "OpenCodeConnector\\Metadata\\CatalogWatch",
       "method": "compare",
@@ -15,7 +15,7 @@
     "highest_fan_in": "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
     "highest_fan_in_count": 8,
     "highest_fan_out": "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
-    "highest_fan_out_count": 7,
+    "highest_fan_out_count": 8,
     "highest_dependency_concentration": "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider",
     "highest_dependency_count": 16
   },
@@ -822,7 +822,8 @@
         "OpenCodeConnector\\Metadata\\CatalogWatch",
         "OpenCodeConnector\\Transport\\EndpointRoute",
         "OpenCodeConnector\\Metadata\\AbstractOpenCodeModelMetadataDirectory",
-        "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel"
+        "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
+        "OpenCodeConnector\\Metadata\\CapabilityAwareFallback"
       ],
       "fan_out": [
         "OpenCodeConnector\\Metadata\\ModelAllowlist"
@@ -999,75 +1000,84 @@
       "final": false,
       "extends": "AbstractOpenAiCompatibleTextGenerationModel",
       "implements": null,
-      "start_line": 36,
-      "end_line": 267,
-      "lines": 232,
+      "start_line": 37,
+      "end_line": 289,
+      "lines": 253,
       "methods": [
         {
           "name": "providerClass",
           "visibility": "protected",
           "static": false,
-          "line": 44,
-          "end_line": 44,
+          "line": 45,
+          "end_line": 45,
           "lines": 1
         },
         {
           "name": "createRequest",
           "visibility": "protected",
           "static": false,
-          "line": 65,
-          "end_line": 77,
-          "lines": 13
+          "line": 66,
+          "end_line": 87,
+          "lines": 22
         },
         {
           "name": "prepareResponseFormatParam",
           "visibility": "protected",
           "static": false,
-          "line": 87,
-          "end_line": 99,
+          "line": 97,
+          "end_line": 109,
           "lines": 13
         },
         {
           "name": "prepareToolsParam",
           "visibility": "protected",
           "static": false,
-          "line": 120,
-          "end_line": 158,
+          "line": 130,
+          "end_line": 168,
           "lines": 39
         },
         {
           "name": "route_model_id",
           "visibility": "protected",
           "static": false,
-          "line": 168,
-          "end_line": 170,
+          "line": 178,
+          "end_line": 180,
+          "lines": 3
+        },
+        {
+          "name": "fallback_model_ids",
+          "visibility": "protected",
+          "static": false,
+          "line": 190,
+          "end_line": 192,
           "lines": 3
         },
         {
           "name": "model_id_for_tool_gate",
           "visibility": "private",
           "static": false,
-          "line": 183,
-          "end_line": 234,
+          "line": 205,
+          "end_line": 256,
           "lines": 52
         },
         {
           "name": "catalog_key_for_tool_gate",
           "visibility": "private",
           "static": false,
-          "line": 247,
-          "end_line": 266,
+          "line": 269,
+          "end_line": 288,
           "lines": 20
         }
       ],
-      "method_count": 7,
+      "method_count": 8,
       "public_methods": [],
       "protected_methods": [
         "providerClass",
         "createRequest",
         "prepareResponseFormatParam",
         "prepareToolsParam",
-        "route_model_id"
+        "route_model_id",
+        "fallback_model_ids"
       ],
       "private_methods": [
         "model_id_for_tool_gate",
@@ -1083,7 +1093,8 @@
         "WordPress\\AiClient\\Providers\\OpenAiCompatibleImplementation\\AbstractOpenAiCompatibleTextGenerationModel",
         "OpenCodeConnector\\Metadata\\ModelRegistry",
         "OpenCodeConnector\\Transport\\EndpointRoute",
-        "OpenCodeConnector\\Transport\\UnsupportedEndpointFamilyException"
+        "OpenCodeConnector\\Transport\\UnsupportedEndpointFamilyException",
+        "OpenCodeConnector\\Metadata\\CapabilityAwareFallback"
       ],
       "wordpress_dependencies": true,
       "opencode_dependencies": true,
@@ -1101,7 +1112,8 @@
         "OpenCodeConnector\\Providers\\OpenCodeZenProvider",
         "OpenCodeConnector\\Metadata\\ModelRegistry",
         "OpenCodeConnector\\Transport\\EndpointRoute",
-        "OpenCodeConnector\\Transport\\UnsupportedEndpointFamilyException"
+        "OpenCodeConnector\\Transport\\UnsupportedEndpointFamilyException",
+        "OpenCodeConnector\\Metadata\\CapabilityAwareFallback"
       ]
     },
     {
@@ -1786,6 +1798,85 @@
       ],
       "fan_out": [
         "RuntimeException"
+      ]
+    },
+    {
+      "file": "src/Metadata/CapabilityAwareFallback.php",
+      "class": "OpenCodeConnector\\Metadata\\CapabilityAwareFallback",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": null,
+      "implements": null,
+      "start_line": 20,
+      "end_line": 191,
+      "lines": 172,
+      "methods": [
+        {
+          "name": "__construct",
+          "visibility": "public",
+          "static": false,
+          "line": 46,
+          "end_line": 48,
+          "lines": 3
+        },
+        {
+          "name": "select",
+          "visibility": "public",
+          "static": false,
+          "line": 59,
+          "end_line": 145,
+          "lines": 87
+        },
+        {
+          "name": "is_verified",
+          "visibility": "private",
+          "static": false,
+          "line": 153,
+          "end_line": 155,
+          "lines": 3
+        },
+        {
+          "name": "record",
+          "visibility": "private",
+          "static": false,
+          "line": 164,
+          "end_line": 170,
+          "lines": 7
+        },
+        {
+          "name": "empty_result",
+          "visibility": "private",
+          "static": false,
+          "line": 178,
+          "end_line": 190,
+          "lines": 13
+        }
+      ],
+      "method_count": 5,
+      "public_methods": [
+        "__construct",
+        "select"
+      ],
+      "protected_methods": [],
+      "private_methods": [
+        "is_verified",
+        "record",
+        "empty_result"
+      ],
+      "dependencies": [
+        "OpenCodeConnector\\Metadata\\ModelRegistry"
+      ],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": false,
+      "http_dependencies": false,
+      "settings_dependencies": false,
+      "static_state": true,
+      "fan_in": [
+        "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Metadata\\ModelRegistry"
       ]
     }
   ]
