@@ -148,7 +148,7 @@ items:
     status: in_progress
     title: Repair reviewer and OpenCode CLI workflow dependency
     github_issue: 46
-    github_pr: pending
+    github_pr: 47
     priority: high
     difficulty: medium
     evidence: Daily Audit and AI review runs fail before analysis because reviewer @main defaults to checksum-required OpenCode CLI latest; v1.18.32 has no checksum while v1.18.31 is the reviewer-documented verified pin.
