@@ -4,7 +4,7 @@
 
 **Baseline repository head:** `36df42501b0d7e20e2be1951b78d9d90606dd5d6` (`origin/main`)
 
-**Active PR head under review:** `a8c3f940a889689bf959f98e41c2caaaf7962bb8`
+**Active campaign PR:** [#42](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/42) (the exact head is captured in the merge gate)
 
 **Active queue item:** `AUDIT-041` / GitHub issue [#41](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/41) / PR [#42](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/42)
 
