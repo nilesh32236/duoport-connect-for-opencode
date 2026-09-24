@@ -1,9 +1,13 @@
 # Architecture baseline
 
-**Audit snapshot:** 2026-09-24  
-**Baseline repository head:** `36df42501b0d7e20e2be1951b78d9d90606dd5d6` (`origin/main`)  
-**Active PR head under review:** `a8c3f940a889689bf959f98e41c2caaaf7962bb8`  
-**Active queue item:** `AUDIT-041` / GitHub issue [#41](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/41) / PR [#42](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/42)  
+**Audit snapshot:** 2026-09-24
+
+**Baseline repository head:** `36df42501b0d7e20e2be1951b78d9d90606dd5d6` (`origin/main`)
+
+**Active PR head under review:** `a8c3f940a889689bf959f98e41c2caaaf7962bb8`
+
+**Active queue item:** `AUDIT-041` / GitHub issue [#41](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/41) / PR [#42](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/42)
+
 **Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; both providers are registered in the available WordPress runtime.
 
 This document is the current architecture source of truth. `class-inventory.json`, `DEPENDENCY-GRAPH.json`, `BOUNDARIES.md`, and `refactor-queue.yaml` are companion artifacts. Older files under `AUDIT/` are historical evidence, not a competing plan.
