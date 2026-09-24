@@ -12,7 +12,7 @@
     {"id":"providers","kind":"product","files":["src/Providers/AbstractOpenCodeProvider.php","src/Providers/OpenCodeGoProvider.php","src/Providers/OpenCodeZenProvider.php"]},
     {"id":"models","kind":"product","files":["src/Models/AbstractOpenCodeTextGenerationModel.php","src/Models/AbstractOpenCodeImageGenerationModel.php"]},
     {"id":"metadata","kind":"product","files":["src/Metadata/AbstractOpenCodeModelMetadataDirectory.php","src/Metadata/ModelAllowlist.php","src/Metadata/ModelRegistry.php"]},
-    {"id":"availability","kind":"product","file":"src/Availability/OpenCodeProviderAvailability.php"},
+    {"id":"availability","kind":"product","files":["src/Availability/OpenCodeProviderAvailability.php","src/Availability/ConnectionDiagnostics.php"]},
     {"id":"http","kind":"product","files":["src/Http/SessionHeader.php","src/Http/ClientUserAgent.php"]},
     {"id":"go-request-headers","kind":"product","file":"src/Http/GoRequestHeaders.php"},
     {"id":"credentials","kind":"boundary","label":"WordPress-managed connector credentials"},

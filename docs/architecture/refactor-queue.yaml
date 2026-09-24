@@ -1,6 +1,6 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: f95dbe76ad936c60bc68832e0fb57ef26c836b61
+source_commit: 981105eaf076694ad435b80b3012d5351c98ea36
 last_audited: 2026-09-24
 rule: exactly_one_active_item
 active_item: PF-003
@@ -114,7 +114,7 @@ items:
     status: in_progress
     title: Detailed connection diagnostics
     github_issue: 61
-    github_pr: 62
+    github_pr: 64
     priority: high
     difficulty: medium
     depends_on: [AUDIT-041]

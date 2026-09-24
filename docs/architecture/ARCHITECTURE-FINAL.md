@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `f95dbe76ad936c60bc68832e0fb57ef26c836b61` (`origin/main`)
+**Merged baseline:** `981105eaf076694ad435b80b3012d5351c98ea36` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -26,7 +26,7 @@ The merged plugin was synchronized to the live WordPress site and PHP-linted. Wo
 Local verification passed:
 
 - WPCS
-- PHPUnit: 105 tests, 385 assertions
+- PHPUnit: 111 tests, 423 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
@@ -51,6 +51,10 @@ PR #56 merged deterministically at the exact reviewed head. The curated registry
 ## PF-002 correction
 
 PR #60 merged deterministically at the exact reviewed head. The first routing pass is narrowed to the only complete transport contract: chat/completions. Unresolved metadata now fails before Request construction, and responses/messages/provider-specific families are explicitly denied until their payload, parser, and authentication adapters are verified.
+
+## PF-003 implementation
+
+The current campaign adds a small credential-blind `ConnectionDiagnostics` classifier and routes availability probes through its safe state/code fields. Unsupported Zen endpoint records are explicitly retained as `unsupported` and denied by the transport route; no unsupported model is advertised as a text route.
 
 ## Next active item: PF-003
 

@@ -108,20 +108,10 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			$probe_data
 		);
 		try {
-			$req  = $this->getRequestAuthentication()->authenticateRequest( $req );
-			$res  = $this->getHttpTransporter()->send( $req );
-			$code = $res->getStatusCode();
-			if ( $code >= 200 && $code < 300 ) {
-				$ok = true;
-			} elseif ( 429 === $code ) {
-				$ok = true;
-			} elseif ( 401 === $code ) {
-				$data     = $res->getData();
-				$err_type = is_array( $data ) ? ( $data['error']['type'] ?? '' ) : '';
-				$ok       = 'CreditsError' === $err_type;
-			} else {
-				$ok = false;
-			}
+			$req         = $this->getRequestAuthentication()->authenticateRequest( $req );
+			$res         = $this->getHttpTransporter()->send( $req );
+			$diagnostics = new ConnectionDiagnostics();
+			$ok          = $diagnostics->classify( $res->getStatusCode(), $res->getData() )['usable'];
 		} catch ( \Throwable ) {
 			$ok = false;
 		}

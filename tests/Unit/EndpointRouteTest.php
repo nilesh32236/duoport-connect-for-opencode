@@ -23,6 +23,20 @@ final class EndpointRouteTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * Model-level unimplemented Zen routes are denied before transport.
+	 */
+	public function test_unimplemented_model_routes_are_denied(): void {
+		foreach ( array( 'minimax-m3', 'minimax-m2.7', 'minimax-m2.5' ) as $id ) {
+			try {
+				EndpointRoute::pathForModel( $id, 'zen' );
+				self::fail( 'Expected an unsupported model route exception.' );
+			} catch ( UnsupportedEndpointFamilyException ) {
+				self::assertTrue( true );
+			}
+		}
+	}
+
+	/**
 	 * Unimplemented endpoint kinds are explicitly denied.
 	 */
 	public function test_unimplemented_family_paths_are_denied(): void {

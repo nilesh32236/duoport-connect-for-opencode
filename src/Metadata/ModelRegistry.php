@@ -33,9 +33,34 @@ final class ModelRegistry {
 	private const LAST_VERIFIED = '2026-09-24';
 
 	/**
-	 * Current curated endpoint family.
+	 * Current implemented endpoint family.
 	 */
 	private const ENDPOINT_FAMILY = 'chat';
+
+	/**
+	 * Zen IDs whose documented family is not implemented by this adapter.
+	 *
+	 * @var list<string>
+	 */
+	private const UNSUPPORTED_ZEN_MODELS = array(
+		'minimax-m3',
+		'minimax-m2.7',
+		'minimax-m2.5',
+	);
+
+	/**
+	 * Resolve the reviewed endpoint family for a model.
+	 *
+	 * @param string $id      Model ID.
+	 * @param string $catalog Catalog slug.
+	 * @return string
+	 */
+	private static function endpointFamily( string $id, string $catalog ): string {
+		if ( 'zen' === $catalog && in_array( $id, self::UNSUPPORTED_ZEN_MODELS, true ) ) {
+			return 'unsupported';
+		}
+		return self::ENDPOINT_FAMILY;
+	}
 
 	/**
 	 * Get a canonical record for an allowlisted model.
@@ -49,11 +74,13 @@ final class ModelRegistry {
 			return null;
 		}
 
-		$capabilities = array(
-			'text'       => true,
-			'tools'      => ModelAllowlist::isToolCapable( $id, $catalog ),
-			'web_search' => ModelAllowlist::isWebSearchCapable( $id, $catalog ),
-			'image'      => ModelAllowlist::isImageCapable( $id, $catalog ),
+		$endpoint_family = self::endpointFamily( $id, $catalog );
+		$route_supported = 'unsupported' !== $endpoint_family;
+		$capabilities    = array(
+			'text'       => $route_supported,
+			'tools'      => $route_supported && ModelAllowlist::isToolCapable( $id, $catalog ),
+			'web_search' => $route_supported && ModelAllowlist::isWebSearchCapable( $id, $catalog ),
+			'image'      => $route_supported && ModelAllowlist::isImageCapable( $id, $catalog ),
 		);
 
 		return array(
@@ -61,9 +88,9 @@ final class ModelRegistry {
 			'catalog'             => $catalog,
 			'display_name'        => ModelAllowlist::displayName( $id ),
 			'free'                => ModelAllowlist::isFree( $id ),
-			'endpoint_family'     => self::ENDPOINT_FAMILY,
+			'endpoint_family'     => $endpoint_family,
 			'capabilities'        => $capabilities,
-			'verification_status' => self::VERIFICATION_STATUS,
+			'verification_status' => 'unsupported' === $endpoint_family ? 'needs-adapter' : self::VERIFICATION_STATUS,
 			'last_verified'       => self::LAST_VERIFIED,
 		);
 	}
