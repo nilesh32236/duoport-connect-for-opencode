@@ -4,7 +4,7 @@ Tags: ai, artificial-intelligence, connector, opencode, zen
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.2
-Stable tag: 0.1.4
+Stable tag: 0.1.5
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -61,6 +61,11 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 == Changelog ==
 
+= 0.1.5 =
+* Centralized Go session and client User-Agent headers across text and image requests.
+* Added an authoritative architecture baseline, class inventory, dependency graph, boundaries, scope, improvement rules, and single-item improvement queue.
+* Hardened release documentation so post-0.1.4 additions carry accurate @since metadata.
+
 = 0.1.4 =
 * Added `deepseek-v4.1-flash` to the Go catalog.
 * Fixed: the key validation probe now sends the required `x-opencode-session` header and probes an authentication-discriminating model, so valid Go/Zen keys are accepted instead of rejected.
@@ -76,6 +81,9 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 * Initial release: Go and Zen providers, allowlisted models with free labels, probe availability, shared-key sync, and Show all models toggle.
 
 == Upgrade Notice ==
+
+= 0.1.5 =
+No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged.
 
 = 0.1.2 =
 Go and Zen now use separate API key fields. After updating, re-enter your opencode.ai key in both fields on Settings → Connectors.

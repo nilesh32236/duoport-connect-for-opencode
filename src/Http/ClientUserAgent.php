@@ -49,9 +49,14 @@ final class ClientUserAgent {
 	 * Mirrors the plugin header; used only when `OpenCodeConnector\VERSION`
 	 * is not defined (e.g. partial bootstrap). Never read from options.
 	 *
+	 * Release checklist: bump this together with the plugin header `Version:`,
+	 * the `OpenCodeConnector\VERSION` const, the readme.txt Stable tag, and
+	 * the readme.txt Changelog entry, or the User-Agent reports a stale
+	 * version on partial bootstraps.
+	 *
 	 * @since 0.1.5
 	 */
-	const FALLBACK_VERSION = '0.1.4';
+	const FALLBACK_VERSION = '0.1.5';
 
 	/**
 	 * Build the client User-Agent value.

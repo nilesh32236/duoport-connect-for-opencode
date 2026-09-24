@@ -1,0 +1,1147 @@
+{
+  "summary": {
+    "generated_from_commit": "a8c3f940a889689bf959f98e41c2caaaf7962bb8",
+    "generated_at": "2026-09-24",
+    "file_count": 21,
+    "class_count": 19,
+    "source_lines": 1843,
+    "largest_class": "OpenCodeConnector\\Settings\\Settings",
+    "largest_class_lines": 222,
+    "largest_method": {
+      "class": "OpenCodeConnector\\Metadata\\AbstractOpenCodeModelMetadataDirectory",
+      "method": "parseResponseToModelMetadataList",
+      "lines": 83
+    },
+    "highest_fan_in": "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
+    "highest_fan_in_count": 6,
+    "highest_fan_out": "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider",
+    "highest_fan_out_count": 7,
+    "highest_dependency_concentration": "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider",
+    "highest_dependency_count": 16
+  },
+  "classes": [
+    {
+      "file": "src/Availability/OpenCodeProviderAvailability.php",
+      "class": "OpenCodeConnector\\Availability\\OpenCodeProviderAvailability",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": null,
+      "implements": "ProviderAvailabilityInterface, WithHttpTransporterInterface, WithRequestAuthenticationInterface",
+      "start_line": 36,
+      "end_line": 134,
+      "lines": 99,
+      "methods": [
+        {
+          "name": "__construct",
+          "visibility": "public",
+          "static": false,
+          "line": 47
+        },
+        {
+          "name": "isConfigured",
+          "visibility": "public",
+          "static": false,
+          "line": 58
+        }
+      ],
+      "method_count": 2,
+      "public_methods": [
+        "__construct",
+        "isConfigured"
+      ],
+      "protected_methods": [],
+      "private_methods": [],
+      "dependencies": [
+        "OpenCodeConnector\\Http\\SessionHeader",
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
+        "OpenCodeConnector\\Providers\\OpenCodeZenProvider",
+        "WithHttpTransporterTrait",
+        "WithRequestAuthenticationTrait",
+        "WordPress\\AiClient\\Providers\\Contracts\\ProviderAvailabilityInterface",
+        "WordPress\\AiClient\\Providers\\Http\\Contracts\\WithHttpTransporterInterface",
+        "WordPress\\AiClient\\Providers\\Http\\Contracts\\WithRequestAuthenticationInterface",
+        "WordPress\\AiClient\\Providers\\Http\\DTO\\Request",
+        "WordPress\\AiClient\\Providers\\Http\\Enums\\HttpMethodEnum",
+        "WordPress\\AiClient\\Providers\\Http\\Traits\\WithHttpTransporterTrait",
+        "WordPress\\AiClient\\Providers\\Http\\Traits\\WithRequestAuthenticationTrait"
+      ],
+      "wordpress_dependencies": true,
+      "opencode_dependencies": true,
+      "http_dependencies": true,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Http\\SessionHeader",
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
+        "OpenCodeConnector\\Providers\\OpenCodeZenProvider"
+      ]
+    },
+    {
+      "file": "src/Http/ClientUserAgent.php",
+      "class": "OpenCodeConnector\\Http\\ClientUserAgent",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": null,
+      "implements": null,
+      "start_line": 31,
+      "end_line": 111,
+      "lines": 81,
+      "methods": [
+        {
+          "name": "value",
+          "visibility": "public",
+          "static": true,
+          "line": 72
+        },
+        {
+          "name": "inject_into_headers",
+          "visibility": "public",
+          "static": true,
+          "line": 98
+        }
+      ],
+      "method_count": 2,
+      "public_methods": [
+        "value",
+        "inject_into_headers"
+      ],
+      "protected_methods": [],
+      "private_methods": [],
+      "dependencies": [],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": true,
+      "http_dependencies": true,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Http\\GoRequestHeaders"
+      ],
+      "fan_out": []
+    },
+    {
+      "file": "src/Http/GoRequestHeaders.php",
+      "class": "OpenCodeConnector\\Http\\GoRequestHeaders",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": null,
+      "implements": null,
+      "start_line": 32,
+      "end_line": 61,
+      "lines": 30,
+      "methods": [
+        {
+          "name": "for_go",
+          "visibility": "public",
+          "static": true,
+          "line": 47
+        }
+      ],
+      "method_count": 1,
+      "public_methods": [
+        "for_go"
+      ],
+      "protected_methods": [],
+      "private_methods": [],
+      "dependencies": [],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": true,
+      "http_dependencies": true,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Models\\AbstractOpenCodeImageGenerationModel",
+        "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Http\\ClientUserAgent",
+        "OpenCodeConnector\\Http\\SessionHeader"
+      ]
+    },
+    {
+      "file": "src/Http/SessionHeader.php",
+      "class": "OpenCodeConnector\\Http\\SessionHeader",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": null,
+      "implements": null,
+      "start_line": 28,
+      "end_line": 229,
+      "lines": 202,
+      "methods": [
+        {
+          "name": "derive_from_data",
+          "visibility": "public",
+          "static": true,
+          "line": 59
+        },
+        {
+          "name": "derive_from_messages",
+          "visibility": "private",
+          "static": true,
+          "line": 85
+        },
+        {
+          "name": "derive_from_prompt",
+          "visibility": "private",
+          "static": true,
+          "line": 124
+        },
+        {
+          "name": "hash_canonical",
+          "visibility": "private",
+          "static": true,
+          "line": 148
+        },
+        {
+          "name": "inject_into_headers",
+          "visibility": "public",
+          "static": true,
+          "line": 181
+        },
+        {
+          "name": "normalize_content",
+          "visibility": "private",
+          "static": true,
+          "line": 208
+        }
+      ],
+      "method_count": 6,
+      "public_methods": [
+        "derive_from_data",
+        "inject_into_headers"
+      ],
+      "protected_methods": [],
+      "private_methods": [
+        "derive_from_messages",
+        "derive_from_prompt",
+        "hash_canonical",
+        "normalize_content"
+      ],
+      "dependencies": [],
+      "wordpress_dependencies": true,
+      "opencode_dependencies": true,
+      "http_dependencies": true,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Availability\\OpenCodeProviderAvailability",
+        "OpenCodeConnector\\Http\\GoRequestHeaders"
+      ],
+      "fan_out": []
+    },
+    {
+      "file": "src/Media/ImageAttachmentSaver.php",
+      "class": "OpenCodeConnector\\Media\\ImageAttachmentSaver",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": null,
+      "implements": null,
+      "start_line": 29,
+      "end_line": 224,
+      "lines": 196,
+      "methods": [
+        {
+          "name": "is_allowed_mime",
+          "visibility": "public",
+          "static": true,
+          "line": 56
+        },
+        {
+          "name": "is_within_size_limit",
+          "visibility": "public",
+          "static": true,
+          "line": 68
+        },
+        {
+          "name": "validate",
+          "visibility": "public",
+          "static": true,
+          "line": 86
+        },
+        {
+          "name": "detect_mime",
+          "visibility": "private",
+          "static": true,
+          "line": 140
+        },
+        {
+          "name": "save_to_media_library",
+          "visibility": "public",
+          "static": true,
+          "line": 166
+        }
+      ],
+      "method_count": 5,
+      "public_methods": [
+        "is_allowed_mime",
+        "is_within_size_limit",
+        "validate",
+        "save_to_media_library"
+      ],
+      "protected_methods": [],
+      "private_methods": [
+        "detect_mime"
+      ],
+      "dependencies": [],
+      "wordpress_dependencies": true,
+      "opencode_dependencies": true,
+      "http_dependencies": false,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [],
+      "fan_out": []
+    },
+    {
+      "file": "src/Metadata/AbstractOpenCodeModelMetadataDirectory.php",
+      "class": "OpenCodeConnector\\Metadata\\AbstractOpenCodeModelMetadataDirectory",
+      "kind": "class",
+      "abstract": true,
+      "final": false,
+      "extends": "AbstractOpenAiCompatibleModelMetadataDirectory",
+      "implements": null,
+      "start_line": 36,
+      "end_line": 162,
+      "lines": 127,
+      "methods": [
+        {
+          "name": "createRequest",
+          "visibility": "protected",
+          "static": false,
+          "line": 66
+        },
+        {
+          "name": "parseResponseToModelMetadataList",
+          "visibility": "protected",
+          "static": false,
+          "line": 80
+        }
+      ],
+      "method_count": 2,
+      "public_methods": [],
+      "protected_methods": [
+        "createRequest",
+        "parseResponseToModelMetadataList"
+      ],
+      "private_methods": [],
+      "dependencies": [
+        "WordPress\\AiClient\\Messages\\Enums\\ModalityEnum",
+        "WordPress\\AiClient\\Providers\\Http\\DTO\\Request",
+        "WordPress\\AiClient\\Providers\\Http\\DTO\\Response",
+        "WordPress\\AiClient\\Providers\\Http\\Enums\\HttpMethodEnum",
+        "WordPress\\AiClient\\Providers\\Http\\Exception\\ResponseException",
+        "WordPress\\AiClient\\Providers\\Models\\DTO\\ModelMetadata",
+        "WordPress\\AiClient\\Providers\\Models\\DTO\\SupportedOption",
+        "WordPress\\AiClient\\Providers\\Models\\Enums\\CapabilityEnum",
+        "WordPress\\AiClient\\Providers\\Models\\Enums\\OptionEnum",
+        "WordPress\\AiClient\\Providers\\OpenAiCompatibleImplementation\\AbstractOpenAiCompatibleModelMetadataDirectory"
+      ],
+      "wordpress_dependencies": true,
+      "opencode_dependencies": true,
+      "http_dependencies": true,
+      "settings_dependencies": true,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Metadata\\OpenCodeGoModelMetadataDirectory",
+        "OpenCodeConnector\\Metadata\\OpenCodeZenModelMetadataDirectory"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Metadata\\ModelAllowlist"
+      ]
+    },
+    {
+      "file": "src/Metadata/ModelAllowlist.php",
+      "class": "OpenCodeConnector\\Metadata\\ModelAllowlist",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": null,
+      "implements": null,
+      "start_line": 25,
+      "end_line": 226,
+      "lines": 202,
+      "methods": [
+        {
+          "name": "isAllowed",
+          "visibility": "public",
+          "static": true,
+          "line": 131
+        },
+        {
+          "name": "isImageCapable",
+          "visibility": "public",
+          "static": true,
+          "line": 147
+        },
+        {
+          "name": "isFree",
+          "visibility": "public",
+          "static": true,
+          "line": 159
+        },
+        {
+          "name": "isToolCapable",
+          "visibility": "public",
+          "static": true,
+          "line": 180
+        },
+        {
+          "name": "isWebSearchCapable",
+          "visibility": "public",
+          "static": true,
+          "line": 209
+        },
+        {
+          "name": "displayName",
+          "visibility": "public",
+          "static": true,
+          "line": 221
+        }
+      ],
+      "method_count": 6,
+      "public_methods": [
+        "isAllowed",
+        "isImageCapable",
+        "isFree",
+        "isToolCapable",
+        "isWebSearchCapable",
+        "displayName"
+      ],
+      "protected_methods": [],
+      "private_methods": [],
+      "dependencies": [],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": true,
+      "http_dependencies": true,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Metadata\\AbstractOpenCodeModelMetadataDirectory",
+        "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel"
+      ],
+      "fan_out": []
+    },
+    {
+      "file": "src/Metadata/OpenCodeGoModelMetadataDirectory.php",
+      "class": "OpenCodeConnector\\Metadata\\OpenCodeGoModelMetadataDirectory",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": "AbstractOpenCodeModelMetadataDirectory",
+      "implements": null,
+      "start_line": 27,
+      "end_line": 49,
+      "lines": 23,
+      "methods": [
+        {
+          "name": "providerClass",
+          "visibility": "protected",
+          "static": false,
+          "line": 35
+        },
+        {
+          "name": "catalogKey",
+          "visibility": "protected",
+          "static": false,
+          "line": 46
+        }
+      ],
+      "method_count": 2,
+      "public_methods": [],
+      "protected_methods": [
+        "providerClass",
+        "catalogKey"
+      ],
+      "private_methods": [],
+      "dependencies": [
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider"
+      ],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": true,
+      "http_dependencies": false,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider",
+        "OpenCodeConnector\\Settings\\Settings"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Metadata\\AbstractOpenCodeModelMetadataDirectory",
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider"
+      ]
+    },
+    {
+      "file": "src/Metadata/OpenCodeZenModelMetadataDirectory.php",
+      "class": "OpenCodeConnector\\Metadata\\OpenCodeZenModelMetadataDirectory",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": "AbstractOpenCodeModelMetadataDirectory",
+      "implements": null,
+      "start_line": 27,
+      "end_line": 49,
+      "lines": 23,
+      "methods": [
+        {
+          "name": "providerClass",
+          "visibility": "protected",
+          "static": false,
+          "line": 35
+        },
+        {
+          "name": "catalogKey",
+          "visibility": "protected",
+          "static": false,
+          "line": 46
+        }
+      ],
+      "method_count": 2,
+      "public_methods": [],
+      "protected_methods": [
+        "providerClass",
+        "catalogKey"
+      ],
+      "private_methods": [],
+      "dependencies": [
+        "OpenCodeConnector\\Providers\\OpenCodeZenProvider"
+      ],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": true,
+      "http_dependencies": false,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider",
+        "OpenCodeConnector\\Settings\\Settings"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Metadata\\AbstractOpenCodeModelMetadataDirectory",
+        "OpenCodeConnector\\Providers\\OpenCodeZenProvider"
+      ]
+    },
+    {
+      "file": "src/Models/AbstractOpenCodeImageGenerationModel.php",
+      "class": "OpenCodeConnector\\Models\\AbstractOpenCodeImageGenerationModel",
+      "kind": "class",
+      "abstract": true,
+      "final": false,
+      "extends": "AbstractOpenAiCompatibleImageGenerationModel",
+      "implements": null,
+      "start_line": 31,
+      "end_line": 66,
+      "lines": 36,
+      "methods": [
+        {
+          "name": "createRequest",
+          "visibility": "protected",
+          "static": false,
+          "line": 59
+        }
+      ],
+      "method_count": 1,
+      "public_methods": [],
+      "protected_methods": [
+        "createRequest"
+      ],
+      "private_methods": [],
+      "dependencies": [
+        "OpenCodeConnector\\Http\\GoRequestHeaders",
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
+        "WordPress\\AiClient\\Providers\\Http\\DTO\\Request",
+        "WordPress\\AiClient\\Providers\\Http\\Enums\\HttpMethodEnum",
+        "WordPress\\AiClient\\Providers\\OpenAiCompatibleImplementation\\AbstractOpenAiCompatibleImageGenerationModel"
+      ],
+      "wordpress_dependencies": true,
+      "opencode_dependencies": true,
+      "http_dependencies": true,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Models\\OpenCodeGoImageGenerationModel",
+        "OpenCodeConnector\\Models\\OpenCodeZenImageGenerationModel"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Http\\GoRequestHeaders",
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider"
+      ]
+    },
+    {
+      "file": "src/Models/AbstractOpenCodeTextGenerationModel.php",
+      "class": "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
+      "kind": "class",
+      "abstract": true,
+      "final": false,
+      "extends": "AbstractOpenAiCompatibleTextGenerationModel",
+      "implements": null,
+      "start_line": 33,
+      "end_line": 247,
+      "lines": 215,
+      "methods": [
+        {
+          "name": "createRequest",
+          "visibility": "protected",
+          "static": false,
+          "line": 61
+        },
+        {
+          "name": "prepareResponseFormatParam",
+          "visibility": "protected",
+          "static": false,
+          "line": 77
+        },
+        {
+          "name": "prepareToolsParam",
+          "visibility": "protected",
+          "static": false,
+          "line": 109
+        },
+        {
+          "name": "model_id_for_tool_gate",
+          "visibility": "private",
+          "static": false,
+          "line": 163
+        },
+        {
+          "name": "catalog_key_for_tool_gate",
+          "visibility": "private",
+          "static": false,
+          "line": 227
+        }
+      ],
+      "method_count": 5,
+      "public_methods": [],
+      "protected_methods": [
+        "createRequest",
+        "prepareResponseFormatParam",
+        "prepareToolsParam"
+      ],
+      "private_methods": [
+        "model_id_for_tool_gate",
+        "catalog_key_for_tool_gate"
+      ],
+      "dependencies": [
+        "OpenCodeConnector\\Http\\GoRequestHeaders",
+        "OpenCodeConnector\\Metadata\\ModelAllowlist",
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
+        "OpenCodeConnector\\Providers\\OpenCodeZenProvider",
+        "WordPress\\AiClient\\Providers\\Http\\DTO\\Request",
+        "WordPress\\AiClient\\Providers\\Http\\Enums\\HttpMethodEnum",
+        "WordPress\\AiClient\\Providers\\OpenAiCompatibleImplementation\\AbstractOpenAiCompatibleTextGenerationModel"
+      ],
+      "wordpress_dependencies": true,
+      "opencode_dependencies": true,
+      "http_dependencies": true,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Models\\OpenCodeGoTextGenerationModel",
+        "OpenCodeConnector\\Models\\OpenCodeZenTextGenerationModel"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Http\\GoRequestHeaders",
+        "OpenCodeConnector\\Metadata\\ModelAllowlist",
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
+        "OpenCodeConnector\\Providers\\OpenCodeZenProvider"
+      ]
+    },
+    {
+      "file": "src/Models/OpenCodeGoImageGenerationModel.php",
+      "class": "OpenCodeConnector\\Models\\OpenCodeGoImageGenerationModel",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": "AbstractOpenCodeImageGenerationModel",
+      "implements": null,
+      "start_line": 27,
+      "end_line": 38,
+      "lines": 12,
+      "methods": [
+        {
+          "name": "providerClass",
+          "visibility": "protected",
+          "static": false,
+          "line": 35
+        }
+      ],
+      "method_count": 1,
+      "public_methods": [],
+      "protected_methods": [
+        "providerClass"
+      ],
+      "private_methods": [],
+      "dependencies": [
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider"
+      ],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": true,
+      "http_dependencies": false,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Models\\AbstractOpenCodeImageGenerationModel",
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider"
+      ]
+    },
+    {
+      "file": "src/Models/OpenCodeGoTextGenerationModel.php",
+      "class": "OpenCodeConnector\\Models\\OpenCodeGoTextGenerationModel",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": "AbstractOpenCodeTextGenerationModel",
+      "implements": null,
+      "start_line": 27,
+      "end_line": 38,
+      "lines": 12,
+      "methods": [
+        {
+          "name": "providerClass",
+          "visibility": "protected",
+          "static": false,
+          "line": 35
+        }
+      ],
+      "method_count": 1,
+      "public_methods": [],
+      "protected_methods": [
+        "providerClass"
+      ],
+      "private_methods": [],
+      "dependencies": [
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider"
+      ],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": true,
+      "http_dependencies": false,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider"
+      ]
+    },
+    {
+      "file": "src/Models/OpenCodeZenImageGenerationModel.php",
+      "class": "OpenCodeConnector\\Models\\OpenCodeZenImageGenerationModel",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": "AbstractOpenCodeImageGenerationModel",
+      "implements": null,
+      "start_line": 27,
+      "end_line": 38,
+      "lines": 12,
+      "methods": [
+        {
+          "name": "providerClass",
+          "visibility": "protected",
+          "static": false,
+          "line": 35
+        }
+      ],
+      "method_count": 1,
+      "public_methods": [],
+      "protected_methods": [
+        "providerClass"
+      ],
+      "private_methods": [],
+      "dependencies": [
+        "OpenCodeConnector\\Providers\\OpenCodeZenProvider"
+      ],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": true,
+      "http_dependencies": false,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Models\\AbstractOpenCodeImageGenerationModel",
+        "OpenCodeConnector\\Providers\\OpenCodeZenProvider"
+      ]
+    },
+    {
+      "file": "src/Models/OpenCodeZenTextGenerationModel.php",
+      "class": "OpenCodeConnector\\Models\\OpenCodeZenTextGenerationModel",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": "AbstractOpenCodeTextGenerationModel",
+      "implements": null,
+      "start_line": 27,
+      "end_line": 38,
+      "lines": 12,
+      "methods": [
+        {
+          "name": "providerClass",
+          "visibility": "protected",
+          "static": false,
+          "line": 35
+        }
+      ],
+      "method_count": 1,
+      "public_methods": [],
+      "protected_methods": [
+        "providerClass"
+      ],
+      "private_methods": [],
+      "dependencies": [
+        "OpenCodeConnector\\Providers\\OpenCodeZenProvider"
+      ],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": true,
+      "http_dependencies": false,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
+        "OpenCodeConnector\\Providers\\OpenCodeZenProvider"
+      ]
+    },
+    {
+      "file": "src/Providers/AbstractOpenCodeProvider.php",
+      "class": "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider",
+      "kind": "class",
+      "abstract": true,
+      "final": false,
+      "extends": "AbstractApiProvider",
+      "implements": null,
+      "start_line": 42,
+      "end_line": 256,
+      "lines": 215,
+      "methods": [
+        {
+          "name": "createModel",
+          "visibility": "protected",
+          "static": true,
+          "line": 89
+        },
+        {
+          "name": "capability_matches",
+          "visibility": "private",
+          "static": true,
+          "line": 149
+        },
+        {
+          "name": "try_capability_checker",
+          "visibility": "private",
+          "static": true,
+          "line": 181
+        },
+        {
+          "name": "createProviderMetadata",
+          "visibility": "protected",
+          "static": true,
+          "line": 201
+        },
+        {
+          "name": "createProviderAvailability",
+          "visibility": "protected",
+          "static": true,
+          "line": 240
+        },
+        {
+          "name": "createModelMetadataDirectory",
+          "visibility": "protected",
+          "static": true,
+          "line": 251
+        }
+      ],
+      "method_count": 6,
+      "public_methods": [],
+      "protected_methods": [
+        "createModel",
+        "createProviderMetadata",
+        "createProviderAvailability",
+        "createModelMetadataDirectory"
+      ],
+      "private_methods": [
+        "capability_matches",
+        "try_capability_checker"
+      ],
+      "dependencies": [
+        "OpenCodeConnector\\Availability\\OpenCodeProviderAvailability",
+        "OpenCodeConnector\\Metadata\\OpenCodeGoModelMetadataDirectory",
+        "OpenCodeConnector\\Metadata\\OpenCodeZenModelMetadataDirectory",
+        "OpenCodeConnector\\Models\\OpenCodeGoImageGenerationModel",
+        "OpenCodeConnector\\Models\\OpenCodeGoTextGenerationModel",
+        "OpenCodeConnector\\Models\\OpenCodeZenImageGenerationModel",
+        "OpenCodeConnector\\Models\\OpenCodeZenTextGenerationModel",
+        "WordPress\\AiClient\\AiClient",
+        "WordPress\\AiClient\\Providers\\ApiBasedImplementation\\AbstractApiProvider",
+        "WordPress\\AiClient\\Providers\\Contracts\\ModelMetadataDirectoryInterface",
+        "WordPress\\AiClient\\Providers\\Contracts\\ProviderAvailabilityInterface",
+        "WordPress\\AiClient\\Providers\\DTO\\ProviderMetadata",
+        "WordPress\\AiClient\\Providers\\Enums\\ProviderTypeEnum",
+        "WordPress\\AiClient\\Providers\\Http\\Enums\\RequestAuthenticationMethod",
+        "WordPress\\AiClient\\Providers\\Models\\Contracts\\ModelInterface",
+        "WordPress\\AiClient\\Providers\\Models\\DTO\\ModelMetadata"
+      ],
+      "wordpress_dependencies": true,
+      "opencode_dependencies": true,
+      "http_dependencies": true,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
+        "OpenCodeConnector\\Providers\\OpenCodeZenProvider"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Availability\\OpenCodeProviderAvailability",
+        "OpenCodeConnector\\Metadata\\OpenCodeGoModelMetadataDirectory",
+        "OpenCodeConnector\\Metadata\\OpenCodeZenModelMetadataDirectory",
+        "OpenCodeConnector\\Models\\OpenCodeGoImageGenerationModel",
+        "OpenCodeConnector\\Models\\OpenCodeGoTextGenerationModel",
+        "OpenCodeConnector\\Models\\OpenCodeZenImageGenerationModel",
+        "OpenCodeConnector\\Models\\OpenCodeZenTextGenerationModel"
+      ]
+    },
+    {
+      "file": "src/Providers/OpenCodeGoProvider.php",
+      "class": "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": "AbstractOpenCodeProvider",
+      "implements": null,
+      "start_line": 25,
+      "end_line": 86,
+      "lines": 62,
+      "methods": [
+        {
+          "name": "providerId",
+          "visibility": "protected",
+          "static": true,
+          "line": 33
+        },
+        {
+          "name": "catalogKey",
+          "visibility": "protected",
+          "static": true,
+          "line": 44
+        },
+        {
+          "name": "displayName",
+          "visibility": "protected",
+          "static": true,
+          "line": 55
+        },
+        {
+          "name": "description",
+          "visibility": "protected",
+          "static": true,
+          "line": 69
+        },
+        {
+          "name": "baseUrl",
+          "visibility": "protected",
+          "static": true,
+          "line": 83
+        }
+      ],
+      "method_count": 5,
+      "public_methods": [],
+      "protected_methods": [
+        "providerId",
+        "catalogKey",
+        "displayName",
+        "description",
+        "baseUrl"
+      ],
+      "private_methods": [],
+      "dependencies": [],
+      "wordpress_dependencies": true,
+      "opencode_dependencies": true,
+      "http_dependencies": true,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Availability\\OpenCodeProviderAvailability",
+        "OpenCodeConnector\\Metadata\\OpenCodeGoModelMetadataDirectory",
+        "OpenCodeConnector\\Models\\AbstractOpenCodeImageGenerationModel",
+        "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
+        "OpenCodeConnector\\Models\\OpenCodeGoImageGenerationModel",
+        "OpenCodeConnector\\Models\\OpenCodeGoTextGenerationModel"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider"
+      ]
+    },
+    {
+      "file": "src/Providers/OpenCodeZenProvider.php",
+      "class": "OpenCodeConnector\\Providers\\OpenCodeZenProvider",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": "AbstractOpenCodeProvider",
+      "implements": null,
+      "start_line": 25,
+      "end_line": 86,
+      "lines": 62,
+      "methods": [
+        {
+          "name": "providerId",
+          "visibility": "protected",
+          "static": true,
+          "line": 33
+        },
+        {
+          "name": "catalogKey",
+          "visibility": "protected",
+          "static": true,
+          "line": 44
+        },
+        {
+          "name": "displayName",
+          "visibility": "protected",
+          "static": true,
+          "line": 55
+        },
+        {
+          "name": "description",
+          "visibility": "protected",
+          "static": true,
+          "line": 69
+        },
+        {
+          "name": "baseUrl",
+          "visibility": "protected",
+          "static": true,
+          "line": 83
+        }
+      ],
+      "method_count": 5,
+      "public_methods": [],
+      "protected_methods": [
+        "providerId",
+        "catalogKey",
+        "displayName",
+        "description",
+        "baseUrl"
+      ],
+      "private_methods": [],
+      "dependencies": [],
+      "wordpress_dependencies": true,
+      "opencode_dependencies": true,
+      "http_dependencies": true,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "OpenCodeConnector\\Availability\\OpenCodeProviderAvailability",
+        "OpenCodeConnector\\Metadata\\OpenCodeZenModelMetadataDirectory",
+        "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
+        "OpenCodeConnector\\Models\\OpenCodeZenImageGenerationModel",
+        "OpenCodeConnector\\Models\\OpenCodeZenTextGenerationModel"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider"
+      ]
+    },
+    {
+      "file": "src/Settings/Settings.php",
+      "class": "OpenCodeConnector\\Settings\\Settings",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": null,
+      "implements": null,
+      "start_line": 27,
+      "end_line": 248,
+      "lines": 222,
+      "methods": [
+        {
+          "name": "register",
+          "visibility": "public",
+          "static": false,
+          "line": 35
+        },
+        {
+          "name": "sanitize",
+          "visibility": "public",
+          "static": false,
+          "line": 60
+        },
+        {
+          "name": "bustCaches",
+          "visibility": "public",
+          "static": false,
+          "line": 76
+        },
+        {
+          "name": "bustCachesAdd",
+          "visibility": "public",
+          "static": false,
+          "line": 101
+        },
+        {
+          "name": "clearModelCaches",
+          "visibility": "private",
+          "static": false,
+          "line": 123
+        },
+        {
+          "name": "modelCacheKey",
+          "visibility": "private",
+          "static": false,
+          "line": 166
+        },
+        {
+          "name": "menu",
+          "visibility": "public",
+          "static": false,
+          "line": 178
+        },
+        {
+          "name": "render",
+          "visibility": "public",
+          "static": false,
+          "line": 189
+        }
+      ],
+      "method_count": 8,
+      "public_methods": [
+        "register",
+        "sanitize",
+        "bustCaches",
+        "bustCachesAdd",
+        "menu",
+        "render"
+      ],
+      "protected_methods": [],
+      "private_methods": [
+        "clearModelCaches",
+        "modelCacheKey"
+      ],
+      "dependencies": [
+        "WordPress\\AiClient\\AiClient"
+      ],
+      "wordpress_dependencies": true,
+      "opencode_dependencies": true,
+      "http_dependencies": true,
+      "settings_dependencies": true,
+      "static_state": false,
+      "fan_in": [],
+      "fan_out": [
+        "OpenCodeConnector\\Metadata\\OpenCodeGoModelMetadataDirectory",
+        "OpenCodeConnector\\Metadata\\OpenCodeZenModelMetadataDirectory"
+      ]
+    }
+  ]
+}

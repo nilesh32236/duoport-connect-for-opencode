@@ -128,7 +128,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 				continue;
 			}
 			// DeepSeek models return malformed JSON for strict schema; hide outputSchema so JSON tasks pick a capable model.
-			$is_json_capable = 0 !== strpos( $id, 'deepseek' );
+			$is_json_capable = ! str_starts_with( $id, 'deepseek' );
 			$opts            = $common_opts;
 			if ( $is_json_capable ) {
 				array_splice( $opts, 5, 0, array( new SupportedOption( OptionEnum::outputSchema() ) ) );

@@ -77,7 +77,7 @@ final class SessionHeader {
 	/**
 	 * Derive a session value from a chat payload.
 	 *
-	 * @since 0.1.5
+	 * @since 0.1.4
 	 *
 	 * @param array $data Request data with `messages`.
 	 * @return string|null Opaque hex session value, or null when omitted.
