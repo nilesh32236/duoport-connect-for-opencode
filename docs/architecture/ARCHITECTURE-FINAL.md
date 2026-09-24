@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `afe9fdd70d0842864308f5defcea3c46caebe06f` (`origin/main`)  
+**Merged baseline:** `c658df720408964d106895b9f14ea068b778207d` (`origin/main`)  
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -26,24 +26,24 @@ The merged plugin was synchronized to the live WordPress site and PHP-linted. Wo
 Local verification passed:
 
 - WPCS
-- PHPUnit: 88 tests, 312 assertions
+- PHPUnit: 92 tests, 339 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
 - Release ZIP build and executable release contract
 
-## Remaining bounded work: OPS-002
+## OPS-002 result
 
-The independent automation review identified a small follow-up set that is intentionally not folded into the already-merged release:
+PR #49 merged deterministically at the exact reviewed head. The workflow guard now paginates all open PRs, trusts only the exact same-repository automation branch, fails closed on Git/GitHub/schema inspection errors, and has executable identity, recovery, and lease-race fixtures. The updater records exact active rulesets and uses PAT-backed events.
 
-1. CI path filters must include both `.yml` and `.yaml` workflows.
-2. PR enumeration must be bounded but complete (or explicitly paginated), with no default-page blind spot.
-3. Both existing-branch and absent-branch pushes must use explicit lease expectations, including the empty-ref case.
-4. Manifest checksums must bind to the exact architecture assignment in `setup-opencode.sh`; merely finding both hash strings is insufficient.
-5. Branch inspection failures must fail closed rather than being treated as a non-current branch.
-6. Behavioral fixtures must exercise guard identity, API failure, missing-PR recovery, lease mismatch, YAML coverage, hash mapping drift, and next-release idempotence.
+## Remaining bounded work: OPS-003
 
-OPS-002 is the only active queue item, issue #48, and PR pending. No competing issue or PR is open. ARCH-001 remains queued behind the transport milestone work.
+The post-merge re-audit found two final manifest-integrity gaps:
+
+1. Current-branch inspection must require the complete reviewer manifest schema, including provenance, exact release/CLI/ruleset/check values, and both architecture hashes.
+2. The x64 and arm64 hashes must be distinct and individually bound to the installer assignments.
+
+OPS-003 is the only active queue item and issue #51; its PR is pending. No competing issue or PR is open. ARCH-001 is complete; PF-009 remains queued behind this integrity fix.
 
 ## Final boundaries
 
