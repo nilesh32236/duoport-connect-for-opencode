@@ -93,6 +93,59 @@ final class CatalogWatchTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * Mixed malformed input does not retire baseline records or crash on numeric IDs.
+	 */
+	public function test_mixed_malformed_input_is_safe(): void {
+		$results = ( new CatalogWatch() )->compare(
+			'go',
+			array(
+				array( 'id' => 'new-model' ),
+				array( 'id' => '123' ),
+				array( 'id' => '123' ),
+				array( 'id' => 'bad-capabilities', 'capabilities' => 'invalid' ),
+				array( 'endpoint_family' => 'chat' ),
+			)
+		);
+
+		foreach ( $results as $result ) {
+			self::assertNotSame( 'retired', $result['status'] );
+			self::assertContains( 'input_invalid', $result['states'] );
+		}
+		self::assertCount( 1, $results );
+	}
+
+	/**
+	 * Unknown capability keys and needs-adapter records require verification.
+	 */
+	public function test_unknown_capability_and_unverified_record_require_verification(): void {
+		$watch = new CatalogWatch();
+		$drift = $watch->compare(
+			'go',
+			array( array( 'id' => 'glm-5.3', 'capabilities' => array( 'embeddings' => true ) ) )
+		);
+		$unverified = $watch->compare( 'zen', array( array( 'id' => 'minimax-m3' ) ) );
+
+		$changed = array_values( array_filter( $drift, static fn( array $row ): bool => 'glm-5.3' === $row['id'] ) )[0];
+		$adapter = array_values( array_filter( $unverified, static fn( array $row ): bool => 'minimax-m3' === $row['id'] ) )[0];
+		self::assertSame( 'verification_required', $changed['status'] );
+		self::assertContains( 'capability_changed', $changed['states'] );
+		self::assertSame( 'verification_required', $adapter['status'] );
+		self::assertTrue( $adapter['allowlisted'] );
+	}
+
+	/**
+	 * The shipped drift script delegates to the comparator.
+	 */
+	public function test_shipped_drift_script_uses_catalog_watch(): void {
+		$script = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/scripts/check-catalog-drift.php' );
+
+		self::assertStringContainsString( 'CatalogWatch', $script );
+		self::assertStringContainsString( 'fetch_discovery', $script );
+		self::assertStringNotContainsString( 'allowlist_ids(', $script );
+		self::assertStringNotContainsString( 'connectors_ai_', $script );
+	}
+
+	/**
 	 * Unknown catalogs and malformed discovery rows are default-deny.
 	 */
 	public function test_unknown_catalog_and_malformed_rows_are_ignored(): void {

@@ -1,6 +1,6 @@
 <?php
 /**
- * Compares the live OpenCode model catalogs against ModelAllowlist.php.
+ * Compares live OpenCode model catalogs with the reviewed registry.
  *
  * Usage: php check-catalog-drift.php [--markdown]
  * Exit 0 = no drift (or API unreachable — prints a warning, stays green so
@@ -10,12 +10,24 @@
 
 declare(strict_types=1);
 
+$repo_root = dirname( __DIR__, 2 );
+if ( ! defined( 'ABSPATH' ) ) {
+	define( 'ABSPATH', $repo_root . '/' );
+}
+require_once $repo_root . '/src/autoload.php';
+
 $catalogs = array(
 	'go'  => 'https://opencode.ai/zen/go/v1/models',
 	'zen' => 'https://opencode.ai/zen/v1/models',
 );
 
-function fetch_ids( string $url ): ?array {
+/**
+ * Fetch safe discovery rows without credentials or response bodies.
+ *
+ * @param string $url Catalog URL.
+ * @return array<int, array<string, mixed>>|null
+ */
+function fetch_discovery( string $url ): ?array {
 	$ctx = stream_context_create(
 		array(
 			'http' => array(
@@ -32,78 +44,75 @@ function fetch_ids( string $url ): ?array {
 	if ( ! is_array( $data ) || ! isset( $data['data'] ) || ! is_array( $data['data'] ) ) {
 		return null;
 	}
-	$ids = array();
+	$rows = array();
 	foreach ( $data['data'] as $row ) {
-		if ( ! empty( $row['id'] ) && is_string( $row['id'] ) ) {
-			$ids[] = $row['id'];
+		if ( ! is_array( $row ) || ! isset( $row['id'] ) || ! is_string( $row['id'] ) || '' === $row['id'] ) {
+			continue;
 		}
+		$safe = array( 'id' => $row['id'] );
+		foreach ( array( 'endpoint_family', 'display_name', 'free' ) as $field ) {
+			if ( array_key_exists( $field, $row ) ) {
+				$safe[ $field ] = $row[ $field ];
+			}
+		}
+		if ( isset( $row['capabilities'] ) && is_array( $row['capabilities'] ) ) {
+			$safe['capabilities'] = $row['capabilities'];
+		}
+		$rows[] = $safe;
 	}
-	sort( $ids );
-	return $ids;
+	return $rows;
 }
 
-function allowlist_ids( string $file, string $catalog ): array {
-	$src = file_get_contents( $file );
-	if ( false === $src ) {
-		fwrite( STDERR, "Cannot read $file\n" );
-		exit( 3 );
-	}
-	// Isolate the catalog's array block inside the ALLOW const.
-	if ( ! preg_match( "/'" . $catalog . "'\s*=>\s*array\((.*?)\)\s*,/s", $src, $m ) ) {
-		fwrite( STDERR, "Catalog '$catalog' block not found in allowlist\n" );
-		exit( 3 );
-	}
-	preg_match_all( "/'([a-z0-9][a-z0-9._-]*)'/i", $m[1], $mm );
-	$ids = array_unique( $mm[1] );
-	sort( $ids );
-	return $ids;
-}
-
-$allow_file = dirname( __DIR__, 2 ) . '/src/Metadata/ModelAllowlist.php';
 $markdown   = in_array( '--markdown', $argv, true );
+$watch      = new \OpenCodeConnector\Metadata\CatalogWatch();
 $drift      = array();
 $unreachable = array();
 
 foreach ( $catalogs as $catalog => $url ) {
-	$live = fetch_ids( $url );
+	$live = fetch_discovery( $url );
 	if ( null === $live ) {
 		$unreachable[] = $catalog;
 		continue;
 	}
-	$allowed = allowlist_ids( $allow_file, $catalog );
-	$drift[ $catalog ] = array(
-		// Allowlisted but gone from the API (stale entries).
-		'removed' => array_values( array_diff( $allowed, $live ) ),
-		// In the API but not allowlisted (candidates to add).
-		'added'   => array_values( array_diff( $live, $allowed ) ),
-	);
+	$drift[ $catalog ] = $watch->compare( $catalog, $live );
 }
 
 $has_drift = false;
-foreach ( $drift as $d ) {
-	if ( $d['removed'] || $d['added'] ) {
-		$has_drift = true;
-		break;
+foreach ( $drift as $results ) {
+	foreach ( $results as $result ) {
+		if ( 'allowlisted' !== $result['status'] ) {
+			$has_drift = true;
+			break 2;
+		}
 	}
 }
 
 if ( $markdown ) {
 	echo "## OpenCode catalog drift — " . gmdate( 'Y-m-d' ) . "\n\n";
-	echo "Live `/models` catalogs differ from `src/Metadata/ModelAllowlist.php`.\n\n";
-	foreach ( $drift as $catalog => $d ) {
+	echo "Live `/models` evidence is compared with the reviewed `ModelRegistry`; no discovery ID is promoted automatically.\n\n";
+	foreach ( $drift as $catalog => $results ) {
 		echo "### `$catalog`\n\n";
-		echo "Removed from API (stale allowlist entries): " . ( $d['removed'] ? '`' . implode( '`, `', $d['removed'] ) . '`' : '_none_' ) . "\n\n";
-		echo "New in API (not allowlisted): " . ( $d['added'] ? '`' . implode( '`, `', $d['added'] ) . '`' : '_none_' ) . "\n\n";
+		if ( array() === $results ) {
+			echo "_No usable rows._\n\n";
+			continue;
+		}
+		foreach ( $results as $result ) {
+			$states = implode( ', ', $result['states'] );
+			echo '- `' . $result['id'] . '` — **' . $result['status'] . '** (' . $states . ")\n";
+		}
+		echo "\n";
 	}
 	if ( $unreachable ) {
 		echo '_Note: could not reach the API for: ' . implode( ', ', $unreachable ) . " — those catalogs were skipped._\n\n";
 	}
-	echo "Suggested action: verify each model supports chat/completions, update the allowlist + readme model counts, add a changelog entry, tag a release.\n";
+	echo "Suggested action: review the registry record, endpoint family, capabilities, and verification date before any promotion.\n";
 	exit( $has_drift ? 2 : 0 );
 }
 
-foreach ( $drift as $catalog => $d ) {
-	echo strtoupper( $catalog ) . ': removed=[' . implode( ',', $d['removed'] ) . '] added=[' . implode( ',', $d['added'] ) . "]\n";
+foreach ( $drift as $catalog => $results ) {
+	foreach ( $results as $result ) {
+		echo strtoupper( $catalog ) . ': ' . $result['id'] . '=' . $result['status'] . '[' . implode( ',', $result['states'] ) . "]\n";
+	}
 }
 foreach ( $unreachable as $catalog ) {
 	echo strtoupper( $catalog ) . ": API unreachable, skipped\n";

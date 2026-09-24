@@ -2,11 +2,11 @@
 
 **Audit snapshot:** 2026-09-24
 
-**Baseline repository head:** `a34cf5f681badcd73aa80410e01a5cc4d41b108b` (`origin/main`)
+**Baseline repository head:** `cab8d78aaa0d72351c557357b59be89f0b0885d3` (`origin/main`)
 
 **Active campaign PR:** pending for `PF-004` (the exact head will be captured in the merge gate)
 
-**Active queue item:** `PF-004` / GitHub issue [#67](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/67) / PR pending
+**Active queue item:** `PF-004` / GitHub issue [#71](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/71) / PR pending
 
 **Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; both providers are registered in the available WordPress runtime.
 
@@ -63,19 +63,19 @@ Availability
 - Go and Zen have distinct provider IDs and distinct WordPress key setting names.
 - Bootstrap and cache-bust hooks fail closed around missing SDK classes and never inspect connector option values.
 - Provider classes are registered through the WordPress AI Client registry rather than a competing settings system.
-- `ModelAllowlist` is a curated safety boundary; `show_all_models` is an explicit advanced listing that bypasses the text allowlist but still does not add unverified tools, web-search, or image capabilities. Unknown text rows remain a documented compatibility behavior and may fail upstream.
-- Web search and image capability lists are default-deny; image support is inert until a model is explicitly allowlisted and response handling exists.
-- The existing test suite covers registration, credential blindness, probe semantics, headers, tools, image safety, and compatibility guards.
+- `ModelRegistry` is the canonical curated model/catalog/endpoint/verification record; unknown models, endpoint families, and capabilities are default-deny.
+- `EndpointRoute` implements only the verified chat/completions transport family and fails closed for unresolved or unimplemented families.
+- `ConnectionDiagnostics` retains safe configured/verified/usable/state results through transient caching; the SDK boolean is only a compatibility projection.
+- `CatalogWatch` compares live catalog evidence with the registry without automatic promotion; the shipped drift script delegates to it.
+- The existing test suite covers registration, credential blindness, detailed availability, endpoint/capability gates, catalog drift, headers, tools, image safety, and compatibility guards.
 
 ## Current gaps and risks
 
-1. **Transport-family gap (high):** the official OpenCode Zen and Go documentation currently maps models to `chat/completions`, `responses`, `messages`, and provider-specific model paths. The plugin sends every text request to `chat/completions`; this can silently route a model to the wrong endpoint. The next transport work must use a verified registry and reject unknown families clearly.
-2. **Capability evidence gap (high):** current capability gates are conservative but mostly static lists. There is no canonical `model + catalog + endpoint + verification` record, no endpoint family in `ModelMetadata`, and no explicit unsupported-capability result for embeddings or unknown capabilities.
-3. **Availability contract gap (high):** the SDK-facing contract is intentionally boolean and preserves the legacy 2xx/429/CreditsError behavior, but the backend does not retain a detailed result such as invalid key, no credits, rate limited, network error, or server error.
-4. **Workflow dependency (controlled):** reviewer workflows now pin the released reviewer v1.22.0 peeled commit and checksum-verified OpenCode CLI v1.18.31. `.github/reviewer-dependency.json` records the release identity, and `reviewer-update.yml` proposes a traceable stable-release update PR while deferring when a campaign PR is active. The updater still requires normal deterministic review/merge; it never silently switches to unreleased code.
-5. **Automation issue flood risk (medium):** scheduled audit/research/catalog jobs can create or update multiple open issues. The campaign reconciles them into one active queue item; future automation must preserve that invariant or report without opening a competing issue.
-6. **Settings responsibility drift (medium):** `Settings` currently knows cache key formats, model directory classes, and the AI Client cache shape. These are future extraction candidates, not a reason to grow a dashboard.
-7. **WordPress compatibility evidence (medium):** the live site is newer than the plugin minimum and has AI Client 1.3.1. The repository does not yet run a real WP 7.0 core-client matrix in CI; guarded source/unit tests are not a substitute for post-merge runtime verification.
+1. **Capability-aware fallback (active):** a bounded fallback may be added only for records whose model, catalog, endpoint, capability, and verification fields agree. It must not silently change endpoint families or capabilities.
+2. **Workflow dependency (controlled):** reviewer workflows pin the released reviewer v1.22.0 peeled commit and checksum-verified OpenCode CLI v1.18.31. `.github/reviewer-dependency.json` records the release identity, and `reviewer-update.yml` proposes a traceable stable-release update PR while deferring when a campaign PR is active. The updater still requires normal deterministic review/merge; it never silently switches to unreleased code.
+3. **Automation issue flood risk (medium):** scheduled audit/research/catalog jobs can create or update multiple open issues. The campaign reconciles them into one active queue item; future automation must preserve that invariant or report without opening a competing issue.
+4. **Settings responsibility drift (medium):** `Settings` currently knows cache key formats, model directory classes, and the AI Client cache shape. These are future extraction candidates, not a reason to grow a dashboard.
+5. **WordPress compatibility evidence (medium):** the live site is newer than the plugin minimum and has AI Client 1.3.1. The repository does not yet run a real WP 7.0 core-client matrix in CI; guarded source/unit tests are not a substitute for post-merge runtime verification.
 
 ## Architecture decisions
 
