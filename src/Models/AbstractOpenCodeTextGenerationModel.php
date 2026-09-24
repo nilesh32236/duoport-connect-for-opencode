@@ -20,6 +20,7 @@ use OpenCodeConnector\Http\GoRequestHeaders;
 use OpenCodeConnector\Metadata\ModelAllowlist;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
+use OpenCodeConnector\Transport\EndpointRoute;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleTextGenerationModel;
@@ -59,7 +60,12 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * @return Request
 	 */
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
-		$cls = $this->providerClass();
+		$cls      = $this->providerClass();
+		$model_id = $this->model_id_for_tool_gate();
+		$catalog  = $this->catalog_key_for_tool_gate();
+		if ( '' !== $model_id && '' !== $catalog ) {
+			$path = EndpointRoute::pathForModel( $model_id, $catalog );
+		}
 		if ( OpenCodeGoProvider::class === $cls ) {
 			$headers = GoRequestHeaders::for_go( $headers, $data );
 		}
