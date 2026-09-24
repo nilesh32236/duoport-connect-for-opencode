@@ -133,6 +133,18 @@ final class ModelAllowlist {
 	}
 
 	/**
+	 * Return the curated IDs for a catalog.
+	 *
+	 * @since 0.1.5
+	 *
+	 * @param string $catalog Catalog slug.
+	 * @return list<string>
+	 */
+	public static function allowedIds( string $catalog ): array {
+		return self::ALLOW[ $catalog ] ?? array();
+	}
+
+	/**
 	 * Whether a model is allowlisted as image-capable.
 	 *
 	 * Image capability is advertised only for IDs in this set; the text

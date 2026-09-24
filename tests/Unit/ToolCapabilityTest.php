@@ -94,12 +94,14 @@ final class ToolCapabilityTest extends MonkeyTestCase {
 	public function test_metadata_directory_wiring_is_gated_and_credential_blind(): void {
 		$root     = dirname( __DIR__, 2 );
 		$dir_src  = (string) file_get_contents( $root . '/src/Metadata/AbstractOpenCodeModelMetadataDirectory.php' );
-		$allow_src = (string) file_get_contents( $root . '/src/Metadata/ModelAllowlist.php' );
+		$allow_src  = (string) file_get_contents( $root . '/src/Metadata/ModelAllowlist.php' );
+		$registry_src = (string) file_get_contents( $root . '/src/Metadata/ModelRegistry.php' );
 
 		self::assertStringContainsString( 'OptionEnum::functionDeclarations()', $dir_src );
-		self::assertStringContainsString( 'ModelAllowlist::isToolCapable(', $dir_src );
+		self::assertStringContainsString( "ModelRegistry::supports( \$id, \$this->catalogKey(), 'tools' )", $dir_src );
 		self::assertStringContainsString( 'OptionEnum::webSearch()', $dir_src );
-		self::assertStringContainsString( 'ModelAllowlist::isWebSearchCapable(', $dir_src );
+		self::assertStringContainsString( "ModelRegistry::supports( \$id, \$this->catalogKey(), 'web_search' )", $dir_src );
+		self::assertStringContainsString( 'function supports', $registry_src );
 
 		self::assertStringContainsString( 'function isToolCapable', $allow_src );
 		self::assertStringContainsString( 'function isWebSearchCapable', $allow_src );

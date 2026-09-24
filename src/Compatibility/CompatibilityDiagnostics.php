@@ -94,8 +94,12 @@ final class CompatibilityDiagnostics {
 		$providers = array();
 		if ( $registry_available && method_exists( $registry, 'hasProvider' ) ) {
 			foreach ( $this->provider_classes as $provider_class ) {
-				$class_exists = class_exists( $provider_class );
-				$registered   = false;
+				try {
+					$class_exists = class_exists( $provider_class );
+				} catch ( \Throwable ) {
+					$class_exists = false;
+				}
+				$registered = false;
 				if ( $class_exists ) {
 					try {
 						$registered = (bool) $registry->hasProvider( $provider_class );
