@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `0b8fd3a9568078977a13288dac4320ff12d98844` (`origin/main`)
+**Merged baseline:** `b32306024421d9b8b3139eb7534bc97cad6f87fb` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -62,11 +62,11 @@ PR #80 merged the final causal CI fixture, direct malformed-input regressions, a
 
 ## PF-006 implementation
 
-PR #82 adds `CapabilityAwareFallback`, a bounded selector invoked before tool shaping and text routing. It requires matching model identity, catalog, implemented endpoint family, capability, and verification records, rejects unknown/unsupported/duplicate/cyclic/exhausted candidates, rewrites the request model when selected, and fails closed when no candidate exists.
+PR #82 merged the payload-safe bounded fallback. It selects before tool shaping, requires matching model identity, catalog, implemented endpoint family, capability, and verification records, rewrites the request model when selected, and fails closed when no candidate exists.
 
-## Next active item: PF-006
+## Next active item: PF-007
 
-PF-006 is the sole active queue item and issue #81; its implementation PR #82 is pending. No competing issue or PR is open. ARCH-001 is complete.
+PF-007 is the sole active queue item and issue #83; its evidence-contract audit PR #84 is pending. It keeps image capability default-deny while establishing provider payload, response, and media-safety evidence. No competing issue or PR is open. ARCH-001 is complete.
 
 ## Final boundaries
 

@@ -2,11 +2,11 @@
 
 **Audit snapshot:** 2026-09-24
 
-**Baseline repository head:** `0b8fd3a9568078977a13288dac4320ff12d98844` (`origin/main`)
+**Baseline repository head:** `b32306024421d9b8b3139eb7534bc97cad6f87fb` (`origin/main`)
 
-**Active campaign PR:** [#82](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/82) (the exact head is captured in the merge gate)
+**Active campaign PR:** [#84](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/84) (the exact head is captured in the merge gate)
 
-**Active queue item:** `PF-006` / GitHub issue [#81](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/81) / PR #82
+**Active queue item:** `PF-007` / GitHub issue [#83](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/83) / PR #84
 
 **Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; both providers are registered in the available WordPress runtime.
 
@@ -72,10 +72,11 @@ Availability
 
 ## Current gaps and risks
 
-1. **Workflow dependency (controlled):** reviewer workflows pin the released reviewer v1.22.0 peeled commit and checksum-verified OpenCode CLI v1.18.31. `.github/reviewer-dependency.json` records the release identity, and `reviewer-update.yml` proposes a traceable stable-release update PR while deferring when a campaign PR is active. The updater still requires normal deterministic review/merge; it never silently switches to unreleased code.
-2. **Automation issue flood risk (medium):** scheduled audit/research/catalog jobs can create or update multiple open issues. The campaign reconciles them into one active queue item; future automation must preserve that invariant or report without opening a competing issue.
-3. **Settings responsibility drift (medium):** `Settings` currently knows cache key formats, model directory classes, and the AI Client cache shape. These are future extraction candidates, not a reason to grow a dashboard.
-4. **WordPress compatibility evidence (medium):** the live site is newer than the plugin minimum and has AI Client 1.3.1. The repository does not yet run a real WP 7.0 core-client matrix in CI; guarded source/unit tests are not a substitute for post-merge runtime verification.
+1. **Verified image-generation evidence (active):** the image allowlist is intentionally empty; provider request/response shape, media safety, and end-to-end capability evidence must be established before exposure.
+2. **Workflow dependency (controlled):** reviewer workflows pin the released reviewer v1.22.0 peeled commit and checksum-verified OpenCode CLI v1.18.31. `.github/reviewer-dependency.json` records the release identity, and `reviewer-update.yml` proposes a traceable stable-release update PR while deferring when a campaign PR is active. The updater still requires normal deterministic review/merge; it never silently switches to unreleased code.
+3. **Automation issue flood risk (medium):** scheduled audit/research/catalog jobs can create or update multiple open issues. The campaign reconciles them into one active queue item; future automation must preserve that invariant or report without opening a competing issue.
+4. **Settings responsibility drift (medium):** `Settings` currently knows cache key formats, model directory classes, and the AI Client cache shape. These are future extraction candidates, not a reason to grow a dashboard.
+5. **WordPress compatibility evidence (medium):** the live site is newer than the plugin minimum and has AI Client 1.3.1. The repository does not yet run a real WP 7.0 core-client matrix in CI; guarded source/unit tests are not a substitute for post-merge runtime verification.
 
 ## Architecture decisions
 
