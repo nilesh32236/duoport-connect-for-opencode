@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `b32306024421d9b8b3139eb7534bc97cad6f87fb` (`origin/main`)
+**Merged baseline:** `5f1abb68e2f564e79094340c51946ca82af6b515` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -64,9 +64,13 @@ PR #80 merged the final causal CI fixture, direct malformed-input regressions, a
 
 PR #82 merged the payload-safe bounded fallback. It selects before tool shaping, requires matching model identity, catalog, implemented endpoint family, capability, and verification records, rewrites the request model when selected, and fails closed when no candidate exists.
 
-## Next active item: PF-007
+## PF-007 evidence audit
 
-PF-007 is the sole active queue item and issue #83; its evidence-contract audit PR #84 is pending. It keeps image capability default-deny while establishing provider payload, response, and media-safety evidence. No competing issue or PR is open. ARCH-001 is complete.
+PR #84 completed the image evidence boundary audit. The image allowlist remains empty/default-deny, and no provider response/media-safety evidence justified exposing an image capability. Issue #83 is closed.
+
+## Stopping point
+
+No improvement item remains justified for implementation. PF-005 stays deferred because it overlaps WordPress AI Client selection, and PF-008 remains rejected. The queue has no active item, issue, or PR; the architecture and progress records are the stopping-point evidence.
 
 ## Final boundaries
 
