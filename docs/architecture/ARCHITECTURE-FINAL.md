@@ -26,7 +26,7 @@ The merged plugin was synchronized to the live WordPress site and PHP-linted. Wo
 Local verification passed:
 
 - WPCS
-- PHPUnit: 113 tests, 433 assertions
+- PHPUnit: 118 tests, 498 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
@@ -55,6 +55,10 @@ PR #60 merged deterministically at the exact reviewed head. The first routing pa
 ## PF-003 implementation
 
 PR #66 merged the detailed-result correction. The backend now retains safe state/flags through transient caching, separates current usability from the legacy boolean projection, and routes tool preparation through the canonical registry so unsupported Zen routes cannot advertise or prepare tools.
+
+## PF-004 implementation
+
+The active campaign adds a deterministic, credential-free `CatalogWatch` comparator. It reports new, retired, allowlisted, endpoint/capability/metadata changed, and verification-required states while never promoting discovery IDs automatically.
 
 ## Next active item: PF-004
 
