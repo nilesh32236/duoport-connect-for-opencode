@@ -19,6 +19,7 @@ use OpenCodeConnector\Http\SessionHeader;
 use OpenCodeConnector\Models\AbstractOpenCodeTextGenerationModel;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
+use OpenCodeConnector\Transport\UnsupportedEndpointFamilyException;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 
@@ -48,6 +49,15 @@ final class SessionHeaderGoModel extends AbstractOpenCodeTextGenerationModel {
 	public function make_request( array $headers, $data ): Request {
 		return $this->createRequest( HttpMethodEnum::POST(), 'chat/completions', $headers, $data );
 	}
+
+	/**
+	 * Verified model ID for route tests.
+	 *
+	 * @return string
+	 */
+	protected function route_model_id(): string {
+		return 'glm-5.3';
+	}
 }
 
 /**
@@ -61,6 +71,40 @@ final class SessionHeaderZenModel extends AbstractOpenCodeTextGenerationModel {
 	 */
 	protected function providerClass(): string {
 		return OpenCodeZenProvider::class;
+	}
+
+	/**
+	 * Expose request creation for tests.
+	 *
+	 * @param array $headers Request headers.
+	 * @param mixed $data    Request data.
+	 * @return Request
+	 */
+	public function make_request( array $headers, $data ): Request {
+		return $this->createRequest( HttpMethodEnum::POST(), 'chat/completions', $headers, $data );
+	}
+
+	/**
+	 * Verified model ID for route tests.
+	 *
+	 * @return string
+	 */
+	protected function route_model_id(): string {
+		return 'deepseek-v4-pro';
+	}
+}
+
+/**
+ * Test double with unresolved route metadata.
+ */
+final class UnresolvedRouteModel extends AbstractOpenCodeTextGenerationModel {
+	/**
+	 * Provider class FQCN.
+	 *
+	 * @return string
+	 */
+	protected function providerClass(): string {
+		return OpenCodeGoProvider::class;
 	}
 
 	/**
@@ -98,6 +142,14 @@ final class SessionHeaderTest extends MonkeyTestCase {
 				),
 			),
 		);
+	}
+
+	/**
+	 * Unresolved route metadata fails before a Request can be constructed.
+	 */
+	public function test_unresolved_route_fails_closed(): void {
+		$this->expectException( UnsupportedEndpointFamilyException::class );
+		( new UnresolvedRouteModel() )->make_request( array(), self::conversation() );
 	}
 
 	/**

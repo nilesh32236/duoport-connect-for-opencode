@@ -21,14 +21,15 @@ use OpenCodeConnector\Metadata\ModelRegistry;
 final class EndpointRoute {
 
 	/**
-	 * Supported family-to-path map.
+	 * Implemented family-to-path map.
+	 *
+	 * Responses, Messages, and provider-specific transports remain denied
+	 * until their payload, parser, and authentication contracts are complete.
 	 *
 	 * @var array<string, string>
 	 */
 	private const PATHS = array(
-		'chat'      => 'chat/completions',
-		'responses' => 'responses',
-		'messages'  => 'messages',
+		'chat' => 'chat/completions',
 	);
 
 	/**
