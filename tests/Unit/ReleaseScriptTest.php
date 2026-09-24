@@ -15,20 +15,30 @@ namespace OpenCodeConnector\Tests\Unit;
 final class ReleaseScriptTest extends MonkeyTestCase {
 
 	/**
-	 * ZIP verification must not use short-circuit pipes under pipefail.
+	 * ZIP verification must use exact entries and reject forbidden path components.
 	 */
-	public function test_release_verification_uses_a_complete_zip_list(): void {
-		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/scripts/build-release.sh' );
+	public function test_release_verification_uses_exact_zip_entries(): void {
+		$root = dirname( __DIR__, 2 );
+		$source = (string) file_get_contents( $root . '/scripts/build-release.sh' );
 
-		self::assertStringContainsString( 'ZIP_LIST="${BUILD_DIR}/zip-list.txt"', $source );
-		self::assertStringContainsString( 'unzip -Z1 "${ORIG_PWD}/${ZIP_NAME}" > "$ZIP_LIST"', $source );
-		self::assertStringContainsString( 'sed -n \'1,40p\' "$ZIP_LIST"', $source );
-		self::assertStringContainsString( 'grep -Fq "$required" "$ZIP_LIST"', $source );
-		self::assertStringContainsString( 'grep -Fq "${PLUGIN_SLUG}/.firecrawl/" "$ZIP_LIST"', $source );
+		self::assertStringContainsString( 'grep -Fxq -- "$required" "$zip_list"', $source );
+		self::assertStringContainsString( "grep -Eq '(^|/)(vendor|tests|\\.firecrawl)(/|$)'", $source );
+		self::assertStringContainsString( 'if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then', $source );
 		self::assertStringNotContainsString( 'unzip -l "${ORIG_PWD}/${ZIP_NAME}" | head -n 40', $source );
-		self::assertStringNotContainsString( 'unzip -l "${ORIG_PWD}/${ZIP_NAME}" | grep -q', $source );
 
-		$distignore = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.distignore' );
+		$distignore = (string) file_get_contents( $root . '/.distignore' );
 		self::assertStringContainsString( '/.firecrawl/', $distignore, 'Local research artifacts must not ship in the release ZIP.' );
+	}
+
+	/**
+	 * The behavioral fixture exercises good, missing, and forbidden archives.
+	 */
+	public function test_release_zip_behavior_fixture(): void {
+		$fixture = dirname( __DIR__ ) . '/Unit/release-build-contract.sh';
+		$output = array();
+		$status = 0;
+		exec( 'bash ' . escapeshellarg( $fixture ) . ' 2>&1', $output, $status );
+
+		self::assertSame( 0, $status, implode( "\n", $output ) );
 	}
 }
