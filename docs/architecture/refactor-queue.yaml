@@ -160,7 +160,7 @@ items:
     status: in_progress
     title: Verified image generation contract
     github_issue: 83
-    github_pr: pending
+    github_pr: 84
     priority: medium
     difficulty: hard
     depends_on: [PF-001, PF-002]
