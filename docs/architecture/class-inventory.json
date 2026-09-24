@@ -13,7 +13,7 @@
       "lines": 118
     },
     "highest_fan_in": "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
-    "highest_fan_in_count": 7,
+    "highest_fan_in_count": 8,
     "highest_fan_out": "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
     "highest_fan_out_count": 7,
     "highest_dependency_concentration": "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider",
@@ -1498,7 +1498,8 @@
         "OpenCodeConnector\\Models\\AbstractOpenCodeImageGenerationModel",
         "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
         "OpenCodeConnector\\Models\\OpenCodeGoImageGenerationModel",
-        "OpenCodeConnector\\Models\\OpenCodeGoTextGenerationModel"
+        "OpenCodeConnector\\Models\\OpenCodeGoTextGenerationModel",
+        "duoport-connect-for-opencode.php"
       ],
       "fan_out": [
         "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider"
@@ -1579,7 +1580,8 @@
         "OpenCodeConnector\\Metadata\\OpenCodeZenModelMetadataDirectory",
         "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
         "OpenCodeConnector\\Models\\OpenCodeZenImageGenerationModel",
-        "OpenCodeConnector\\Models\\OpenCodeZenTextGenerationModel"
+        "OpenCodeConnector\\Models\\OpenCodeZenTextGenerationModel",
+        "duoport-connect-for-opencode.php"
       ],
       "fan_out": [
         "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider"
@@ -1684,7 +1686,9 @@
       "http_dependencies": true,
       "settings_dependencies": true,
       "static_state": false,
-      "fan_in": [],
+      "fan_in": [
+        "duoport-connect-for-opencode.php"
+      ],
       "fan_out": [
         "OpenCodeConnector\\Metadata\\OpenCodeGoModelMetadataDirectory",
         "OpenCodeConnector\\Metadata\\OpenCodeZenModelMetadataDirectory"

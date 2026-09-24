@@ -149,6 +149,11 @@
       "kind": "admin compatibility notice"
     },
     {
+      "from": "entrypoint",
+      "to": "settings",
+      "kind": "bootstrap"
+    },
+    {
       "from": "wordpress",
       "to": "entrypoint",
       "kind": "hooks"
