@@ -27,6 +27,30 @@ $catalogs = array(
  * @param string $url Catalog URL.
  * @return array<int, array<string, mixed>>|null
  */
+function decode_discovery( mixed $data ): ?array {
+	if ( ! is_array( $data ) || ! isset( $data['data'] ) || ! is_array( $data['data'] ) ) {
+		return null;
+	}
+	$rows = array();
+	foreach ( $data['data'] as $row ) {
+		if ( ! is_array( $row ) || ! isset( $row['id'] ) || ! is_string( $row['id'] ) || '' === $row['id'] ) {
+			$rows[] = array( 'id' => '' );
+			continue;
+		}
+		$safe = array( 'id' => $row['id'] );
+		foreach ( array( 'endpoint_family', 'display_name', 'free' ) as $field ) {
+			if ( array_key_exists( $field, $row ) ) {
+				$safe[ $field ] = $row[ $field ];
+			}
+		}
+		if ( array_key_exists( 'capabilities', $row ) ) {
+			$safe['capabilities'] = $row['capabilities'];
+		}
+		$rows[] = $safe;
+	}
+	return $rows;
+}
+
 function fetch_discovery( string $url ): ?array {
 	$ctx = stream_context_create(
 		array(
@@ -40,36 +64,23 @@ function fetch_discovery( string $url ): ?array {
 	if ( false === $raw ) {
 		return null;
 	}
-	$data = json_decode( $raw, true );
-	if ( ! is_array( $data ) || ! isset( $data['data'] ) || ! is_array( $data['data'] ) ) {
-		return null;
-	}
-	$rows = array();
-	foreach ( $data['data'] as $row ) {
-		if ( ! is_array( $row ) || ! isset( $row['id'] ) || ! is_string( $row['id'] ) || '' === $row['id'] ) {
-			continue;
-		}
-		$safe = array( 'id' => $row['id'] );
-		foreach ( array( 'endpoint_family', 'display_name', 'free' ) as $field ) {
-			if ( array_key_exists( $field, $row ) ) {
-				$safe[ $field ] = $row[ $field ];
-			}
-		}
-		if ( isset( $row['capabilities'] ) && is_array( $row['capabilities'] ) ) {
-			$safe['capabilities'] = $row['capabilities'];
-		}
-		$rows[] = $safe;
-	}
-	return $rows;
+	return decode_discovery( json_decode( $raw, true ) );
 }
 
-$markdown   = in_array( '--markdown', $argv, true );
+$markdown     = in_array( '--markdown', $argv, true );
+$fixture_path = '';
+foreach ( $argv as $argument ) {
+	if ( str_starts_with( $argument, '--fixture=' ) ) {
+		$fixture_path = substr( $argument, strlen( '--fixture=' ) );
+	}
+}
 $watch      = new \OpenCodeConnector\Metadata\CatalogWatch();
 $drift      = array();
 $unreachable = array();
+$fixture    = null !== $fixture_path && is_file( $fixture_path ) ? json_decode( (string) file_get_contents( $fixture_path ), true ) : null;
 
 foreach ( $catalogs as $catalog => $url ) {
-	$live = fetch_discovery( $url );
+	$live = is_array( $fixture ) ? decode_discovery( $fixture[ $catalog ] ?? null ) : fetch_discovery( $url );
 	if ( null === $live ) {
 		$unreachable[] = $catalog;
 		continue;
@@ -80,7 +91,7 @@ foreach ( $catalogs as $catalog => $url ) {
 $has_drift = false;
 foreach ( $drift as $results ) {
 	foreach ( $results as $result ) {
-		if ( 'allowlisted' !== $result['status'] ) {
+		if ( 'allowlisted' !== $result['status'] || in_array( 'input_invalid', $result['states'], true ) ) {
 			$has_drift = true;
 			break 2;
 		}

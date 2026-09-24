@@ -49,6 +49,13 @@
       ]
     },
     {
+      "id": "compatibility",
+      "kind": "product",
+      "files": [
+        "src/Compatibility/CompatibilityDiagnostics.php"
+      ]
+    },
+    {
       "id": "availability",
       "kind": "product",
       "files": [

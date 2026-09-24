@@ -101,6 +101,6 @@ The reviewer updater is deliberately not a direct auto-merge path. It resolves o
 
 ## Baseline metrics
 
-The machine-readable inventory on the active PR head reports 19 PHP classes, 1,843 class lines, largest class `Settings` (222 lines), largest method `AbstractOpenCodeModelMetadataDirectory::parseResponseToModelMetadataList` (83 lines between method boundaries), highest fan-in `OpenCodeGoProvider` (6), highest fan-out `AbstractOpenCodeProvider` (7), and the highest import concentration in `AbstractOpenCodeProvider` (16 imports). The pre-change main baseline was 18 classes and 1,827 class lines. These are measurements, not a target to optimize by splitting code merely to reduce numbers.
+The machine-readable inventory on the active PR head reports 25 PHP classes, 3,186 source lines, largest class `AbstractOpenCodeTextGenerationModel` (232 lines), and the highest fan-in `OpenCodeGoProvider` (6) / fan-out `AbstractOpenCodeProvider` (7) concentration. The previous pre-correction baseline was 19 classes and 1,843 source lines. These are measurements, not a target to optimize by splitting code merely to reduce numbers.
 
 The live unauthenticated catalogs returned 80 Zen IDs and 42 Go IDs at audit time, while the curated allowlist contains 17 IDs per catalog. The difference is intentional safety drift; new IDs require verification before promotion.

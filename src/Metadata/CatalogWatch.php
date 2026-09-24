@@ -84,8 +84,11 @@ final class CatalogWatch {
 				'snapshot' => $this->normalize( $row ),
 			);
 		}
+		if ( $has_malformed && array() === $current ) {
+			return array( $this->result( '', 'input_invalid', array( 'input_invalid' ), false ) );
+		}
 		if ( count( $discovered ) > 0 && ! $saw_valid ) {
-			return array();
+			return array( $this->result( '', 'input_invalid', array( 'input_invalid' ), false ) );
 		}
 
 		$results = array();
