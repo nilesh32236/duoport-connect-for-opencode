@@ -1,9 +1,9 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: 22dcc2668706fc491d1174336794718709fb6add
+source_commit: afe9fdd70d0842864308f5defcea3c46caebe06f
 last_audited: 2026-09-24
 rule: exactly_one_active_item
-active_item: OPS-001
+active_item: OPS-002
 items:
   - id: AUDIT-041
     status: completed

@@ -75,8 +75,18 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		self::assertStringContainsString( 'GH_PAT', $updater );
 		self::assertStringContainsString( 'proceed=false', $updater );
 		self::assertStringContainsString( 'ensure_pr', $updater );
-		self::assertStringContainsString( 'headRepositoryOwner', $updater );
-		self::assertStringContainsString( 'force-with-lease', $updater );
+		self::assertStringContainsString( 'gh api --paginate', $updater );
+		self::assertStringContainsString( 'per_page=100', $updater );
+		self::assertStringContainsString( 'push-reviewer-branch.sh', $updater );
+		$ci = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/workflows/ci.yml' );
+		self::assertSame( 2, substr_count( $ci, "'.github/workflows/*.yaml'" ) );
+		$inspect = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/scripts/inspect-reviewer-branch.sh' );
+		self::assertStringContainsString( 'git show', $inspect );
+		self::assertStringContainsString( 'git grep', $inspect );
+		self::assertStringNotContainsString( '|| true', $inspect );
+		$push = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/scripts/push-reviewer-branch.sh' );
+		self::assertStringContainsString( '--force-with-lease="${REF}:${EXISTING_SHA}"', $push );
+		self::assertStringContainsString( '--force-with-lease="${REF}:1111111111111111111111111111111111111111"', $push );
 	}
 
 	/**
@@ -88,13 +98,40 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 			$manifest_path = $root . '/.github/reviewer-dependency.json';
 			$manifest = json_decode( (string) file_get_contents( $manifest_path ), true );
 			self::assertIsArray( $manifest );
-			$manifest['opencode_cli']['sha256']['linux-x64'] = str_repeat( 'a', 64 );
+			$manifest['opencode_cli']['sha256']['linux-x64'] = $manifest['opencode_cli']['sha256']['linux-arm64'];
+			$manifest['opencode_cli']['sha256']['linux-arm64'] = 'e9312be75ed803b7415fc2aeabda1f4fe938912a39673762dc0c38c0e11ebde4';
 			file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) );
 			$output = array();
 			$status = 0;
 			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
 			self::assertNotSame( 0, $status );
-			self::assertStringContainsString( 'not bound to setup-opencode.sh', implode( "\n", $output ) );
+			self::assertStringContainsString( 'does not match setup-opencode.sh architecture assignment', implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
+	 * The verifier requires the exact active ruleset identities and check list.
+	 */
+	public function test_verifier_rejects_ruleset_identity_drift(): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$manifest_path = $root . '/.github/reviewer-dependency.json';
+			$manifest = json_decode( (string) file_get_contents( $manifest_path ), true );
+			self::assertIsArray( $manifest );
+			$manifest['merge_gate']['ruleset_id'] = 1;
+			$manifest['merge_gate']['pull_request_ruleset_id'] = 2;
+			$manifest['merge_gate']['required_checks'][] = 'unexpected-check';
+			file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) );
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status );
+			$text = implode( "\n", $output );
+			self::assertStringContainsString( 'ruleset_id must be the active exact-check ruleset 23935160', $text );
+			self::assertStringContainsString( 'pull_request_ruleset_id must be the active pull-request ruleset 23935219', $text );
+			self::assertStringContainsString( 'required_checks must be exactly', $text );
 		} finally {
 			$this->remove_fixture( $root );
 		}
@@ -123,6 +160,7 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	public function test_updater_handles_a_next_release_and_second_run(): void {
 		$root = $this->copy_automation_fixture();
 		try {
+			file_put_contents( $root . '/.github/workflows/extra.yaml', "name: Extra\\njobs:\\n  review:\\n    steps:\\n      - uses: nilesh32236/opencode-ai-reviewer@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\n" );
 			$command = 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/update-opencode-reviewer.php' ) . ' --tag v99.0.0 --commit ' . escapeshellarg( str_repeat( 'b', 40 ) ) . ' --published 2026-10-01T00:00:00Z';
 			$output = array();
 			$status = 0;
@@ -131,6 +169,7 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 			self::assertStringContainsString( '"manifest_changed":true', implode( "\n", $output ) );
 			$manifest = json_decode( (string) file_get_contents( $root . '/.github/reviewer-dependency.json' ), true );
 			self::assertSame( 'v99.0.0', $manifest['release_tag'] );
+			self::assertStringContainsString( 'opencode-ai-reviewer@' . str_repeat( 'b', 40 ) . ' # v99.0.0', (string) file_get_contents( $root . '/.github/workflows/extra.yaml' ) );
 			$output = array();
 			exec( $command . ' 2>&1', $output, $status );
 			self::assertSame( 0, $status, implode( "\n", $output ) );
@@ -148,14 +187,19 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		mkdir( $temp );
 		try {
 			$fake = $temp . '/gh';
-			file_put_contents( $fake, "#!/usr/bin/env bash\nprintf 'automation/opencode-ai-reviewer\\tnilesh32236\\nautomation/opencode-ai-reviewer\\tattacker\\nfork-campaign\\tattacker\\ncampaign\\tnilesh32236\\n'\n" );
+			$log = $temp . '/args';
+			file_put_contents( $fake, "#!/usr/bin/env bash\nprintf '%s\\n' \"\$@\" > \"\${GH_LOG}\"\nprintf 'automation/opencode-ai-reviewer\\tnilesh32236\\n'\nfor i in \$(seq 1 35); do printf 'filler-%02d\\tattacker\\n' \"\$i\"; done\nprintf 'automation/opencode-ai-reviewer\\tattacker\\ncampaign\\tnilesh32236\\n'\n" );
 			chmod( $fake, 0777 );
 			$guard = dirname( __DIR__, 2 ) . '/.github/scripts/reviewer-pr-guard.sh';
 			$output = array();
 			$status = 0;
-			exec( 'GH_BIN=' . escapeshellarg( $fake ) . ' ' . escapeshellarg( $guard ) . ' repo nilesh32236 2>&1', $output, $status );
+			exec( 'GH_LOG=' . escapeshellarg( $log ) . ' GH_BIN=' . escapeshellarg( $fake ) . ' ' . escapeshellarg( $guard ) . ' repo nilesh32236 2>&1', $output, $status );
 			self::assertSame( 0, $status, implode( "\n", $output ) );
 			self::assertSame( array( 'campaign' ), $output );
+			$args = (string) file_get_contents( $log );
+			self::assertStringContainsString( 'api', $args );
+			self::assertStringContainsString( '--paginate', $args );
+			self::assertStringContainsString( 'per_page=100', $args );
 
 			file_put_contents( $fake, "#!/usr/bin/env bash\nexit 42\n" );
 			chmod( $fake, 0777 );
@@ -165,6 +209,19 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 			self::assertSame( 1, $failure_status );
 		} finally {
 			$this->remove_fixture( $temp );
+		}
+	}
+
+	/**
+	 * Run the executable workflow shell contracts as part of PHPUnit.
+	 */
+	public function test_workflow_shell_contracts(): void {
+		$root = dirname( __DIR__, 2 );
+		foreach ( array( 'reviewer-push-contract.sh', 'reviewer-branch-inspection-contract.sh' ) as $script ) {
+			$output = array();
+			$status = 0;
+			exec( 'bash ' . escapeshellarg( $root . '/tests/Unit/' . $script ) . ' 2>&1', $output, $status );
+			self::assertSame( 0, $status, implode( "\n", $output ) );
 		}
 	}
 
@@ -185,6 +242,10 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		copy( $source_root . '/.github/scripts/setup-opencode.sh', $temp_root . '/.github/scripts/setup-opencode.sh' );
 		copy( $source_root . '/.github/scripts/reviewer-pr-guard.sh', $temp_root . '/.github/scripts/reviewer-pr-guard.sh' );
 		chmod( $temp_root . '/.github/scripts/reviewer-pr-guard.sh', 0777 );
+		copy( $source_root . '/.github/scripts/push-reviewer-branch.sh', $temp_root . '/.github/scripts/push-reviewer-branch.sh' );
+		chmod( $temp_root . '/.github/scripts/push-reviewer-branch.sh', 0777 );
+		copy( $source_root . '/.github/scripts/inspect-reviewer-branch.sh', $temp_root . '/.github/scripts/inspect-reviewer-branch.sh' );
+		chmod( $temp_root . '/.github/scripts/inspect-reviewer-branch.sh', 0777 );
 		foreach ( glob( $source_root . '/.github/workflows/*.yml' ) ?: array() as $file ) {
 			copy( $file, $temp_root . '/.github/workflows/' . basename( $file ) );
 		}

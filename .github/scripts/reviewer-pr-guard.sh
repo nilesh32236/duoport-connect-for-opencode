@@ -11,7 +11,7 @@ OWNER="${2:?repository owner is required}"
 GH_BIN="${GH_BIN:-gh}"
 AUTOMATION_BRANCH="automation/opencode-ai-reviewer"
 
-if ! PR_LIST=$("$GH_BIN" pr list -R "$REPOSITORY" --state open --json headRefName,headRepositoryOwner --jq '.[] | [.headRefName, (.headRepositoryOwner.login // "")] | @tsv'); then
+if ! PR_LIST=$("$GH_BIN" api --paginate "repos/${REPOSITORY}/pulls?state=open&per_page=100" --jq '.[] | [.head.ref, (.head.repo.owner.login // "")] | @tsv'); then
   echo "Unable to inspect open pull requests; refusing to update dependencies." >&2
   exit 1
 fi
