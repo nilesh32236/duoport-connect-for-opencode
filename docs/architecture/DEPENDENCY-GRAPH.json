@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "generated_at": "2026-09-24",
-  "source_commit": "cc22c2f",
-  "product_code_snapshot": "cc22c2f",
+  "source_commit": "2e57b1c",
+  "product_code_snapshot": "2e57b1c",
   "snapshot_note": "Product and automation edges reflect the current merged main baseline; the PF-004 correction adds the shipped CatalogWatch integration.",
   "scope": "product runtime and campaign automation",
   "nodes": [
