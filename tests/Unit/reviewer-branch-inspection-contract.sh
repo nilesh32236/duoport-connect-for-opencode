@@ -82,9 +82,21 @@ fi
 git -C "$WORKTREE" push -q --force origin "$CURRENT_SHA:refs/heads/$BRANCH"
 git -C "$WORKTREE" reset -q --hard "$CURRENT_SHA"
 
+jq '.opencode_cli.version = "not-a-version" | .opencode_cli.sha256["linux-x64"] = .opencode_cli.sha256["linux-arm64"]' "$WORKTREE/.github/reviewer-dependency.json" >"$WORKTREE/manifest.tmp"
+mv "$WORKTREE/manifest.tmp" "$WORKTREE/.github/reviewer-dependency.json"
+git -C "$WORKTREE" add .github/reviewer-dependency.json
+git -C "$WORKTREE" commit -qm invalid-integrity
+git -C "$WORKTREE" push -q origin HEAD:refs/heads/$BRANCH
+if (cd "$WORKTREE" && "$INSPECT" "$TAG" "$COMMIT" "$BRANCH" "$REPO" "$EXPECTED_REPOSITORY" >/dev/null 2>&1); then
+  echo "branch inspector accepted invalid manifest integrity" >&2
+  exit 1
+fi
+git -C "$WORKTREE" push -q --force origin "$CURRENT_SHA:refs/heads/$BRANCH"
+git -C "$WORKTREE" reset -q --hard "$CURRENT_SHA"
+
 # A release mismatch is stale and may be regenerated from main.
 git -C "$WORKTREE" checkout -q main
-jq '.release_tag = "v0.0.0"' "$WORKTREE/.github/reviewer-dependency.json" >"$WORKTREE/manifest.tmp"
+jq '.release_tag = "v0.0.0" | .release_url = "https://github.com/nilesh32236/opencode-ai-reviewer/releases/tag/v0.0.0"' "$WORKTREE/.github/reviewer-dependency.json" >"$WORKTREE/manifest.tmp"
 mv "$WORKTREE/manifest.tmp" "$WORKTREE/.github/reviewer-dependency.json"
 git -C "$WORKTREE" add .github/reviewer-dependency.json
 git -C "$WORKTREE" commit -qm stale

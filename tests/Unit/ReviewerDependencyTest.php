@@ -182,6 +182,35 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * Complete manifest validation rejects omitted provenance and equal hashes.
+	 */
+	public function test_manifest_validator_rejects_incomplete_or_equal_integrity_data(): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$manifest_path = $root . '/.github/reviewer-dependency.json';
+			$manifest = json_decode( (string) file_get_contents( $manifest_path ), true );
+			self::assertIsArray( $manifest );
+			$manifest['reviewer_repository'] = 'wrong/repo';
+			$manifest['release_published_at'] = 'not-a-date';
+			$manifest['opencode_cli']['version'] = 'not-a-version';
+			$manifest['opencode_cli']['sha256']['linux-x64'] = $manifest['opencode_cli']['sha256']['linux-arm64'];
+			$manifest['merge_gate']['ruleset_id'] = 1;
+			$manifest['merge_gate']['required_checks'] = array('wrong');
+			file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) );
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/validate-reviewer-manifest.php' ) . ' --file ' . escapeshellarg( $manifest_path ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status );
+			$text = implode( "\n", $output );
+			self::assertStringContainsString( 'reviewer_repository', $text );
+			self::assertStringContainsString( 'must be distinct', $text );
+			self::assertStringContainsString( 'required_checks', $text );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
 	 * A mutable .yaml workflow reference must not bypass the verifier.
 	 */
 	public function test_verifier_scans_yaml_workflows(): void {

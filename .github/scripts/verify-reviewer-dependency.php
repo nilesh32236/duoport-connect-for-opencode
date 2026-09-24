@@ -26,6 +26,17 @@ $commit = (string) ($manifest['release_commit'] ?? '');
 $cli = $manifest['opencode_cli'] ?? array();
 $cli_version = (string) ($cli['version'] ?? '');
 $errors = array();
+$manifest_validator = $root . '/.github/scripts/validate-reviewer-manifest.php';
+if (!is_file($manifest_validator)) {
+    $errors[] = 'validate-reviewer-manifest.php is missing';
+} else {
+    $validation_output = array();
+    $validation_status = 0;
+    exec('php ' . escapeshellarg($manifest_validator) . ' --file ' . escapeshellarg($manifest_path) . ' 2>&1', $validation_output, $validation_status);
+    if (0 !== $validation_status) {
+        $errors[] = 'manifest schema validation failed: ' . implode('; ', $validation_output);
+    }
+}
 if (!preg_match('/^v[0-9]+\.[0-9]+\.[0-9]+$/', $tag)) {
     $errors[] = 'release_tag must be a stable vX.Y.Z tag';
 }
@@ -40,6 +51,9 @@ foreach (array('linux-x64', 'linux-arm64') as $arch) {
     if (!preg_match('/^[a-f0-9]{64}$/', $hash)) {
         $errors[] = "opencode_cli.sha256.{$arch} must be a full SHA-256";
     }
+}
+if (($cli['sha256']['linux-x64'] ?? null) === ($cli['sha256']['linux-arm64'] ?? null)) {
+    $errors[] = 'opencode_cli architecture hashes must be distinct';
 }
 $merge_gate = $manifest['merge_gate'] ?? array();
 $expected_ruleset_id = 23935160;
