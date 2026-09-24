@@ -66,7 +66,7 @@ PR #82 merged the payload-safe bounded fallback. It selects before tool shaping,
 
 ## Next active item: PF-007
 
-PF-007 is the sole active queue item and issue #83; its evidence-contract audit PR is pending. It keeps image capability default-deny while establishing provider payload, response, and media-safety evidence. No competing issue or PR is open. ARCH-001 is complete.
+PF-007 is the sole active queue item and issue #83; its evidence-contract audit PR #84 is pending. It keeps image capability default-deny while establishing provider payload, response, and media-safety evidence. No competing issue or PR is open. ARCH-001 is complete.
 
 ## Final boundaries
 
