@@ -1,8 +1,9 @@
 {
   "schema_version": 1,
   "generated_at": "2026-09-24",
-  "source_commit": "a8c3f940a889689bf959f98e41c2caaaf7962bb8",
-  "snapshot_note": "Product-code snapshot used by class-inventory.json; documentation-only and release-metadata commits follow this snapshot.",
+  "source_commit": "22dcc2668706fc491d1174336794718709fb6add",
+  "product_code_snapshot": "a8c3f940a889689bf959f98e41c2caaaf7962bb8",
+  "snapshot_note": "Product class metrics are from the a8c3f94 code snapshot; automation edges reflect the current merged main baseline and OPS-001 changes.",
   "scope": "product runtime and campaign automation",
   "nodes": [
     {"id":"wordpress","kind":"platform","label":"WordPress 7.0+ / Connectors"},
@@ -24,6 +25,7 @@
     {"id":"opencode-api","kind":"external","label":"OpenCode Go/Zen API"},
     {"id":"wp-media","kind":"platform","label":"WordPress Media Library"},
     {"id":"reviewer-action","kind":"automation","label":"nilesh32236/opencode-ai-reviewer"},
+    {"id":"reviewer-updater","kind":"automation","file":".github/workflows/reviewer-update.yml"},
     {"id":"opencode-cli","kind":"automation","label":"anomalyco/opencode CLI"},
     {"id":"github","kind":"automation","label":"GitHub Actions / API"}
   ],
@@ -49,6 +51,8 @@
     {"from":"settings","to":"availability","kind":"compatibility projection (planned)"},
     {"from":"media","to":"wp-media","kind":"validated upload"},
     {"from":"github","to":"reviewer-action","kind":"workflow uses"},
+    {"from":"github","to":"reviewer-updater","kind":"stable release detection"},
+    {"from":"reviewer-updater","to":"reviewer-action","kind":"proposes SHA/tag update PR"},
     {"from":"reviewer-action","to":"opencode-cli","kind":"downloads/verifies"},
     {"from":"reviewer-action","to":"github","kind":"comments/PRs/issues"},
     {"from":"github","to":"opencode-cli","kind":"release API metadata (updater planned)"}

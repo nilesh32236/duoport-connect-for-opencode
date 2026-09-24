@@ -1,9 +1,9 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: 4fbb2dbc3669229ef8fbfbb2afbbad416895eaa4
+source_commit: 22dcc2668706fc491d1174336794718709fb6add
 last_audited: 2026-09-24
 rule: exactly_one_active_item
-active_item: RELEASE-001
+active_item: OPS-001
 items:
   - id: AUDIT-041
     status: completed
@@ -49,7 +49,7 @@ items:
       stale_head: "Rejected if any newer push appears after capture."
       post_merge: "Required: WordPress runtime verification, WPCS, PHPUnit, and release checks."
   - id: RELEASE-001
-    status: in_progress
+    status: completed
     title: Make build-release verification exit successfully
     github_issue: 44
     github_pr: 45
@@ -145,15 +145,22 @@ items:
     title: WordPress AI request-log integration
     reason: Core AI Client already owns request logging; duplicating it would add dashboard scope and data handling.
   - id: OPS-001
-    status: pending
+    status: in_progress
     title: Repair reviewer and OpenCode CLI workflow dependency
+    github_issue: 46
+    github_pr: pending
     priority: high
     difficulty: medium
-    evidence: Daily Audit runs 2026-09-22 through 2026-09-24 fail before auditing because reviewer action defaults to checksum-required OpenCode CLI latest; the action documents v1.18.31 as a verified checksum pin.
+    evidence: Daily Audit and AI review runs fail before analysis because reviewer @main defaults to checksum-required OpenCode CLI latest; v1.18.32 has no checksum while v1.18.31 is the reviewer-documented verified pin.
+    scope:
+      - Pin the released reviewer v1.22.0 peeled commit SHA and make the updater/manifest traceable.
+      - Pin and checksum-verify the OpenCode CLI v1.18.31 used by reviewer and research workflows.
+      - Add a contract test and an idempotent stable-release updater.
     acceptance:
       - Workflows use a released reviewer reference and record resolved reviewer tag, commit SHA, and date.
       - OpenCode CLI is pinned to a checksum-verified release.
       - Scheduled automations preserve one active campaign issue/PR invariant.
+    status_note: Sole active issue #46; no competing issue or PR is open.
   - id: ARCH-001
     status: pending
     title: Re-audit after workflow and transport milestones
