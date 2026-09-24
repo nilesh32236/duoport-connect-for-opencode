@@ -8,7 +8,7 @@
 
 declare(strict_types=1);
 
-$root = dirname(__DIR__, 2);
+$root = getenv('DUOPORT_REPO_ROOT') ?: dirname(__DIR__, 2);
 $manifest_path = $root . '/.github/reviewer-dependency.json';
 $args = array_slice($argv, 1);
 $dry_run = in_array('--dry-run', $args, true);
@@ -48,7 +48,10 @@ if (!is_array($manifest)) {
     exit(1);
 }
 
-$files = glob($root . '/.github/workflows/*.yml') ?: array();
+$files = array_merge(
+    glob($root . '/.github/workflows/*.yml') ?: array(),
+    glob($root . '/.github/workflows/*.yaml') ?: array()
+);
 $updated = array();
 $manifest_changed = false;
 $pattern = '/(uses:\s*nilesh32236\/opencode-ai-reviewer@)[a-f0-9]{40}(\s+#\s*v[0-9]+\.[0-9]+\.[0-9]+)?/';

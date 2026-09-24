@@ -156,10 +156,13 @@ items:
       - Pin the released reviewer v1.22.0 peeled commit SHA and make the updater/manifest traceable.
       - Pin and checksum-verify the OpenCode CLI v1.18.31 used by reviewer and research workflows.
       - Add a contract test and an idempotent stable-release updater.
+      - Require PAT-backed PR events and same-repository, fail-closed campaign-PR guards.
+      - Recover a current branch whose dependency PR is missing without rewriting it.
     acceptance:
       - Workflows use a released reviewer reference and record resolved reviewer tag, commit SHA, and date.
       - OpenCode CLI is pinned to a checksum-verified release.
       - Scheduled automations preserve one active campaign issue/PR invariant.
+      - Main ruleset 23935160 requires the exact-head PHP 8.2 and 8.3 checks.
     status_note: Sole active issue #46; no competing issue or PR is open.
   - id: ARCH-001
     status: pending

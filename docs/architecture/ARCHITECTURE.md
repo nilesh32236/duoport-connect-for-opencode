@@ -2,11 +2,11 @@
 
 **Audit snapshot:** 2026-09-24
 
-**Baseline repository head:** `36df42501b0d7e20e2be1951b78d9d90606dd5d6` (`origin/main`)
+**Baseline repository head:** `22dcc2668706fc491d1174336794718709fb6add` (`origin/main`)
 
-**Active campaign PR:** [#42](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/42) (the exact head is captured in the merge gate)
+**Active campaign PR:** [#47](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/47) (the exact head is captured in the merge gate)
 
-**Active queue item:** `AUDIT-041` / GitHub issue [#41](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/41) / PR [#42](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/42)
+**Active queue item:** `OPS-001` / GitHub issue [#46](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/46) / PR [#47](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/47)
 
 **Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; both providers are registered in the available WordPress runtime.
 
@@ -88,7 +88,10 @@ Availability
 - Prefer a small transport interface only where multiple verified endpoint families exist; do not add a DI container.
 - Keep scheduled automations idempotent and ensure only one campaign issue/PR is active.
 
-## Evidence links
+## Reviewer automation safety contract
+
+The reviewer updater is deliberately not a direct auto-merge path. It resolves only the latest stable GitHub release, validates the semver tag and full commit SHA, updates both `.yml` and `.yaml` action references, and records release identity in `.github/reviewer-dependency.json`. It requires a repository PAT (`GH_PAT`) so the generated pull request receives normal `pull_request` CI/reviewer events; a missing PAT fails closed. A fixed repository-wide concurrency group, same-repository campaign-PR guard, immediate pre-create recheck, and lease-safe push preserve the one-active-campaign invariant. A current automation branch is never recreated when it already represents the desired release: if its same-repository PR is missing, the workflow recreates the PR without rewriting the branch. Main should require the exact-head CI checks before merge; the updater never bypasses that gate.
+
 
 - [OpenCode Zen documentation](https://opencode.ai/docs/zen/) — endpoint table, model metadata, pricing/limits, privacy, and `/models` contract.
 - [OpenCode Go documentation](https://opencode.ai/docs/go/) — endpoint table, session-header requirement, model list, and usage limits.
