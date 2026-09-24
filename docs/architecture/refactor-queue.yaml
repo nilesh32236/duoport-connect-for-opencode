@@ -169,7 +169,7 @@ items:
     status: in_progress
     title: Close bounded workflow guard and lease gaps
     github_issue: 48
-    github_pr: pending
+    github_pr: 49
     priority: high
     difficulty: medium
     evidence: Post-merge review found YAML CI path coverage, bounded PR enumeration, absent-branch lease, exact architecture hash binding, and fail-open branch-inspection gaps.
