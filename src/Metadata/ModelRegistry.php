@@ -74,7 +74,8 @@ final class ModelRegistry {
 			return null;
 		}
 
-		$capabilities = array(
+		$endpoint_family = self::endpointFamily( $id, $catalog );
+		$capabilities    = array(
 			'text'       => true,
 			'tools'      => ModelAllowlist::isToolCapable( $id, $catalog ),
 			'web_search' => ModelAllowlist::isWebSearchCapable( $id, $catalog ),
@@ -86,9 +87,9 @@ final class ModelRegistry {
 			'catalog'             => $catalog,
 			'display_name'        => ModelAllowlist::displayName( $id ),
 			'free'                => ModelAllowlist::isFree( $id ),
-			'endpoint_family'     => self::endpointFamily( $id, $catalog ),
+			'endpoint_family'     => $endpoint_family,
 			'capabilities'        => $capabilities,
-			'verification_status' => self::VERIFICATION_STATUS,
+			'verification_status' => 'unsupported' === $endpoint_family ? 'needs-adapter' : self::VERIFICATION_STATUS,
 			'last_verified'       => self::LAST_VERIFIED,
 		);
 	}

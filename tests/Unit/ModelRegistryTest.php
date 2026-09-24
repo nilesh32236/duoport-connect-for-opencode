@@ -38,6 +38,7 @@ final class ModelRegistryTest extends MonkeyTestCase {
 			$record = ModelRegistry::record( $id, 'zen' );
 			self::assertIsArray( $record );
 			self::assertSame( 'unsupported', $record['endpoint_family'] );
+			self::assertSame( 'needs-adapter', $record['verification_status'] );
 		}
 	}
 
