@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `cab8d78aaa0d72351c557357b59be89f0b0885d3` (`origin/main`)
+**Merged baseline:** `63afb3e5401fca7212eb3cd3bbd370331c5b00ff` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -26,7 +26,7 @@ The merged plugin was synchronized to the live WordPress site and PHP-linted. Wo
 Local verification passed:
 
 - WPCS
-- PHPUnit: 121 tests, 509 assertions
+- PHPUnit: 121 tests, 510 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
@@ -58,11 +58,11 @@ PR #66 merged the detailed-result correction. The backend now retains safe state
 
 ## PF-004 correction
 
-The merged base introduced `CatalogWatch`; issue #71 corrects the shipped drift script and malformed-input handling. The comparator is now used by production tooling, unknown capabilities and needs-adapter records require verification, and mixed malformed evidence cannot falsely retire baseline records.
+PR #76 merged the second correction. The shipped drift script now propagates malformed/duplicate/wrong-type evidence to a nonzero result, direct comparator edge cases are covered, and class inventory/architecture provenance reflects the corrected source.
 
-## Next active item: PF-004
+## Next active item: PF-006
 
-PF-004 is the sole active queue item and issue #71; its correction PR is pending. No competing issue or PR is open. ARCH-001 is complete.
+PF-006 is the sole active queue item and issue #77; its PR is pending. It adds bounded capability-aware fallback only within verified registry, endpoint, capability, and availability contracts. No competing issue or PR is open. ARCH-001 is complete.
 
 ## Final boundaries
 
