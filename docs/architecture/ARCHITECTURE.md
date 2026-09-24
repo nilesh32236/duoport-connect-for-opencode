@@ -2,11 +2,11 @@
 
 **Audit snapshot:** 2026-09-24
 
-**Baseline repository head:** `cab8d78aaa0d72351c557357b59be89f0b0885d3` (`origin/main`)
+**Baseline repository head:** `63afb3e5401fca7212eb3cd3bbd370331c5b00ff` (`origin/main`)
 
 **Active campaign PR:** pending for `PF-004` (the exact head will be captured in the merge gate)
 
-**Active queue item:** `PF-004` / GitHub issue [#71](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/71) / PR pending
+**Active queue item:** `PF-004` / GitHub issue [#79](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/79) / PR #80
 
 **Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; both providers are registered in the available WordPress runtime.
 
@@ -101,6 +101,6 @@ The reviewer updater is deliberately not a direct auto-merge path. It resolves o
 
 ## Baseline metrics
 
-The machine-readable inventory on the active PR head reports 25 PHP classes, 3,186 source lines, largest class `AbstractOpenCodeTextGenerationModel` (232 lines), largest method `CatalogWatch::compare` (118 lines), and the highest fan-in `OpenCodeGoProvider` (7) / fan-out `AbstractOpenCodeProvider` (7) concentration. The previous pre-correction baseline was 19 classes and 1,843 source lines. These are measurements, not a target to optimize by splitting code merely to reduce numbers.
+The machine-readable inventory on the active PR head reports 25 PHP classes, 3,186 source lines, largest class `AbstractOpenCodeTextGenerationModel` (232 lines), largest method `CatalogWatch::compare` (118 lines), and the highest fan-in `OpenCodeGoProvider` (7) / fan-out `AbstractOpenCodeTextGenerationModel` (7) concentration. The previous pre-correction baseline was 19 classes and 1,843 source lines. These are measurements, not a target to optimize by splitting code merely to reduce numbers.
 
 The live unauthenticated catalogs returned 80 Zen IDs and 42 Go IDs at audit time, while the curated allowlist contains 17 IDs per catalog. The difference is intentional safety drift; new IDs require verification before promotion.

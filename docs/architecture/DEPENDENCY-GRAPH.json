@@ -144,6 +144,11 @@
   ],
   "edges": [
     {
+      "from": "entrypoint",
+      "to": "compatibility",
+      "kind": "admin compatibility notice"
+    },
+    {
       "from": "wordpress",
       "to": "entrypoint",
       "kind": "hooks"
@@ -232,11 +237,6 @@
       "from": "settings",
       "to": "ai-client",
       "kind": "registry status"
-    },
-    {
-      "from": "settings",
-      "to": "compatibility",
-      "kind": "runtime diagnostics"
     },
     {
       "from": "compatibility",
