@@ -75,11 +75,12 @@ final class ModelRegistry {
 		}
 
 		$endpoint_family = self::endpointFamily( $id, $catalog );
+		$route_supported = 'unsupported' !== $endpoint_family;
 		$capabilities    = array(
-			'text'       => true,
-			'tools'      => ModelAllowlist::isToolCapable( $id, $catalog ),
-			'web_search' => ModelAllowlist::isWebSearchCapable( $id, $catalog ),
-			'image'      => ModelAllowlist::isImageCapable( $id, $catalog ),
+			'text'       => $route_supported,
+			'tools'      => $route_supported && ModelAllowlist::isToolCapable( $id, $catalog ),
+			'web_search' => $route_supported && ModelAllowlist::isWebSearchCapable( $id, $catalog ),
+			'image'      => $route_supported && ModelAllowlist::isImageCapable( $id, $catalog ),
 		);
 
 		return array(
