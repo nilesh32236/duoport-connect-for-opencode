@@ -31,6 +31,17 @@ final class ModelRegistryTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * Unimplemented Zen endpoint families are not mislabeled as chat.
+	 */
+	public function test_unimplemented_zen_routes_are_marked_unsupported(): void {
+		foreach ( array( 'minimax-m3', 'minimax-m2.7', 'minimax-m2.5' ) as $id ) {
+			$record = ModelRegistry::record( $id, 'zen' );
+			self::assertIsArray( $record );
+			self::assertSame( 'unsupported', $record['endpoint_family'] );
+		}
+	}
+
+	/**
 	 * Unknown IDs and unsupported capabilities are default-deny.
 	 */
 	public function test_unknown_models_and_capabilities_are_denied(): void {

@@ -2,7 +2,7 @@
 
 **Audit snapshot:** 2026-09-24
 
-**Baseline repository head:** `f95dbe76ad936c60bc68832e0fb57ef26c836b61` (`origin/main`)
+**Baseline repository head:** `981105eaf076694ad435b80b3012d5351c98ea36` (`origin/main`)
 
 **Active campaign PR:** pending for `PF-003` (the exact head will be captured in the merge gate)
 

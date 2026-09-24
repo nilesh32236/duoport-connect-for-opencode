@@ -33,9 +33,34 @@ final class ModelRegistry {
 	private const LAST_VERIFIED = '2026-09-24';
 
 	/**
-	 * Current curated endpoint family.
+	 * Current implemented endpoint family.
 	 */
 	private const ENDPOINT_FAMILY = 'chat';
+
+	/**
+	 * Zen IDs whose documented family is not implemented by this adapter.
+	 *
+	 * @var list<string>
+	 */
+	private const UNSUPPORTED_ZEN_MODELS = array(
+		'minimax-m3',
+		'minimax-m2.7',
+		'minimax-m2.5',
+	);
+
+	/**
+	 * Resolve the reviewed endpoint family for a model.
+	 *
+	 * @param string $id      Model ID.
+	 * @param string $catalog Catalog slug.
+	 * @return string
+	 */
+	private static function endpointFamily( string $id, string $catalog ): string {
+		if ( 'zen' === $catalog && in_array( $id, self::UNSUPPORTED_ZEN_MODELS, true ) ) {
+			return 'unsupported';
+		}
+		return self::ENDPOINT_FAMILY;
+	}
 
 	/**
 	 * Get a canonical record for an allowlisted model.
@@ -61,7 +86,7 @@ final class ModelRegistry {
 			'catalog'             => $catalog,
 			'display_name'        => ModelAllowlist::displayName( $id ),
 			'free'                => ModelAllowlist::isFree( $id ),
-			'endpoint_family'     => self::ENDPOINT_FAMILY,
+			'endpoint_family'     => self::endpointFamily( $id, $catalog ),
 			'capabilities'        => $capabilities,
 			'verification_status' => self::VERIFICATION_STATUS,
 			'last_verified'       => self::LAST_VERIFIED,
