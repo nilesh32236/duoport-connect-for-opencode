@@ -44,8 +44,8 @@ A “no” rejects the feature. A feature also needs primary evidence, a bounded
 | PF-003 Detailed connection diagnostics | queued | Useful friction reduction; must preserve credential blindness |
 | PF-004 Catalog freshness/verification status | queued | Reduces stale allowlist risk; watcher must be default-deny |
 | PF-005 Smart default model selection | deferred | Useful but overlaps caller/WordPress model selection |
-| PF-006 Capability-aware fallback | in progress | Bounded selector and payload-safe routing are implemented behind the verified registry, endpoint, and capability contracts |
-| PF-007 Verified image-generation contract | in progress | Current image list is empty; establish provider payload, response, and media-safety evidence before exposure |
+| PF-006 Capability-aware fallback | completed | Bounded selector and payload-safe routing are implemented behind the verified registry, endpoint, and capability contracts |
+| PF-007 Verified image-generation contract | completed | Evidence audit kept image capability default-deny; no provider response/media-safety evidence justified exposure |
 | PF-008 WordPress request-log integration | rejected for now | Core AI Client owns request logging; avoid duplicate data |
 | PF-009 Compatibility diagnostics | queued | Small, provider-specific operational value |
 

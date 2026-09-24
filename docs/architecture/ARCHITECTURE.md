@@ -2,11 +2,11 @@
 
 **Audit snapshot:** 2026-09-24
 
-**Baseline repository head:** `b32306024421d9b8b3139eb7534bc97cad6f87fb` (`origin/main`)
+**Baseline repository head:** `5f1abb68e2f564e79094340c51946ca82af6b515` (`origin/main`)
 
-**Active campaign PR:** [#84](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/84) (the exact head is captured in the merge gate)
+**Active campaign PR:** none; campaign is at a documented stopping point
 
-**Active queue item:** `PF-007` / GitHub issue [#83](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/83) / PR #84
+**Active queue item:** none; all justified items are complete, remaining candidates are deferred or rejected
 
 **Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; both providers are registered in the available WordPress runtime.
 
@@ -72,7 +72,7 @@ Availability
 
 ## Current gaps and risks
 
-1. **Verified image-generation evidence (active):** the image allowlist is intentionally empty; provider request/response shape, media safety, and end-to-end capability evidence must be established before exposure.
+1. **Image evidence boundary (intentional defer):** the image allowlist remains intentionally empty; provider request/response shape, media safety, and end-to-end capability evidence must be established before exposure.
 2. **Workflow dependency (controlled):** reviewer workflows pin the released reviewer v1.22.0 peeled commit and checksum-verified OpenCode CLI v1.18.31. `.github/reviewer-dependency.json` records the release identity, and `reviewer-update.yml` proposes a traceable stable-release update PR while deferring when a campaign PR is active. The updater still requires normal deterministic review/merge; it never silently switches to unreleased code.
 3. **Automation issue flood risk (medium):** scheduled audit/research/catalog jobs can create or update multiple open issues. The campaign reconciles them into one active queue item; future automation must preserve that invariant or report without opening a competing issue.
 4. **Settings responsibility drift (medium):** `Settings` currently knows cache key formats, model directory classes, and the AI Client cache shape. These are future extraction candidates, not a reason to grow a dashboard.
