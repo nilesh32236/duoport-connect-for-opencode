@@ -13,6 +13,10 @@ REPOSITORY="${4:?repository is required}"
 EXPECTED_REPOSITORY="${5:?repository full name is required}"
 GH_BIN="${GH_BIN:-gh}"
 REF="refs/heads/${BRANCH}"
+if [[ "$REPOSITORY" != "$EXPECTED_REPOSITORY" ]]; then
+  echo "Repository identity arguments do not match." >&2
+  exit 1
+fi
 
 if ! REMOTE_OUTPUT=$(git ls-remote origin "$REF"); then
   echo "Unable to inspect reviewer branch ref; refusing to continue." >&2

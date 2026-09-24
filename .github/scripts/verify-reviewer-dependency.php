@@ -131,6 +131,11 @@ $updater_source = (string) file_get_contents($workflow_dir . '/reviewer-update.y
 $guard_path = $root . '/.github/scripts/reviewer-pr-guard.sh';
 if (!is_file($guard_path) || !is_executable($guard_path)) {
     $errors[] = 'reviewer-pr-guard.sh must be present and executable';
+} else {
+    $guard_source = (string) file_get_contents($guard_path);
+    if (!str_contains($guard_source, 'head.repo.full_name') || !str_contains($guard_source, '--paginate')) {
+        $errors[] = 'reviewer-pr-guard.sh must paginate exact repository identities';
+    }
 }
 $push_path = $root . '/.github/scripts/push-reviewer-branch.sh';
 if (!is_file($push_path) || !is_executable($push_path)) {

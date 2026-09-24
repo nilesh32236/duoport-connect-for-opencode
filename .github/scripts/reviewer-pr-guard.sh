@@ -10,6 +10,10 @@ REPOSITORY="${1:?repository is required}"
 EXPECTED_REPOSITORY="${2:?repository full name is required}"
 GH_BIN="${GH_BIN:-gh}"
 AUTOMATION_BRANCH="automation/opencode-ai-reviewer"
+if [[ "$REPOSITORY" != "$EXPECTED_REPOSITORY" ]]; then
+  echo "Repository identity arguments do not match." >&2
+  exit 1
+fi
 
 if ! PR_LIST=$("$GH_BIN" api --paginate "repos/${REPOSITORY}/pulls?state=open&per_page=100" --jq '.[] | [.head.ref, (.head.repo.full_name // "")] | @tsv'); then
   echo "Unable to inspect open pull requests; refusing to update dependencies." >&2

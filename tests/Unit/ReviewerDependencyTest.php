@@ -81,6 +81,9 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		self::assertStringContainsString( 'push-reviewer-branch.sh', $updater );
 		$ci = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/workflows/ci.yml' );
 		self::assertSame( 2, substr_count( $ci, "'.github/workflows/*.yaml'" ) );
+		$guard_source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/scripts/reviewer-pr-guard.sh' );
+		self::assertStringContainsString( 'head.repo.full_name', $guard_source );
+		self::assertStringContainsString( 'expected=', $guard_source );
 		$inspect = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/scripts/inspect-reviewer-branch.sh' );
 		self::assertStringContainsString( 'git show', $inspect );
 		self::assertStringContainsString( 'git grep', $inspect );
@@ -234,7 +237,7 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 			$guard = dirname( __DIR__, 2 ) . '/.github/scripts/reviewer-pr-guard.sh';
 			$output = array();
 			$status = 0;
-			exec( 'GH_LOG=' . escapeshellarg( $log ) . ' GH_BIN=' . escapeshellarg( $fake ) . ' ' . escapeshellarg( $guard ) . ' repo nilesh32236/duoport-connect-for-opencode 2>&1', $output, $status );
+			exec( 'GH_LOG=' . escapeshellarg( $log ) . ' GH_BIN=' . escapeshellarg( $fake ) . ' ' . escapeshellarg( $guard ) . ' nilesh32236/duoport-connect-for-opencode nilesh32236/duoport-connect-for-opencode 2>&1', $output, $status );
 			self::assertSame( 0, $status, implode( "\n", $output ) );
 			self::assertCount( 37, $output );
 			self::assertContains( 'automation/opencode-ai-reviewer', $output );
@@ -248,7 +251,7 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 			chmod( $fake, 0777 );
 			$unused = array();
 			$failure_status = 0;
-			exec( 'GH_BIN=' . escapeshellarg( $fake ) . ' ' . escapeshellarg( $guard ) . ' repo nilesh32236/duoport-connect-for-opencode >/dev/null 2>&1', $unused, $failure_status );
+			exec( 'GH_BIN=' . escapeshellarg( $fake ) . ' ' . escapeshellarg( $guard ) . ' nilesh32236/duoport-connect-for-opencode nilesh32236/duoport-connect-for-opencode >/dev/null 2>&1', $unused, $failure_status );
 			self::assertSame( 1, $failure_status );
 		} finally {
 			$this->remove_fixture( $temp );

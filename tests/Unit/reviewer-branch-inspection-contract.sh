@@ -32,6 +32,7 @@ set -euo pipefail
 case "${GH_MODE:-}" in
   none) exit 0 ;;
   pr) printf '%s\n' 'automation/opencode-ai-reviewer	nilesh32236/duoport-connect-for-opencode	99' ;;
+  fork) printf '%s\n' 'automation/opencode-ai-reviewer	attacker/other	77' ;;
   fail) exit 42 ;;
   *) exit 64 ;;
 esac
@@ -52,6 +53,10 @@ if (cd "$WORKTREE" && "$INSPECT" "$TAG" "$COMMIT" "$BRANCH" "$REPO" "$EXPECTED_R
   echo "branch inspector accepted a GitHub API failure" >&2
   exit 1
 fi
+GH_MODE=none
+
+GH_MODE=fork
+[ "$(cd "$WORKTREE" && "$INSPECT" "$TAG" "$COMMIT" "$BRANCH" "$REPO" "$EXPECTED_REPOSITORY")" = ensure_pr ]
 GH_MODE=none
 
 # A syntactically valid but incomplete manifest is an inspection failure.
