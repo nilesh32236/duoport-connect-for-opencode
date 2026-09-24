@@ -45,6 +45,9 @@ $merge_gate = $manifest['merge_gate'] ?? array();
 if (!is_array($merge_gate) || (int) ($merge_gate['ruleset_id'] ?? 0) < 1) {
     $errors[] = 'merge_gate.ruleset_id must identify the required-check ruleset';
 }
+if (!is_array($merge_gate) || (int) ($merge_gate['pull_request_ruleset_id'] ?? 0) < 1) {
+    $errors[] = 'merge_gate.pull_request_ruleset_id must identify the pull-request ruleset';
+}
 $required_checks = (array) ($merge_gate['required_checks'] ?? array());
 foreach (array('PHPCS + PHPUnit (PHP 8.2)', 'PHPCS + PHPUnit (PHP 8.3)') as $check) {
     if (!in_array($check, $required_checks, true)) {

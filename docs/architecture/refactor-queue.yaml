@@ -163,6 +163,7 @@ items:
       - OpenCode CLI is pinned to a checksum-verified release.
       - Scheduled automations preserve one active campaign issue/PR invariant.
       - Main ruleset 23935160 requires the exact-head PHP 8.2 and 8.3 checks.
+      - Main ruleset 23935219 requires changes to arrive through a pull request.
     status_note: Sole active issue #46; no competing issue or PR is open.
   - id: ARCH-001
     status: pending

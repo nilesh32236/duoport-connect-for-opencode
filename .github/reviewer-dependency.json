@@ -15,6 +15,7 @@
   },
   "merge_gate": {
     "ruleset_id": 23935160,
+    "pull_request_ruleset_id": 23935219,
     "required_checks": [
       "PHPCS + PHPUnit (PHP 8.2)",
       "PHPCS + PHPUnit (PHP 8.3)"
