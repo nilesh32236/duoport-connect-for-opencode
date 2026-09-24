@@ -236,7 +236,9 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 			$status = 0;
 			exec( 'GH_LOG=' . escapeshellarg( $log ) . ' GH_BIN=' . escapeshellarg( $fake ) . ' ' . escapeshellarg( $guard ) . ' repo nilesh32236/duoport-connect-for-opencode 2>&1', $output, $status );
 			self::assertSame( 0, $status, implode( "\n", $output ) );
-			self::assertSame( array( 'automation/opencode-ai-reviewer', 'campaign' ), $output );
+			self::assertCount( 37, $output );
+			self::assertContains( 'automation/opencode-ai-reviewer', $output );
+			self::assertContains( 'campaign', $output );
 			$args = (string) file_get_contents( $log );
 			self::assertStringContainsString( 'api', $args );
 			self::assertStringContainsString( '--paginate', $args );

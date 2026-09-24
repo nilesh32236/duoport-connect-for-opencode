@@ -16,6 +16,6 @@ if ! PR_LIST=$("$GH_BIN" api --paginate "repos/${REPOSITORY}/pulls?state=open&pe
   exit 1
 fi
 
-# Only a same-repository automation PR is exempt. A fork using the automation
-# branch name is not trusted and remains a competing PR signal.
-printf '%s\n' "$PR_LIST" | awk -F '\t' -v expected="$EXPECTED_REPOSITORY" -v automation="$AUTOMATION_BRANCH" '($2 == expected && $1 != automation) || ($1 == automation && $2 != expected) { print $1 }'
+# Only the exact same-repository automation PR is exempt. Every other open PR,
+# including a fork, remains a competing signal and must defer the updater.
+printf '%s\n' "$PR_LIST" | awk -F '\t' -v expected="$EXPECTED_REPOSITORY" -v automation="$AUTOMATION_BRANCH" '!($1 == automation && $2 == expected) { print $1 }'
