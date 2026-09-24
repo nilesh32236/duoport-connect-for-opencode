@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `981105eaf076694ad435b80b3012d5351c98ea36` (`origin/main`)
+**Merged baseline:** `5f67d1dc3cf4a8329afc5f81dce799a04e626f21` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -26,7 +26,7 @@ The merged plugin was synchronized to the live WordPress site and PHP-linted. Wo
 Local verification passed:
 
 - WPCS
-- PHPUnit: 111 tests, 423 assertions
+- PHPUnit: 113 tests, 433 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
@@ -54,11 +54,11 @@ PR #60 merged deterministically at the exact reviewed head. The first routing pa
 
 ## PF-003 implementation
 
-The current campaign adds a small credential-blind `ConnectionDiagnostics` classifier and routes availability probes through its safe state/code fields. Unsupported Zen endpoint records are explicitly retained as `unsupported` and denied by the transport route; no unsupported model is advertised as a text route.
+The merged base adds a small credential-blind `ConnectionDiagnostics` classifier. The active correction retains the full safe result through transient caching, separates current `usable` from the legacy boolean projection, and routes the request capability gate through the canonical registry so unsupported Zen routes cannot advertise or prepare tools.
 
 ## Next active item: PF-003
 
-PF-003 is the sole active queue item and issue #61; its PR is pending. It adds bounded connection diagnostics without credential access. No competing issue or PR is open. ARCH-001 is complete.
+PF-003 is the sole active queue item and issue #65; its correction PR is pending. No competing issue or PR is open. ARCH-001 is complete.
 
 ## Final boundaries
 

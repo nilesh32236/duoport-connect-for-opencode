@@ -176,6 +176,53 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
+		 * Detailed state survives the transient cache and legacy projection.
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_detailed_result_survives_cache(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			$cache = false;
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( &$cache ) {
+					return 'opencode_connector_avail_go' === $key ? $cache : false;
+				}
+			);
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ) use ( &$cache ): bool {
+					if ( 'opencode_connector_avail_go' === $key ) {
+						$cache = $value;
+					}
+					return true;
+				}
+			);
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			$availability->setHttpTransporter(
+				new FakeProbeTransporter(
+					new Response( 401, array( 'error' => array( 'type' => 'CreditsError' ) ) )
+				)
+			);
+			$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+
+			self::assertTrue( $availability->isConfigured() );
+			$detailed = $availability->getLastResult();
+			self::assertSame( 'no_credits', $detailed['state'] );
+			self::assertFalse( $detailed['usable'] );
+			self::assertIsArray( $cache );
+
+			$availability->setHttpTransporter( new FakeProbeTransporter( new \RuntimeException( 'must not run' ) ) );
+			self::assertSame( $detailed, $availability->diagnose() );
+		}
+
+		/**
 		 * Missing authentication degrades to not-connected, never fatal.
 		 *
 		 * @since 0.1.4

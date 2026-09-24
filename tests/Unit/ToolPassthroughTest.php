@@ -105,10 +105,10 @@ final class ToolPassthroughTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Zen tool-capable models pass through as well (per-catalog gate).
+	 * Verified Zen tool-capable models pass through as well (per-catalog gate).
 	 */
 	public function test_zen_tool_capable_model_passes_through(): void {
-		$model  = new ToolPassthroughTestModel( 'minimax-m3', 'zen' );
+		$model  = new ToolPassthroughTestModel( 'glm-5', 'zen' );
 		$decls  = array( new ToolPassthroughFakeDeclaration( array( 'name' => 'do_thing' ) ) );
 		$result = $model->expose_prepare_tools( $decls );
 
@@ -127,6 +127,9 @@ final class ToolPassthroughTest extends MonkeyTestCase {
 		self::assertSame( array(), ( new ToolPassthroughTestModel( 'no-such-model', 'go' ) )->expose_prepare_tools( $decls ) );
 		self::assertSame( array(), ( new ToolPassthroughTestModel( '', 'go' ) )->expose_prepare_tools( $decls ) );
 		self::assertSame( array(), ( new ToolPassthroughTestModel( 'gpt-4', 'zen' ) )->expose_prepare_tools( $decls ) );
+		foreach ( array( 'minimax-m3', 'minimax-m2.7', 'minimax-m2.5' ) as $id ) {
+			self::assertSame( array(), ( new ToolPassthroughTestModel( $id, 'zen' ) )->expose_prepare_tools( $decls ) );
+		}
 	}
 
 	/**
