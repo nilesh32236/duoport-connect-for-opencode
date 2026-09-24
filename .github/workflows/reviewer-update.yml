@@ -70,15 +70,45 @@ jobs:
           fi
           echo "proceed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare dependency update branch
+      - name: Skip already-current dependency branch
+        id: existing
         if: steps.campaign.outputs.proceed == 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          COMMIT: ${{ steps.release.outputs.commit }}
+        run: |
+          set -euo pipefail
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+          REMOTE_BRANCH="automation/opencode-ai-reviewer"
+          EXISTING_SHA=$(git ls-remote origin "refs/heads/${REMOTE_BRANCH}" | awk '{print $1}')
+          if [ -z "$EXISTING_SHA" ]; then
+            exit 0
+          fi
+          if ! git fetch origin "$REMOTE_BRANCH"; then
+            echo "Unable to inspect the existing dependency branch; refusing to rewrite it."
+            exit 1
+          fi
+          EXISTING_SHA=$(git rev-parse FETCH_HEAD)
+          if MANIFEST=$(git show "${EXISTING_SHA}:.github/reviewer-dependency.json" 2>/dev/null); then
+            if jq -e --arg tag "$TAG" --arg commit "$COMMIT" '.release_tag == $tag and .release_commit == $commit' >/dev/null <<<"$MANIFEST"; then
+              REF_COUNT=$(git grep -h -F -e "uses: nilesh32236/opencode-ai-reviewer@${COMMIT} # ${TAG}" "$EXISTING_SHA" -- '.github/workflows/*.yml' | wc -l || true)
+              if [ "$REF_COUNT" -ge 4 ]; then
+                echo "Dependency branch already represents ${TAG} @ ${COMMIT}; no rewrite needed."
+                echo "proceed=false" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+          fi
+
+      - name: Prepare dependency update branch
+        if: steps.campaign.outputs.proceed == 'true' && steps.existing.outputs.proceed != 'false'
         run: |
           set -euo pipefail
           git fetch origin main
           git switch -C automation/opencode-ai-reviewer origin/main
 
       - name: Update manifest and workflow references
-        if: steps.campaign.outputs.proceed == 'true'
+        if: steps.campaign.outputs.proceed == 'true' && steps.existing.outputs.proceed != 'false'
         env:
           TAG: ${{ steps.release.outputs.tag }}
           COMMIT: ${{ steps.release.outputs.commit }}
@@ -88,7 +118,7 @@ jobs:
           php .github/scripts/update-opencode-reviewer.php --tag "$TAG" --commit "$COMMIT" --published "$PUBLISHED"
 
       - name: Commit and open traceable dependency PR
-        if: steps.campaign.outputs.proceed == 'true'
+        if: steps.campaign.outputs.proceed == 'true' && steps.existing.outputs.proceed != 'false'
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.release.outputs.tag }}

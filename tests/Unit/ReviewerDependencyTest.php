@@ -69,5 +69,11 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		self::assertStringContainsString( 'e9312be75ed803b7415fc2aeabda1f4fe938912a39673762dc0c38c0e11ebde4', $source );
 		self::assertStringContainsString( 'd4e332f46b227448582c0d9fc75f6f826dfe95c9f751bc2011fc4d937a042be6', $source );
 		self::assertStringContainsString( 'sha256sum -c', $source );
+
+		$updater = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/workflows/reviewer-update.yml' );
+		self::assertStringContainsString( 'Skip already-current dependency branch', $updater );
+		self::assertStringContainsString( 'GH_PAT', $updater );
+		self::assertStringContainsString( 'proceed=false', $updater );
+		self::assertStringContainsString( 'force-with-lease', $updater );
 	}
 }

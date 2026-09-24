@@ -46,6 +46,9 @@ $workflow_dir = $root . '/.github/workflows';
 $workflow_files = glob($workflow_dir . '/*.yml') ?: array();
 $reference_count = 0;
 foreach ($workflow_files as $file) {
+    if ('reviewer-update.yml' === basename($file)) {
+        continue;
+    }
     $source = (string) file_get_contents($file);
     if (preg_match_all('/uses:\s*nilesh32236\/opencode-ai-reviewer@([^\s#]+)(?:\s+#\s*(\S+))?/', $source, $matches, PREG_SET_ORDER)) {
         foreach ($matches as $match) {
@@ -87,7 +90,7 @@ if (!str_contains($setup_source, 'OPENCODE_VERSION="${OPENCODE_VERSION:-v1.18.31
     $errors[] = 'setup-opencode.sh must default to v1.18.31 and verify its archive checksum';
 }
 $updater_source = (string) file_get_contents($workflow_dir . '/reviewer-update.yml');
-foreach (array('releases/latest', 'reviewer-dependency.json', 'pull-requests: write', 'concurrency:', 'GH_PAT', 'force-with-lease', 'Unable to inspect open pull requests') as $needle) {
+foreach (array('releases/latest', 'reviewer-dependency.json', 'pull-requests: write', 'concurrency:', 'GH_PAT', 'force-with-lease', 'Unable to inspect open pull requests', 'Skip already-current dependency branch', 'proceed=false') as $needle) {
     if (!str_contains($updater_source, $needle)) {
         $errors[] = 'reviewer-update.yml is missing required traceability/safety contract: ' . $needle;
     }
