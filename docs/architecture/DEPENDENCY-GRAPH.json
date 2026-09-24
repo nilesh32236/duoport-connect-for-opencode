@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "generated_at": "2026-09-24",
-  "source_commit": "09ffba8",
-  "product_code_snapshot": "09ffba8",
-  "snapshot_note": "Product and automation edges reflect the PF-006 implementation snapshot; bounded fallback is wired before text routing and the PF-004 catalog watch remains merged.",
+  "source_commit": "de27b6c",
+  "product_code_snapshot": "de27b6c",
+  "snapshot_note": "Final stopping-point source snapshot; all justified items are complete, PF-007 remains intentionally default-deny, and no active campaign issue or PR remains.",
   "scope": "product runtime and campaign automation",
   "nodes": [
     {
