@@ -142,7 +142,7 @@ items:
     status: in_progress
     title: Capability-aware fallback
     github_issue: 69
-    github_pr: pending
+    github_pr: 70
     priority: medium
     difficulty: hard
     depends_on: [PF-001, PF-002, PF-003]
