@@ -1,0 +1,145 @@
+schema_version: 1
+repository: nilesh32236/duoport-connect-for-opencode
+source_commit: 36df42501b0d7e20e2be1951b78d9d90606dd5d6
+last_audited: 2026-09-24
+rule: exactly_one_active_item
+active_item: AUDIT-041
+items:
+  - id: AUDIT-041
+    status: in_progress
+    title: Resolve current code-quality and version-documentation drift
+    github_issue: 41
+    github_pr: 42
+    owner: campaign-lead
+    priority: high
+    difficulty: low
+    scope:
+      - Retag unreleased 0.1.5 documentation to the current 0.1.4 release.
+      - Centralize the Go session/User-Agent header pair.
+      - Make catalog matching exact and remove dead reflection compatibility code.
+      - Keep DeepSeek prefix checks on the PHP 8.2 str_starts_with API.
+    acceptance:
+      - vendor/bin/phpcs passes.
+      - vendor/bin/phpunit passes.
+      - PHPCompatibilityWP 8.2+ passes.
+      - CI is green on the exact PR head.
+      - No credential option reads, setting aliases, or secret logging are introduced.
+    metrics_before:
+      source_classes: 18
+      source_class_lines: 1827
+      largest_class: OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel
+      largest_method: OpenCodeConnector\\Metadata\\AbstractOpenCodeModelMetadataDirectory::parseResponseToModelMetadataList
+      duplicated_header_blocks: 2
+      unreleased_since_tags: 9
+    metrics_after:
+      source_classes: 19
+      source_class_lines: 1843
+      largest_class: OpenCodeConnector\\Settings\\Settings
+      largest_method: OpenCodeConnector\\Metadata\\AbstractOpenCodeModelMetadataDirectory::parseResponseToModelMetadataList
+      duplicated_header_blocks: 1
+      unreleased_since_tags: 0
+    status_note: Existing PR retained as the single active campaign PR; stale competing issues and PRs were closed after history reconciliation.
+  - id: PF-009
+    status: pending
+    title: Add lightweight compatibility diagnostics
+    priority: medium
+    difficulty: low
+    depends_on: [AUDIT-041]
+    evidence: WordPress AI Client/Connectors compatibility must remain observable without secret reads.
+    acceptance:
+      - Diagnostics are credential-blind and fail open.
+      - Settings page remains small.
+  - id: PF-001
+    status: pending
+    title: Capability-aware model registry
+    priority: high
+    difficulty: medium
+    depends_on: [AUDIT-041, PF-009]
+    evidence: Official Zen/Go endpoint tables and live /models metadata expose capabilities and endpoint families that are not represented canonically today.
+    acceptance:
+      - One curated record per model/catalog contains id, display name, free flag, endpoint family, capabilities, verification status, and last verified date.
+      - Unknown capabilities and endpoint families are default-deny.
+      - New API IDs are not promoted automatically.
+  - id: PF-002
+    status: pending
+    title: Endpoint-family routing
+    priority: high
+    difficulty: hard
+    depends_on: [PF-001]
+    evidence: https://opencode.ai/docs/zen/ and https://opencode.ai/docs/go/ list chat/completions, responses, messages, and provider-specific model paths.
+    acceptance:
+      - Chat, responses, messages, and unsupported cases have focused tests.
+      - Unknown family fails clearly before transport.
+      - No model is silently sent to chat by fallback.
+  - id: PF-003
+    status: pending
+    title: Detailed connection diagnostics
+    priority: high
+    difficulty: medium
+    depends_on: [AUDIT-041]
+    evidence: Current boolean availability contract conflates invalid key, no credits, throttling, and transport failure.
+    acceptance:
+      - Backend result retains configured, verified, usable, and detailed state.
+      - 2xx, invalid key, CreditsError, 429, 5xx, and network errors are tested.
+      - No key values are read, logged, or rendered by plugin code.
+  - id: PF-004
+    status: pending
+    title: Catalog freshness and verification status
+    priority: medium
+    difficulty: medium
+    depends_on: [PF-001]
+    evidence: Catalog Watch currently compares IDs only and the live catalogs are substantially larger than the curated allowlist.
+    acceptance:
+      - Watch distinguishes new, retired, endpoint changed, capability changed, metadata changed, allowlisted, and verification-required states.
+      - Watch does not promote a model solely because it appears in /models.
+  - id: PF-006
+    status: deferred
+    title: Capability-aware fallback
+    priority: medium
+    difficulty: hard
+    depends_on: [PF-001, PF-002, PF-003]
+    reason: Requires verified transport and availability contracts first.
+  - id: PF-005
+    status: deferred
+    title: Smart default model selection
+    priority: low
+    difficulty: medium
+    depends_on: [PF-001]
+    reason: May duplicate WordPress AI Client/caller selection and adds settings responsibility.
+  - id: PF-007
+    status: deferred
+    title: Verified image generation
+    priority: medium
+    difficulty: hard
+    depends_on: [PF-001, PF-002]
+    reason: Current image allowlist is intentionally empty; do not expose unverified image fields.
+  - id: PF-008
+    status: rejected
+    title: WordPress AI request-log integration
+    reason: Core AI Client already owns request logging; duplicating it would add dashboard scope and data handling.
+  - id: OPS-001
+    status: pending
+    title: Repair reviewer and OpenCode CLI workflow dependency
+    priority: high
+    difficulty: medium
+    evidence: Daily Audit runs 2026-09-22 through 2026-09-24 fail before auditing because reviewer action defaults to checksum-required OpenCode CLI latest; the action documents v1.18.31 as a verified checksum pin.
+    acceptance:
+      - Workflows use a released reviewer reference and record resolved reviewer tag, commit SHA, and date.
+      - OpenCode CLI is pinned to a checksum-verified release.
+      - Scheduled automations preserve one active campaign issue/PR invariant.
+  - id: ARCH-001
+    status: pending
+    title: Re-audit after workflow and transport milestones
+    priority: medium
+    difficulty: low
+    depends_on: [OPS-001, PF-001, PF-002]
+    acceptance:
+      - Refresh all architecture artifacts and produce ARCHITECTURE-FINAL.md.
+reconciled_github_items:
+  closed_issues: [11, 14, 17, 21, 28, 30, 34, 36, 38, 39, 40, 43]
+  closed_pull_requests: [22, 23, 24]
+  reason: Preserve history while enforcing one active campaign issue and one active campaign PR.
+future_candidates_not_issues:
+  - PF-005
+  - PF-006
+  - PF-007

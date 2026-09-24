@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-24",
+  "source_commit": "36df42501b0d7e20e2be1951b78d9d90606dd5d6",
+  "scope": "product runtime and campaign automation",
+  "nodes": [
+    {"id":"wordpress","kind":"platform","label":"WordPress 7.0+ / Connectors"},
+    {"id":"ai-client","kind":"platform","label":"WordPress AI Client"},
+    {"id":"entrypoint","kind":"product","file":"duoport-connect-for-opencode.php"},
+    {"id":"providers","kind":"product","files":["src/Providers/AbstractOpenCodeProvider.php","src/Providers/OpenCodeGoProvider.php","src/Providers/OpenCodeZenProvider.php"]},
+    {"id":"models","kind":"product","files":["src/Models/AbstractOpenCodeTextGenerationModel.php","src/Models/AbstractOpenCodeImageGenerationModel.php"]},
+    {"id":"metadata","kind":"product","files":["src/Metadata/AbstractOpenCodeModelMetadataDirectory.php","src/Metadata/ModelAllowlist.php"]},
+    {"id":"availability","kind":"product","file":"src/Availability/OpenCodeProviderAvailability.php"},
+    {"id":"http","kind":"product","files":["src/Http/SessionHeader.php","src/Http/ClientUserAgent.php"]},
+    {"id":"settings","kind":"product","file":"src/Settings/Settings.php"},
+    {"id":"media","kind":"product","file":"src/Media/ImageAttachmentSaver.php"},
+    {"id":"opencode-api","kind":"external","label":"OpenCode Go/Zen API"},
+    {"id":"wp-media","kind":"platform","label":"WordPress Media Library"},
+    {"id":"reviewer-action","kind":"automation","label":"nilesh32236/opencode-ai-reviewer"},
+    {"id":"opencode-cli","kind":"automation","label":"anomalyco/opencode CLI"},
+    {"id":"github","kind":"automation","label":"GitHub Actions / API"}
+  ],
+  "edges": [
+    {"from":"wordpress","to":"entrypoint","kind":"hooks"},
+    {"from":"wordpress","to":"ai-client","kind":"provides"},
+    {"from":"entrypoint","to":"providers","kind":"registers"},
+    {"from":"providers","to":"ai-client","kind":"implements-contracts"},
+    {"from":"providers","to":"models","kind":"factory"},
+    {"from":"providers","to":"metadata","kind":"factory"},
+    {"from":"providers","to":"availability","kind":"factory"},
+    {"from":"metadata","to":"ai-client","kind":"DTOs"},
+    {"from":"metadata","to":"opencode-api","kind":"GET /models"},
+    {"from":"models","to":"ai-client","kind":"Request/response DTOs"},
+    {"from":"models","to":"http","kind":"headers"},
+    {"from":"models","to":"opencode-api","kind":"chat/completions (current)"},
+    {"from":"availability","to":"ai-client","kind":"availability/transport contracts"},
+    {"from":"availability","to":"http","kind":"session header"},
+    {"from":"availability","to":"opencode-api","kind":"minimal probe"},
+    {"from":"settings","to":"ai-client","kind":"registry status"},
+    {"from":"settings","to":"availability","kind":"compatibility projection (planned)"},
+    {"from":"media","to":"wp-media","kind":"validated upload"},
+    {"from":"github","to":"reviewer-action","kind":"workflow uses"},
+    {"from":"reviewer-action","to":"opencode-cli","kind":"downloads/verifies"},
+    {"from":"reviewer-action","to":"github","kind":"comments/PRs/issues"},
+    {"from":"github","to":"opencode-cli","kind":"release API metadata (updater planned)"}
+  ],
+  "forbidden_edges": [
+    {"from":"product","to":"connectors_ai_* option values","reason":"credential boundary"},
+    {"from":"metadata","to":"credentials","reason":"metadata must be deterministic"},
+    {"from":"settings","to":"transport execution","reason":"settings owns presentation only"},
+    {"from":"unknown endpoint family","to":"chat/completions default","reason":"transport correctness"}
+  ],
+  "current_hotspots": [
+    {"id":"providers","reason":"highest fan-out and SDK contract concentration"},
+    {"id":"settings","reason":"settings/cache-key/SDK-cache coupling"},
+    {"id":"models","reason":"text transport and capability gating"},
+    {"id":"metadata","reason":"catalog filtering and capability advertisement"}
+  ]
+}
