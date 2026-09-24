@@ -99,7 +99,7 @@ items:
     status: in_progress
     title: Endpoint-family routing
     github_issue: 59
-    github_pr: pending
+    github_pr: 60
     priority: high
     difficulty: hard
     depends_on: [PF-001]
