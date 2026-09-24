@@ -35,4 +35,13 @@ final class OpenCodeZenTextGenerationModel extends AbstractOpenCodeTextGeneratio
 	protected function providerClass(): string {
 		return OpenCodeZenProvider::class;
 	}
+
+	/**
+	 * Curated same-catalog, same-endpoint fallback for tool requests.
+	 *
+	 * @return array<int, string>
+	 */
+	protected function fallback_model_ids(): array {
+		return array( 'glm-5.2' );
+	}
 }

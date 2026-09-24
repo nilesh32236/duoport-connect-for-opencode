@@ -1,12 +1,12 @@
 {
   "summary": {
-    "generated_from_commit": "1ebf3cc",
+    "generated_from_commit": "8354888b03af505bb4aaccb7a43317aa8eae9696",
     "generated_at": "2026-09-24",
     "file_count": 27,
     "class_count": 26,
-    "source_lines": 3400,
+    "source_lines": 3457,
     "largest_class": "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
-    "largest_class_lines": 254,
+    "largest_class_lines": 282,
     "largest_method": {
       "class": "OpenCodeConnector\\Metadata\\CatalogWatch",
       "method": "compare",
@@ -15,7 +15,7 @@
     "highest_fan_in": "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
     "highest_fan_in_count": 8,
     "highest_fan_out": "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
-    "highest_fan_out_count": 8,
+    "highest_fan_out_count": 7,
     "highest_dependency_concentration": "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider",
     "highest_dependency_count": 16
   },
@@ -1000,72 +1000,72 @@
       "final": false,
       "extends": "AbstractOpenAiCompatibleTextGenerationModel",
       "implements": null,
-      "start_line": 37,
-      "end_line": 290,
-      "lines": 254,
+      "start_line": 36,
+      "end_line": 317,
+      "lines": 282,
       "methods": [
         {
           "name": "providerClass",
           "visibility": "protected",
           "static": false,
-          "line": 45,
-          "end_line": 45,
+          "line": 51,
+          "end_line": 51,
           "lines": 1
         },
         {
           "name": "createRequest",
           "visibility": "protected",
           "static": false,
-          "line": 66,
-          "end_line": 88,
-          "lines": 23
+          "line": 72,
+          "end_line": 101,
+          "lines": 30
         },
         {
           "name": "prepareResponseFormatParam",
           "visibility": "protected",
           "static": false,
-          "line": 98,
-          "end_line": 110,
+          "line": 111,
+          "end_line": 123,
           "lines": 13
         },
         {
           "name": "prepareToolsParam",
           "visibility": "protected",
           "static": false,
-          "line": 131,
-          "end_line": 169,
-          "lines": 39
+          "line": 144,
+          "end_line": 196,
+          "lines": 53
         },
         {
           "name": "route_model_id",
           "visibility": "protected",
           "static": false,
-          "line": 179,
-          "end_line": 181,
+          "line": 206,
+          "end_line": 208,
           "lines": 3
         },
         {
           "name": "fallback_model_ids",
           "visibility": "protected",
           "static": false,
-          "line": 191,
-          "end_line": 193,
+          "line": 218,
+          "end_line": 220,
           "lines": 3
         },
         {
           "name": "model_id_for_tool_gate",
           "visibility": "private",
           "static": false,
-          "line": 206,
-          "end_line": 257,
+          "line": 233,
+          "end_line": 284,
           "lines": 52
         },
         {
           "name": "catalog_key_for_tool_gate",
           "visibility": "private",
           "static": false,
-          "line": 270,
-          "end_line": 289,
+          "line": 297,
+          "end_line": 316,
           "lines": 20
         }
       ],
@@ -1085,7 +1085,6 @@
       ],
       "dependencies": [
         "OpenCodeConnector\\Http\\GoRequestHeaders",
-        "OpenCodeConnector\\Metadata\\ModelAllowlist",
         "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
         "OpenCodeConnector\\Providers\\OpenCodeZenProvider",
         "WordPress\\AiClient\\Providers\\Http\\DTO\\Request",
@@ -1107,7 +1106,6 @@
       ],
       "fan_out": [
         "OpenCodeConnector\\Http\\GoRequestHeaders",
-        "OpenCodeConnector\\Metadata\\ModelAllowlist",
         "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
         "OpenCodeConnector\\Providers\\OpenCodeZenProvider",
         "OpenCodeConnector\\Metadata\\ModelRegistry",
@@ -1168,8 +1166,8 @@
       "extends": "AbstractOpenCodeTextGenerationModel",
       "implements": null,
       "start_line": 27,
-      "end_line": 38,
-      "lines": 12,
+      "end_line": 47,
+      "lines": 21,
       "methods": [
         {
           "name": "providerClass",
@@ -1178,12 +1176,21 @@
           "line": 35,
           "end_line": 37,
           "lines": 3
+        },
+        {
+          "name": "fallback_model_ids",
+          "visibility": "protected",
+          "static": false,
+          "line": 44,
+          "end_line": 46,
+          "lines": 3
         }
       ],
-      "method_count": 1,
+      "method_count": 2,
       "public_methods": [],
       "protected_methods": [
-        "providerClass"
+        "providerClass",
+        "fallback_model_ids"
       ],
       "private_methods": [],
       "dependencies": [
@@ -1254,8 +1261,8 @@
       "extends": "AbstractOpenCodeTextGenerationModel",
       "implements": null,
       "start_line": 27,
-      "end_line": 38,
-      "lines": 12,
+      "end_line": 47,
+      "lines": 21,
       "methods": [
         {
           "name": "providerClass",
@@ -1264,12 +1271,21 @@
           "line": 35,
           "end_line": 37,
           "lines": 3
+        },
+        {
+          "name": "fallback_model_ids",
+          "visibility": "protected",
+          "static": false,
+          "line": 44,
+          "end_line": 46,
+          "lines": 3
         }
       ],
-      "method_count": 1,
+      "method_count": 2,
       "public_methods": [],
       "protected_methods": [
-        "providerClass"
+        "providerClass",
+        "fallback_model_ids"
       ],
       "private_methods": [],
       "dependencies": [
@@ -1809,47 +1825,47 @@
       "extends": null,
       "implements": null,
       "start_line": 20,
-      "end_line": 191,
-      "lines": 172,
+      "end_line": 203,
+      "lines": 184,
       "methods": [
         {
           "name": "__construct",
           "visibility": "public",
           "static": false,
-          "line": 46,
-          "end_line": 48,
+          "line": 51,
+          "end_line": 53,
           "lines": 3
         },
         {
           "name": "select",
           "visibility": "public",
           "static": false,
-          "line": 59,
-          "end_line": 145,
-          "lines": 87
+          "line": 64,
+          "end_line": 157,
+          "lines": 94
         },
         {
           "name": "is_verified",
           "visibility": "private",
           "static": false,
-          "line": 153,
-          "end_line": 155,
+          "line": 165,
+          "end_line": 167,
           "lines": 3
         },
         {
           "name": "record",
           "visibility": "private",
           "static": false,
-          "line": 164,
-          "end_line": 170,
+          "line": 176,
+          "end_line": 182,
           "lines": 7
         },
         {
           "name": "empty_result",
           "visibility": "private",
           "static": false,
-          "line": 178,
-          "end_line": 190,
+          "line": 190,
+          "end_line": 202,
           "lines": 13
         }
       ],

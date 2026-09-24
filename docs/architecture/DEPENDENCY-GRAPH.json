@@ -3,7 +3,7 @@
   "generated_at": "2026-09-24",
   "source_commit": "1ebf3cc",
   "product_code_snapshot": "1ebf3cc",
-  "snapshot_note": "Product and automation edges reflect the current merged main baseline; the PF-004 correction adds the shipped CatalogWatch integration.",
+  "snapshot_note": "Product and automation edges reflect the PF-006 implementation snapshot; bounded fallback is wired before text routing and the PF-004 catalog watch remains merged.",
   "scope": "product runtime and campaign automation",
   "nodes": [
     {

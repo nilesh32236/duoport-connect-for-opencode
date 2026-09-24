@@ -146,9 +146,9 @@ items:
     github_pr: 82
     priority: medium
     difficulty: hard
-    depends_on: [PF-001, PF-002, PF-003]
+    depends_on: [PF-001, PF-002, PF-003, PF-004]
     reason: Corrected catalog watch, verified registry, endpoint route, and availability contracts are now available.
-    status_note: Bounded selector is wired before text routing; PR #82 awaits exact-head gates.
+    status_note: Bounded selector is wired before text routing and rewrites payload model when selected; PR #82 awaits exact-head gates.
   - id: PF-005
     status: deferred
     title: Smart default model selection
@@ -242,5 +242,4 @@ reconciled_github_items:
   reason: Preserve history while enforcing one active campaign issue and one active campaign PR.
 future_candidates_not_issues:
   - PF-005
-  - PF-006
   - PF-007

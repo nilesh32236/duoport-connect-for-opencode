@@ -32,6 +32,11 @@ final class CapabilityAwareFallback {
 	private const VERIFIED_STATUSES = array( 'legacy-verified', 'verified' );
 
 	/**
+	 * Only the complete transport family currently implemented.
+	 */
+	private const IMPLEMENTED_ENDPOINT = 'chat';
+
+	/**
 	 * Optional record resolver used only for isolated contract tests.
 	 *
 	 * @var callable(string, string): (array<string, mixed>|null)|null
@@ -68,7 +73,7 @@ final class CapabilityAwareFallback {
 		if ( ( $primary['id'] ?? null ) !== $primary_id || ( $primary['catalog'] ?? null ) !== $catalog ) {
 			return $this->empty_result( 'primary_record_mismatch' );
 		}
-		if ( 'unsupported' === ( $primary['endpoint_family'] ?? '' ) || ! $this->is_verified( $primary ) ) {
+		if ( self::IMPLEMENTED_ENDPOINT !== ( $primary['endpoint_family'] ?? '' ) || ! $this->is_verified( $primary ) ) {
 			return $this->empty_result( 'unsupported_primary_endpoint' );
 		}
 
@@ -114,7 +119,14 @@ final class CapabilityAwareFallback {
 				);
 				continue;
 			}
-			if ( 'unsupported' === ( $record['endpoint_family'] ?? '' ) || ! $this->is_verified( $record ) ) {
+			if ( self::IMPLEMENTED_ENDPOINT !== ( $record['endpoint_family'] ?? '' ) ) {
+				$rejected[] = array(
+					'id'     => $candidate_id,
+					'reason' => 'endpoint_mismatch',
+				);
+				continue;
+			}
+			if ( ! $this->is_verified( $record ) ) {
 				$rejected[] = array(
 					'id'     => $candidate_id,
 					'reason' => 'unsupported_endpoint',

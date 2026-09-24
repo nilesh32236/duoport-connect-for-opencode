@@ -4,9 +4,9 @@
 
 **Baseline repository head:** `0b8fd3a9568078977a13288dac4320ff12d98844` (`origin/main`)
 
-**Active campaign PR:** pending for `PF-006` (the exact head will be captured in the merge gate)
+**Active campaign PR:** [#82](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/82) (the exact head is captured in the merge gate)
 
-**Active queue item:** `PF-006` / GitHub issue [#81](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/81) / PR pending
+**Active queue item:** `PF-006` / GitHub issue [#81](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/81) / PR #82
 
 **Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; both providers are registered in the available WordPress runtime.
 
@@ -101,6 +101,6 @@ The reviewer updater is deliberately not a direct auto-merge path. It resolves o
 
 ## Baseline metrics
 
-The machine-readable inventory on the active PR head reports 26 PHP classes, 3,400 source lines, largest class `AbstractOpenCodeTextGenerationModel` (254 lines), largest method `CatalogWatch::compare` (118 lines), and the highest fan-in `OpenCodeGoProvider` (8) / fan-out `AbstractOpenCodeTextGenerationModel` (8) concentration. The previous pre-correction baseline was 19 classes and 1,843 source lines. These are measurements, not a target to optimize by splitting code merely to reduce numbers.
+The machine-readable inventory on the active PR head reports 26 PHP classes, 3,457 source lines, largest class `AbstractOpenCodeTextGenerationModel` (282 lines), largest method `CatalogWatch::compare` (118 lines), and the highest fan-in `OpenCodeGoProvider` (8) / fan-out `AbstractOpenCodeTextGenerationModel` (7) concentration. The previous pre-correction baseline was 19 classes and 1,843 source lines. These are measurements, not a target to optimize by splitting code merely to reduce numbers.
 
 The live unauthenticated catalogs returned 80 Zen IDs and 42 Go IDs at audit time, while the curated allowlist contains 17 IDs per catalog. The difference is intentional safety drift; new IDs require verification before promotion.

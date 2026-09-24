@@ -62,7 +62,7 @@ PR #80 merged the final causal CI fixture, direct malformed-input regressions, a
 
 ## PF-006 implementation
 
-PR #82 adds `CapabilityAwareFallback`, an opt-in bounded selector invoked before text routing. It requires matching catalog, endpoint family, capability, and verification records, rejects unknown/unsupported/duplicate/cyclic/exhausted candidates, and defaults to no fallback.
+PR #82 adds `CapabilityAwareFallback`, a bounded selector invoked before tool shaping and text routing. It requires matching model identity, catalog, implemented endpoint family, capability, and verification records, rejects unknown/unsupported/duplicate/cyclic/exhausted candidates, rewrites the request model when selected, and fails closed when no candidate exists.
 
 ## Next active item: PF-006
 
