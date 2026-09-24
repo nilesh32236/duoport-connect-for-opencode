@@ -1,6 +1,6 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: cab8d78aaa0d72351c557357b59be89f0b0885d3
+source_commit: 63afb3e5401fca7212eb3cd3bbd370331c5b00ff
 last_audited: 2026-09-24
 rule: exactly_one_active_item
 active_item: PF-004
@@ -128,8 +128,8 @@ items:
   - id: PF-004
     status: in_progress
     title: Catalog freshness and verification status
-    github_issue: 75
-    github_pr: 76
+    github_issue: 79
+    github_pr: 80
     priority: medium
     difficulty: medium
     depends_on: [PF-001]
@@ -138,7 +138,7 @@ items:
       - Watch distinguishes new, retired, endpoint changed, capability changed, metadata changed, allowlisted, and verification-required states.
       - Watch does not promote a model solely because it appears in /models.
       - Shipped drift tooling uses the comparator and malformed evidence cannot cause false retirement or unsafe promotion.
-    status_note: PF-004 base and first correction merged; issue #75 tracks the production exit-semantics and provenance correction.
+    status_note: Earlier corrections merged; issue #79 tracks causal CI coverage and final dependency/provenance audit.
   - id: PF-006
     status: deferred
     title: Capability-aware fallback

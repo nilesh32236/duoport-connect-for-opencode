@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `cab8d78aaa0d72351c557357b59be89f0b0885d3` (`origin/main`)
+**Merged baseline:** `63afb3e5401fca7212eb3cd3bbd370331c5b00ff` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -58,11 +58,11 @@ PR #66 merged the detailed-result correction. The backend now retains safe state
 
 ## PF-004 correction
 
-The merged base introduced `CatalogWatch`; issue #71 corrects the shipped drift script and malformed-input handling. The comparator is now used by production tooling, unknown capabilities and needs-adapter records require verification, and mixed malformed evidence cannot falsely retire baseline records.
+Issue #79 tracks the final causal CI fixture, direct malformed-input regressions, and source/dependency audit corrections. The shipped drift script fails closed when malformed evidence is the only drift signal, and the inventory records actual method boundaries and runtime dependencies.
 
 ## Next active item: PF-004
 
-PF-004 is the sole active queue item and issue #71; its correction PR is pending. No competing issue or PR is open. ARCH-001 is complete.
+PF-004 is the sole active queue item and issue #79; its correction PR #80 is pending. No competing issue or PR is open. ARCH-001 is complete.
 
 ## Final boundaries
 

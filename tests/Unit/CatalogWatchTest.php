@@ -115,6 +115,33 @@ final class CatalogWatchTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * Duplicate-only discovery input cannot return an empty or green result.
+	 */
+	public function test_duplicate_only_input_fails_closed(): void {
+		$results = ( new CatalogWatch() )->compare(
+			'go',
+			array(
+				array( 'id' => 'glm-5.3' ),
+				array( 'id' => 'glm-5.3' ),
+			)
+		);
+
+		self::assertCount( 1, $results );
+		self::assertSame( 'input_invalid', $results[0]['status'] );
+		self::assertFalse( $results[0]['promotable'] );
+	}
+
+	/**
+	 * Non-string numeric IDs are malformed and fail closed.
+	 */
+	public function test_non_string_numeric_id_fails_closed(): void {
+		$results = ( new CatalogWatch() )->compare( 'go', array( array( 'id' => 123 ) ) );
+
+		self::assertCount( 1, $results );
+		self::assertSame( 'input_invalid', $results[0]['status'] );
+	}
+
+	/**
 	 * Unknown capability keys and needs-adapter records require verification.
 	 */
 	public function test_unknown_capability_and_unverified_record_require_verification(): void {
