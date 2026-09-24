@@ -32,14 +32,14 @@ items:
       largest_class: OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel
       largest_method: OpenCodeConnector\\Metadata\\AbstractOpenCodeModelMetadataDirectory::parseResponseToModelMetadataList
       duplicated_header_blocks: 2
-      unreleased_since_tags: 9
+      unreleased_since_tags_literal_occurrences: 13
     metrics_after:
       source_classes: 19
       source_class_lines: 1843
       largest_class: OpenCodeConnector\\Settings\\Settings
       largest_method: OpenCodeConnector\\Metadata\\AbstractOpenCodeModelMetadataDirectory::parseResponseToModelMetadataList
       duplicated_header_blocks: 1
-      unreleased_since_tags: 0
+      unreleased_since_tags_remaining: 0
       release_prepared: 0.1.5
     status_note: Existing PR retained as the single active campaign PR; stale competing issues and PRs were closed after history reconciliation.
     merge_gate:
