@@ -1,12 +1,12 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: 36df42501b0d7e20e2be1951b78d9d90606dd5d6
+source_commit: 4fbb2dbc3669229ef8fbfbb2afbbad416895eaa4
 last_audited: 2026-09-24
 rule: exactly_one_active_item
-active_item: AUDIT-041
+active_item: RELEASE-001
 items:
   - id: AUDIT-041
-    status: in_progress
+    status: completed
     title: Resolve current code-quality and version-documentation drift
     github_issue: 41
     github_pr: 42
@@ -48,6 +48,24 @@ items:
       review: "Required: independent review has no unresolved blocking findings."
       stale_head: "Rejected if any newer push appears after capture."
       post_merge: "Required: WordPress runtime verification, WPCS, PHPUnit, and release checks."
+  - id: RELEASE-001
+    status: in_progress
+    title: Make build-release verification exit successfully
+    github_issue: 44
+    github_pr: pending
+    owner: campaign-lead
+    priority: high
+    difficulty: low
+    evidence: On merged main 4fbb2db, scripts/build-release.sh creates a valid 0.1.5 ZIP but exits 141 because a piped unzip listing is terminated by head under set -o pipefail.
+    scope:
+      - Replace the SIGPIPE-prone diagnostic listing without weakening required/forbidden ZIP checks.
+      - Keep the release artifact limited to distributable plugin files.
+    acceptance:
+      - A valid build exits 0 and unzip -t passes.
+      - Missing required files still fail non-zero.
+      - vendor/ and tests/ remain absent.
+      - WPCS and PHPUnit remain green.
+    status_note: Post-merge WordPress activation/provider/settings/runtime checks passed; release tagging is blocked until this item merges.
   - id: PF-009
     status: pending
     title: Add lightweight compatibility diagnostics

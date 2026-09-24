@@ -28,15 +28,20 @@ rm -f "${ORIG_PWD}/${ZIP_NAME}"
 test -f "${ORIG_PWD}/${ZIP_NAME}" || { echo "ERROR: ZIP not created at ${ORIG_PWD}/${ZIP_NAME}" >&2; exit 1; }
 
 echo "==> Verifying ZIP contents..."
-unzip -l "${ORIG_PWD}/${ZIP_NAME}" | head -n 40
+ZIP_LIST="${BUILD_DIR}/zip-list.txt"
+unzip -Z1 "${ORIG_PWD}/${ZIP_NAME}" > "$ZIP_LIST"
+sed -n '1,40p' "$ZIP_LIST"
 for required in "${PLUGIN_SLUG}/${MAIN_FILE}" "${PLUGIN_SLUG}/readme.txt" "${PLUGIN_SLUG}/uninstall.php" "${PLUGIN_SLUG}/src/autoload.php" "${PLUGIN_SLUG}/assets/images/opencode.svg"; do
-  unzip -l "${ORIG_PWD}/${ZIP_NAME}" | grep -q "$required" || { echo "ERROR: $required missing in ZIP" >&2; exit 1; }
+  grep -Fq "$required" "$ZIP_LIST" || { echo "ERROR: $required missing in ZIP" >&2; exit 1; }
 done
-if unzip -l "${ORIG_PWD}/${ZIP_NAME}" | grep -q "${PLUGIN_SLUG}/vendor/"; then
+if grep -Fq "${PLUGIN_SLUG}/vendor/" "$ZIP_LIST"; then
   echo "ERROR: vendor/ must not ship in the ZIP" >&2; exit 1;
 fi
-if unzip -l "${ORIG_PWD}/${ZIP_NAME}" | grep -q "${PLUGIN_SLUG}/tests/"; then
+if grep -Fq "${PLUGIN_SLUG}/tests/" "$ZIP_LIST"; then
   echo "ERROR: tests/ must not ship in the ZIP" >&2; exit 1;
+fi
+if grep -Fq "${PLUGIN_SLUG}/.firecrawl/" "$ZIP_LIST"; then
+  echo "ERROR: .firecrawl/ must not ship in the ZIP" >&2; exit 1;
 fi
 
 echo "==> Cleanup..."
