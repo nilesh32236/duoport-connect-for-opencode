@@ -128,8 +128,8 @@ items:
   - id: PF-004
     status: in_progress
     title: Catalog freshness and verification status
-    github_issue: 71
-    github_pr: 72
+    github_issue: 75
+    github_pr: 76
     priority: medium
     difficulty: medium
     depends_on: [PF-001]
@@ -138,7 +138,7 @@ items:
       - Watch distinguishes new, retired, endpoint changed, capability changed, metadata changed, allowlisted, and verification-required states.
       - Watch does not promote a model solely because it appears in /models.
       - Shipped drift tooling uses the comparator and malformed evidence cannot cause false retirement or unsafe promotion.
-    status_note: PF-004 base merged in PR #68; issue #71 tracks the shipped-watch and malformed-input correction.
+    status_note: PF-004 base and first correction merged; issue #75 tracks the production exit-semantics and provenance correction.
   - id: PF-006
     status: deferred
     title: Capability-aware fallback

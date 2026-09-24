@@ -152,6 +152,8 @@ final class CatalogWatchTest extends MonkeyTestCase {
 		$watch = new CatalogWatch();
 
 		self::assertSame( array(), $watch->compare( 'other', array( array( 'id' => 'x' ) ) ) );
-		self::assertSame( array(), $watch->compare( 'go', array( array( 'endpoint_family' => 'chat' ) ) ) );
+		$malformed = $watch->compare( 'go', array( array( 'endpoint_family' => 'chat' ) ) );
+		self::assertSame( 'input_invalid', $malformed[0]['status'] );
+		self::assertFalse( $malformed[0]['promotable'] );
 	}
 }
