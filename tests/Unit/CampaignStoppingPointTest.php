@@ -23,7 +23,7 @@ final class CampaignStoppingPointTest extends MonkeyTestCase {
 		self::assertStringContainsString( '  - id: MODEL-001', $queue );
 		self::assertStringContainsString( '    status: in_progress', $queue );
 		self::assertStringContainsString( '    github_issue: 92', $queue );
-		self::assertStringContainsString( '    github_pr: pending', $queue );
+		self::assertStringContainsString( '    github_pr: 93', $queue );
 		self::assertStringContainsString( 'PF-005', $queue );
 		self::assertStringContainsString( 'PF-007', $scope );
 		self::assertStringNotContainsString( 'connectors_ai_', $queue );
