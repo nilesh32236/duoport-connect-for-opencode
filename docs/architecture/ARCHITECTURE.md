@@ -45,6 +45,16 @@ Availability
   -> all other responses/exceptions are not configured
 ```
 
+Model Radar flow:
+
+```text
+  public Go/Zen /models
+    -> CatalogWatch evidence normalization
+    -> ModelRadar coverage JSON/Markdown
+    -> one aggregated model-radar issue
+    -> human verification queue (no registry mutation)
+```
+
 ## Layers and ownership
 
 | Layer | Current files | Owns | Must not own |
@@ -103,6 +113,6 @@ The reviewer updater is deliberately not a direct auto-merge path. It resolves o
 
 ## Baseline metrics
 
-The machine-readable inventory on the active PR head reports 26 PHP classes, 3,457 source lines, largest class `AbstractOpenCodeTextGenerationModel` (282 lines), largest method `CatalogWatch::compare` (118 lines), and the highest fan-in `OpenCodeGoProvider` (8) / fan-out `AbstractOpenCodeTextGenerationModel` (7) concentration. The previous pre-correction baseline was 19 classes and 1,843 source lines. These are measurements, not a target to optimize by splitting code merely to reduce numbers.
+The machine-readable inventory on the active PR head reports 27 PHP classes, 3,833 source lines, largest class `ModelRadar` (338 lines), largest method `ModelRadar::catalog_report` (126 lines), and the highest fan-in `OpenCodeGoProvider` (8) / fan-out `AbstractOpenCodeTextGenerationModel` (7) concentration. The previous v0.1.5 baseline was 26 classes and 3,457 source lines. These are measurements, not a target to optimize by splitting code merely to reduce numbers.
 
 The live unauthenticated catalogs returned 80 Zen IDs and 42 Go IDs at audit time, while the curated allowlist contains 17 IDs per catalog. The difference is intentional safety drift; new IDs require verification before promotion.

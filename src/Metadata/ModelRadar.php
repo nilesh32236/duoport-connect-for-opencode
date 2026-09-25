@@ -135,13 +135,13 @@ final class ModelRadar {
 
 		$lines[] = '## Measurement';
 		$lines[] = '';
-		$lines[] = 'Measurement starts at this implementation. Historical detection, verification, merge, and release timestamps are intentionally null until observed.';
+		$lines[] = 'Measurement starts at this implementation. Historical detection, verification, merge, and release timestamps remain null until observed.';
 		$lines[] = '';
 		$lines[] = '- `measurement_started_at`: `' . $this->safe_text( (string) ( $report['metrics']['measurement_started_at'] ?? '' ) ) . '`';
-		$lines[] = '- `detection_to_verification`: null';
-		$lines[] = '- `verification_to_merge`: null';
-		$lines[] = '- `merge_to_release`: null';
-		$lines[] = '- `total_detection_to_release`: null';
+		$lines[] = '- `detection_to_verification`: ' . $this->metric_text( $report, 'detection_to_verification' );
+		$lines[] = '- `verification_to_merge`: ' . $this->metric_text( $report, 'verification_to_merge' );
+		$lines[] = '- `merge_to_release`: ' . $this->metric_text( $report, 'merge_to_release' );
+		$lines[] = '- `total_detection_to_release`: ' . $this->metric_text( $report, 'total_detection_to_release' );
 		$lines[] = '';
 		$lines[] = 'Free-name candidates are observations only; they require endpoint, request, response, capability, and WordPress compatibility verification before promotion.';
 
@@ -157,22 +157,23 @@ final class ModelRadar {
 		return array(
 			'unreachable' => true,
 			'summary'     => array(
-				'discovered'             => 0,
-				'supported'              => 0,
-				'free_supported'         => 0,
-				'registry_candidates'    => 0,
-				'unsupported'            => 0,
-				'verification_required'  => 0,
-				'new'                    => 0,
-				'retired'                => 0,
-				'free_candidates'        => 0,
-				'free_name_candidates'   => 0,
-				'explicit_free_evidence' => 0,
-				'endpoint_change'        => 0,
-				'capability_change'      => 0,
-				'metadata_change'        => 0,
-				'free_change'            => 0,
-				'malformed'              => 0,
+				'discovered'              => 0,
+				'supported'               => 0,
+				'free_supported'          => 0,
+				'registry_candidates'     => 0,
+				'unsupported'             => 0,
+				'verification_required'   => 0,
+				'new'                     => 0,
+				'retired'                 => 0,
+				'free_candidates'         => 0,
+				'retired_free_candidates' => 0,
+				'free_name_candidates'    => 0,
+				'explicit_free_evidence'  => 0,
+				'endpoint_change'         => 0,
+				'capability_change'       => 0,
+				'metadata_change'         => 0,
+				'free_change'             => 0,
+				'malformed'               => 0,
 			),
 			'changes'     => array(),
 		);
@@ -203,22 +204,23 @@ final class ModelRadar {
 		}
 
 		$summary = array(
-			'discovered'             => 0,
-			'supported'              => 0,
-			'free_supported'         => 0,
-			'registry_candidates'    => 0,
-			'unsupported'            => 0,
-			'verification_required'  => 0,
-			'new'                    => 0,
-			'retired'                => 0,
-			'free_candidates'        => 0,
-			'free_name_candidates'   => 0,
-			'explicit_free_evidence' => 0,
-			'endpoint_change'        => 0,
-			'capability_change'      => 0,
-			'metadata_change'        => 0,
-			'free_change'            => 0,
-			'malformed'              => 0,
+			'discovered'              => 0,
+			'supported'               => 0,
+			'free_supported'          => 0,
+			'registry_candidates'     => 0,
+			'unsupported'             => 0,
+			'verification_required'   => 0,
+			'new'                     => 0,
+			'retired'                 => 0,
+			'free_candidates'         => 0,
+			'retired_free_candidates' => 0,
+			'free_name_candidates'    => 0,
+			'explicit_free_evidence'  => 0,
+			'endpoint_change'         => 0,
+			'capability_change'       => 0,
+			'metadata_change'         => 0,
+			'free_change'             => 0,
+			'malformed'               => 0,
 		);
 		$changes = array();
 		foreach ( $results as $result ) {
@@ -273,14 +275,18 @@ final class ModelRadar {
 			if ( ! $is_retired && in_array( 'free_changed', $states, true ) ) {
 				++$summary['free_change'];
 			}
-			if ( $free_name && ! $free_explicit ) {
+			if ( ! $is_retired && $free_name && ! $free_explicit ) {
 				++$summary['free_name_candidates'];
 			}
-			if ( $free_explicit ) {
+			if ( ! $is_retired && $free_explicit ) {
 				++$summary['explicit_free_evidence'];
 			}
 			if ( $free_candidate ) {
-				++$summary['free_candidates'];
+				if ( $is_retired ) {
+					++$summary['retired_free_candidates'];
+				} else {
+					++$summary['free_candidates'];
+				}
 			}
 
 			$priority  = $free_candidate || 'allowlisted' !== ( $result['status'] ?? '' ) ? 'high' : 'normal';
@@ -328,6 +334,18 @@ final class ModelRadar {
 	 */
 	private function looks_free_name( string $id ): bool {
 		return 1 === preg_match( '/(?:^|[-_.])free(?:$|[-_.])/i', $id );
+	}
+
+	/**
+	 * Render one nullable measurement value.
+	 *
+	 * @param array<string, mixed> $report Report data.
+	 * @param string               $key     Measurement key.
+	 * @return string
+	 */
+	private function metric_text( array $report, string $key ): string {
+		$value = $report['metrics'][ $key ] ?? null;
+		return null === $value ? 'null' : $this->safe_text( (string) $value );
 	}
 
 	/**

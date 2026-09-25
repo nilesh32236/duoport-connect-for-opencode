@@ -1,12 +1,12 @@
 {
     "schema_version": 1,
-    "checked_at": "2026-09-25T06:07:12+00:00",
+    "checked_at": "2026-09-25T06:20:27+00:00",
     "sources": {
         "go": "https://opencode.ai/zen/go/v1/models",
         "zen": "https://opencode.ai/zen/v1/models"
     },
     "metrics": {
-        "measurement_started_at": "2026-09-25T06:07:12+00:00",
+        "measurement_started_at": "2026-09-25T06:20:27+00:00",
         "detection_to_verification": null,
         "verification_to_merge": null,
         "merge_to_release": null,
@@ -25,6 +25,7 @@
                 "new": 25,
                 "retired": 0,
                 "free_candidates": 1,
+                "retired_free_candidates": 0,
                 "free_name_candidates": 1,
                 "explicit_free_evidence": 0,
                 "endpoint_change": 0,
@@ -705,6 +706,7 @@
                 "new": 63,
                 "retired": 0,
                 "free_candidates": 10,
+                "retired_free_candidates": 0,
                 "free_name_candidates": 10,
                 "explicit_free_evidence": 0,
                 "endpoint_change": 0,

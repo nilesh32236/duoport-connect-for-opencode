@@ -8,7 +8,7 @@ It does **not** promote a model. A candidate remains default-deny until its cata
 
 ## Baseline snapshot
 
-Captured: `2026-09-25T06:07:12+00:00`
+Captured: `2026-09-25T06:20:27+00:00`
 
 | Catalog | Discovered | Supported | Free supported | Unsupported | Verification required | Free candidates |
 |---|---:|---:|---:|---:|---:|---:|

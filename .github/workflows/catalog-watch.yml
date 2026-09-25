@@ -52,8 +52,9 @@ jobs:
           gh label create "catalog-drift" --force --color "1d76db" --description "OpenCode model catalog changed" -R "${{ github.repository }}" 2>/dev/null || true
           EXISTING=$(gh issue list -R "${{ github.repository }}" --label "model-radar" --state open --json number --jq '.[0].number // empty')
           if [ -z "$EXISTING" ]; then
-            OTHER=$(gh issue list -R "${{ github.repository }}" --state open --limit 1 --json number --jq '.[0].number // empty')
-            if [ -n "$OTHER" ]; then
+            CAMPAIGN=$(gh issue list -R "${{ github.repository }}" --state open --label "model-radar" --json number --jq '.[0].number // empty')
+            CAMPAIGN="${CAMPAIGN:-$(gh issue list -R "${{ github.repository }}" --state open --label "growth" --json number --jq '.[0].number // empty')}"
+            if [ -n "$CAMPAIGN" ]; then
               echo "An active campaign issue exists; deferring radar issue creation."
               exit 0
             fi

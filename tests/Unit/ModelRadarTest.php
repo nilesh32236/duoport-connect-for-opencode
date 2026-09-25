@@ -84,6 +84,7 @@ final class ModelRadarTest extends MonkeyTestCase {
 		self::assertTrue( $report['catalogs']['go']['unreachable'] );
 		self::assertSame( 0, $report['catalogs']['go']['summary']['retired'] );
 		self::assertGreaterThan( 0, $report['catalogs']['zen']['summary']['retired'] );
+		self::assertSame( 4, $report['catalogs']['zen']['summary']['retired_free_candidates'] );
 	}
 
 	/**
@@ -121,11 +122,13 @@ final class ModelRadarTest extends MonkeyTestCase {
 			),
 			'2026-09-25T00:00:00+00:00'
 		);
+		$report['metrics']['detection_to_verification'] = '1h';
 		$markdown = $radar->markdown( $report );
 
 		self::assertStringContainsString( '# OpenCode Model Radar', $markdown );
 		self::assertStringContainsString( 'Free candidates', $markdown );
 		self::assertStringContainsString( 'detection_to_verification', $markdown );
+		self::assertStringContainsString( 'detection_to_verification`: 1h', $markdown );
 		self::assertStringNotContainsString( 'connectors_ai_', $markdown );
 		self::assertStringNotContainsString( 'Authorization', $markdown );
 	}

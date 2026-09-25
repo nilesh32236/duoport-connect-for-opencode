@@ -1,16 +1,16 @@
 {
   "summary": {
-    "generated_from_commit": "176aa80f1243de2f855bcd6f9ef7e016350c2788",
+    "generated_from_commit": "74a5342c234cca787a5c47cee3374b78a1854069",
     "generated_at": "2026-09-25",
-    "file_count": 27,
-    "class_count": 26,
-    "source_lines": 3457,
-    "largest_class": "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
-    "largest_class_lines": 282,
+    "file_count": 28,
+    "class_count": 27,
+    "source_lines": 3833,
+    "largest_class": "OpenCodeConnector\\Metadata\\ModelRadar",
+    "largest_class_lines": 338,
     "largest_method": {
-      "class": "OpenCodeConnector\\Metadata\\CatalogWatch",
-      "method": "compare",
-      "lines": 118
+      "class": "OpenCodeConnector\\Metadata\\ModelRadar",
+      "method": "catalog_report",
+      "lines": 126
     },
     "highest_fan_in": "OpenCodeConnector\\Providers\\OpenCodeGoProvider",
     "highest_fan_in_count": 8,
@@ -591,51 +591,59 @@
       "extends": null,
       "implements": null,
       "start_line": 20,
-      "end_line": 230,
-      "lines": 211,
+      "end_line": 246,
+      "lines": 227,
       "methods": [
         {
           "name": "compare",
           "visibility": "public",
           "static": false,
           "line": 39,
-          "end_line": 156,
-          "lines": 118
+          "end_line": 161,
+          "lines": 123
         },
         {
           "name": "normalize",
           "visibility": "private",
           "static": false,
-          "line": 164,
-          "end_line": 175,
+          "line": 169,
+          "end_line": 180,
           "lines": 12
         },
         {
           "name": "capabilities_changed",
           "visibility": "private",
           "static": false,
-          "line": 184,
-          "end_line": 194,
+          "line": 189,
+          "end_line": 199,
           "lines": 11
+        },
+        {
+          "name": "free_changed",
+          "visibility": "private",
+          "static": false,
+          "line": 208,
+          "end_line": 210,
+          "lines": 3
         },
         {
           "name": "metadata_changed",
           "visibility": "private",
           "static": false,
-          "line": 203,
-          "end_line": 210,
+          "line": 219,
+          "end_line": 226,
           "lines": 8
         },
         {
           "name": "result",
           "visibility": "private",
           "static": false,
-          "line": 221,
-          "end_line": 229,
+          "line": 237,
+          "end_line": 245,
           "lines": 9
         }
       ],
-      "method_count": 5,
+      "method_count": 6,
       "public_methods": [
         "compare"
       ],
@@ -643,6 +651,7 @@
       "private_methods": [
         "normalize",
         "capabilities_changed",
+        "free_changed",
         "metadata_changed",
         "result"
       ],
@@ -1893,6 +1902,116 @@
       ],
       "fan_out": [
         "OpenCodeConnector\\Metadata\\ModelRegistry"
+      ]
+    },
+    {
+      "file": "src/Metadata/ModelRadar.php",
+      "class": "OpenCodeConnector\\Metadata\\ModelRadar",
+      "kind": "class",
+      "abstract": false,
+      "final": true,
+      "extends": null,
+      "implements": null,
+      "start_line": 23,
+      "end_line": 360,
+      "lines": 338,
+      "methods": [
+        {
+          "name": "report",
+          "visibility": "public",
+          "static": false,
+          "line": 49,
+          "end_line": 78,
+          "lines": 30
+        },
+        {
+          "name": "markdown",
+          "visibility": "public",
+          "static": false,
+          "line": 86,
+          "end_line": 149,
+          "lines": 64
+        },
+        {
+          "name": "unreachable_report",
+          "visibility": "private",
+          "static": false,
+          "line": 156,
+          "end_line": 180,
+          "lines": 25
+        },
+        {
+          "name": "catalog_report",
+          "visibility": "private",
+          "static": false,
+          "line": 190,
+          "end_line": 315,
+          "lines": 126
+        },
+        {
+          "name": "is_supported",
+          "visibility": "private",
+          "static": false,
+          "line": 323,
+          "end_line": 327,
+          "lines": 5
+        },
+        {
+          "name": "looks_free_name",
+          "visibility": "private",
+          "static": false,
+          "line": 335,
+          "end_line": 337,
+          "lines": 3
+        },
+        {
+          "name": "metric_text",
+          "visibility": "private",
+          "static": false,
+          "line": 346,
+          "end_line": 349,
+          "lines": 4
+        },
+        {
+          "name": "safe_text",
+          "visibility": "private",
+          "static": false,
+          "line": 357,
+          "end_line": 359,
+          "lines": 3
+        }
+      ],
+      "method_count": 8,
+      "public_methods": [
+        "report",
+        "markdown"
+      ],
+      "protected_methods": [],
+      "private_methods": [
+        "unreachable_report",
+        "catalog_report",
+        "is_supported",
+        "looks_free_name",
+        "metric_text",
+        "safe_text"
+      ],
+      "dependencies": [
+        "OpenCodeConnector\\Metadata\\CatalogWatch",
+        "OpenCodeConnector\\Metadata\\ModelRegistry",
+        "OpenCodeConnector\\Metadata\\ModelAllowlist"
+      ],
+      "wordpress_dependencies": false,
+      "opencode_dependencies": false,
+      "http_dependencies": false,
+      "settings_dependencies": false,
+      "static_state": false,
+      "fan_in": [
+        "check-catalog-drift.php"
+      ],
+      "fan_out": [
+        "OpenCodeConnector\\Metadata\\CatalogWatch",
+        "OpenCodeConnector\\Metadata\\ModelRegistry",
+        "OpenCodeConnector\\Metadata\\ModelAllowlist"
       ]
     }
   ]
