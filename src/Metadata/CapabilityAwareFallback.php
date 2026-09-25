@@ -25,18 +25,6 @@ final class CapabilityAwareFallback {
 	private const MAX_CANDIDATES = 8;
 
 	/**
-	 * Verification states accepted for fallback.
-	 *
-	 * @var list<string>
-	 */
-	private const VERIFIED_STATUSES = array( 'legacy-verified', 'verified' );
-
-	/**
-	 * Only the complete transport family currently implemented.
-	 */
-	private const IMPLEMENTED_ENDPOINT = 'chat';
-
-	/**
 	 * Optional record resolver used only for isolated contract tests.
 	 *
 	 * @var callable(string, string): (array<string, mixed>|null)|null
@@ -62,7 +50,7 @@ final class CapabilityAwareFallback {
 	 * @return array<string, mixed>
 	 */
 	public function select( string $catalog, string $primary_id, string $capability, array $fallback_ids = array() ): array {
-		if ( ! in_array( $catalog, array( 'go', 'zen' ), true ) ) {
+		if ( ! Catalog::is_valid( $catalog ) ) {
 			return $this->empty_result( 'unknown_catalog' );
 		}
 
@@ -73,7 +61,7 @@ final class CapabilityAwareFallback {
 		if ( ( $primary['id'] ?? null ) !== $primary_id || ( $primary['catalog'] ?? null ) !== $catalog ) {
 			return $this->empty_result( 'primary_record_mismatch' );
 		}
-		if ( self::IMPLEMENTED_ENDPOINT !== ( $primary['endpoint_family'] ?? '' ) || ! $this->is_verified( $primary ) ) {
+		if ( ModelRegistry::IMPLEMENTED_ENDPOINT !== ( $primary['endpoint_family'] ?? '' ) || ! ModelRegistry::isVerified( $primary ) ) {
 			return $this->empty_result( 'unsupported_primary_endpoint' );
 		}
 
@@ -97,49 +85,15 @@ final class CapabilityAwareFallback {
 				continue;
 			}
 			$seen[ $candidate_id ] = true;
-			$record                = $this->record( $candidate_id, $catalog );
-			if ( null === $record ) {
+			$reason                = $this->validateCandidate( $candidate_id, $catalog, $endpoint, $capability );
+			if ( null !== $reason ) {
 				$rejected[] = array(
 					'id'     => $candidate_id,
-					'reason' => 'unknown_model',
+					'reason' => $reason,
 				);
 				continue;
 			}
-			if ( ( $record['id'] ?? null ) !== $candidate_id || ( $record['catalog'] ?? null ) !== $catalog ) {
-				$rejected[] = array(
-					'id'     => $candidate_id,
-					'reason' => 'record_mismatch',
-				);
-				continue;
-			}
-			if ( ( $record['endpoint_family'] ?? '' ) !== $endpoint ) {
-				$rejected[] = array(
-					'id'     => $candidate_id,
-					'reason' => 'endpoint_mismatch',
-				);
-				continue;
-			}
-			if ( self::IMPLEMENTED_ENDPOINT !== ( $record['endpoint_family'] ?? '' ) ) {
-				$rejected[] = array(
-					'id'     => $candidate_id,
-					'reason' => 'endpoint_mismatch',
-				);
-				continue;
-			}
-			if ( ! $this->is_verified( $record ) ) {
-				$rejected[] = array(
-					'id'     => $candidate_id,
-					'reason' => 'unsupported_endpoint',
-				);
-				continue;
-			}
-			if ( true !== ( $record['capabilities'][ $capability ] ?? false ) ) {
-				$rejected[] = array(
-					'id'     => $candidate_id,
-					'reason' => 'capability_mismatch',
-				);
-				continue;
-			}
+			$record = $this->record( $candidate_id, $catalog );
 			return array(
 				'selected'    => $record,
 				'selected_id' => $candidate_id,
@@ -157,13 +111,49 @@ final class CapabilityAwareFallback {
 	}
 
 	/**
+	 * Validate one fallback candidate against the primary contract.
+	 *
+	 * Returns a rejection reason, or null when the candidate is selectable.
+	 *
+	 * @param string $candidate_id Candidate model ID.
+	 * @param string $catalog      Catalog slug.
+	 * @param string $endpoint     Required endpoint family.
+	 * @param string $capability   Required capability key.
+	 * @return string|null Rejection reason, or null when valid.
+	 */
+	private function validateCandidate( string $candidate_id, string $catalog, string $endpoint, string $capability ): ?string {
+		$record = $this->record( $candidate_id, $catalog );
+		if ( null === $record ) {
+			return 'unknown_model';
+		}
+		if ( ( $record['id'] ?? null ) !== $candidate_id || ( $record['catalog'] ?? null ) !== $catalog ) {
+			return 'record_mismatch';
+		}
+		if ( ( $record['endpoint_family'] ?? '' ) !== $endpoint ) {
+			return 'endpoint_mismatch';
+		}
+		if ( ModelRegistry::IMPLEMENTED_ENDPOINT !== ( $record['endpoint_family'] ?? '' ) ) {
+			return 'endpoint_mismatch';
+		}
+		if ( ! ModelRegistry::isVerified( $record ) ) {
+			return 'unsupported_endpoint';
+		}
+		if ( true !== ( $record['capabilities'][ $capability ] ?? false ) ) {
+			return 'capability_mismatch';
+		}
+		return null;
+	}
+
+	/**
 	 * Whether a record has a known verification state.
+	 *
+	 * Delegates to the canonical ModelRegistry vocabulary.
 	 *
 	 * @param array<string, mixed> $record Model record.
 	 * @return bool
 	 */
 	private function is_verified( array $record ): bool {
-		return in_array( $record['verification_status'] ?? '', self::VERIFIED_STATUSES, true );
+		return ModelRegistry::isVerified( $record );
 	}
 
 	/**

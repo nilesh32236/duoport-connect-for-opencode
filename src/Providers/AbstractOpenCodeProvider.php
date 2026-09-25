@@ -17,6 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use OpenCodeConnector\Availability\OpenCodeProviderAvailability;
+use OpenCodeConnector\Metadata\Catalog;
 use OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory;
 use OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory;
 use OpenCodeConnector\Models\OpenCodeGoImageGenerationModel;
@@ -94,17 +95,17 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 		$caps = $model->getSupportedCapabilities();
 		foreach ( $caps as $capability ) {
 			if ( self::capability_matches( $capability, 'isImageGeneration', array( 'image-generation', 'image_generation' ) ) ) {
-				return 'go' === static::catalogKey()
+				return Catalog::GO === static::catalogKey()
 					? new OpenCodeGoImageGenerationModel( $model, $provider )
 					: new OpenCodeZenImageGenerationModel( $model, $provider );
 			}
 			if ( self::capability_matches( $capability, 'isTextGeneration', array( 'text-generation', 'text_generation' ) ) ) {
-				return 'go' === static::catalogKey()
+				return Catalog::GO === static::catalogKey()
 					? new OpenCodeGoTextGenerationModel( $model, $provider )
 					: new OpenCodeZenTextGenerationModel( $model, $provider );
 			}
 			if ( self::capability_matches( $capability, 'isChatHistory', array( 'chat-history', 'chat_history' ) ) ) {
-				return 'go' === static::catalogKey()
+				return Catalog::GO === static::catalogKey()
 					? new OpenCodeGoTextGenerationModel( $model, $provider )
 					: new OpenCodeZenTextGenerationModel( $model, $provider );
 			}
@@ -217,7 +218,7 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 			static::providerId(),
 			static::displayName(),
 			ProviderTypeEnum::cloud(),
-			'https://opencode.ai/auth',
+			Endpoints::authUrl(),
 			RequestAuthenticationMethod::apiKey(),
 		);
 		$ai_version = defined( AiClient::class . '::VERSION' ) ? AiClient::VERSION : '1.0.0';
@@ -249,7 +250,7 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * @return ModelMetadataDirectoryInterface
 	 */
 	protected static function createModelMetadataDirectory(): ModelMetadataDirectoryInterface {
-		return 'go' === static::catalogKey()
+		return Catalog::GO === static::catalogKey()
 			? new OpenCodeGoModelMetadataDirectory()
 			: new OpenCodeZenModelMetadataDirectory();
 	}

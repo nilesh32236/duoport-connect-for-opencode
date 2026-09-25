@@ -196,7 +196,7 @@ final class ModelAllowlist {
 		if ( self::isFree( $id ) ) {
 			return false;
 		}
-		if ( str_starts_with( $id, 'deepseek' ) ) {
+		if ( ! ModelRegistry::supportsStructuredOutput( $id ) ) {
 			return false;
 		}
 		return true;

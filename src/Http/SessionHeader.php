@@ -147,12 +147,7 @@ final class SessionHeader {
 	 */
 	private static function hash_canonical( array $canonical ): ?string {
 		try {
-			if ( function_exists( 'wp_json_encode' ) ) {
-				$encoded = wp_json_encode( $canonical );
-			} else {
-				// No WP context (e.g. unit tests): plain encoding is sufficient for hashing.
-				$encoded = json_encode( $canonical ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
-			}
+			$encoded = self::jsonEncode( $canonical );
 			if ( ! is_string( $encoded ) || '' === $encoded ) {
 				return null;
 			}
@@ -188,13 +183,34 @@ final class SessionHeader {
 		if ( null === $session ) {
 			return $headers;
 		}
-		foreach ( $headers as $name => $existing ) {
-			if ( is_string( $name ) && 0 === strcasecmp( $name, self::HEADER_NAME ) ) {
-				return $headers;
-			}
+		if ( Headers::has( $headers, self::HEADER_NAME ) ) {
+			return $headers;
 		}
 		$headers[ self::HEADER_NAME ] = substr( $session, 0, self::VALUE_MAX_LENGTH );
 		return $headers;
+	}
+
+	/**
+	 * Encode a value with the WP encoder when available.
+	 *
+	 * Uses `wp_json_encode()` when available, plain `json_encode()` outside
+	 * a WP context (e.g. unit tests). Never throws.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @param mixed $value Value to encode.
+	 * @return string|false Encoded value, or false when unencodable.
+	 */
+	private static function jsonEncode( $value ) {
+		try {
+			if ( function_exists( 'wp_json_encode' ) ) {
+				return wp_json_encode( $value );
+			}
+			// No WP context (e.g. unit tests): plain encoding is sufficient.
+			return json_encode( $value ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
+		} catch ( \Throwable ) {
+			return false;
+		}
 	}
 
 	/**
@@ -213,16 +229,8 @@ final class SessionHeader {
 			return (string) $content;
 		}
 		if ( is_array( $content ) ) {
-			try {
-				if ( function_exists( 'wp_json_encode' ) ) {
-					$encoded = wp_json_encode( $content );
-				} else {
-					$encoded = json_encode( $content ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
-				}
-				return is_string( $encoded ) ? $encoded : '';
-			} catch ( \Throwable ) {
-				return '';
-			}
+			$encoded = self::jsonEncode( $content );
+			return is_string( $encoded ) ? $encoded : '';
 		}
 		return '';
 	}

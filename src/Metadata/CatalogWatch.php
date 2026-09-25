@@ -20,13 +20,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class CatalogWatch {
 
 	/**
-	 * Safe catalog keys.
-	 *
-	 * @var list<string>
-	 */
-	private const CATALOGS = array( 'go', 'zen' );
-
-	/**
 	 * Compare a discovery snapshot with the reviewed catalog registry.
 	 *
 	 * Discovery is evidence only: every output row is non-promotable until a
@@ -37,7 +30,7 @@ final class CatalogWatch {
 	 * @return list<array<string, mixed>>
 	 */
 	public function compare( string $catalog, array $discovered ): array {
-		if ( ! in_array( $catalog, self::CATALOGS, true ) ) {
+		if ( ! Catalog::is_valid( $catalog ) ) {
 			return array();
 		}
 
@@ -46,6 +39,37 @@ final class CatalogWatch {
 			$baseline[ 'id:' . $record['id'] ] = $record;
 		}
 
+		$validated = $this->validateRows( $discovered );
+		if ( null === $validated ) {
+			return array( $this->result( '', 'input_invalid', array( 'input_invalid' ), false ) );
+		}
+		list( $current, $has_malformed ) = $validated;
+
+		$results = $this->diffAgainstBaseline( $baseline, $current, $has_malformed );
+		$results = array_merge( $results, $this->retiredSweep( $baseline, $current, $has_malformed ) );
+
+		usort(
+			$results,
+			static function ( array $left, array $right ): int {
+				return strcmp( $left['id'], $right['id'] );
+			}
+		);
+		return $results;
+	}
+
+	/**
+	 * Validate and normalize raw discovery rows.
+	 *
+	 * Returns null when the input fails closed (malformed with no valid
+	 * rows, or non-empty with no valid row); otherwise a [current, flagged]
+	 * pair where flagged marks partially malformed input.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @param array<int, mixed> $discovered Raw discovery rows.
+	 * @return array{0: array<string, array<string, mixed>>, 1: bool}|null
+	 */
+	private function validateRows( array $discovered ): ?array {
 		$current       = array();
 		$invalid_ids   = array();
 		$saw_valid     = false;
@@ -85,12 +109,25 @@ final class CatalogWatch {
 			);
 		}
 		if ( $has_malformed && array() === $current ) {
-			return array( $this->result( '', 'input_invalid', array( 'input_invalid' ), false ) );
+			return null;
 		}
 		if ( count( $discovered ) > 0 && ! $saw_valid ) {
-			return array( $this->result( '', 'input_invalid', array( 'input_invalid' ), false ) );
+			return null;
 		}
+		return array( $current, $has_malformed );
+	}
 
+	/**
+	 * Diff validated rows against the reviewed baseline.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @param array<string, array<string, mixed>> $baseline Baseline records by key.
+	 * @param array<string, array<string, mixed>> $current  Validated rows by key.
+	 * @param bool                                $has_malformed Whether input was partially malformed.
+	 * @return list<array<string, mixed>>
+	 */
+	private function diffAgainstBaseline( array $baseline, array $current, bool $has_malformed ): array {
 		$results = array();
 		foreach ( $current as $entry ) {
 			$id       = $entry['id'];
@@ -105,7 +142,7 @@ final class CatalogWatch {
 				$states[] = 'allowlisted';
 				$status   = 'allowlisted';
 				$record   = $baseline[ $key ];
-				if ( 'needs-adapter' === ( $record['verification_status'] ?? '' ) ) {
+				if ( ModelRegistry::NEEDS_ADAPTER_STATUS === ( $record['verification_status'] ?? '' ) ) {
 					$states[] = 'verification_required';
 					$status   = 'verification_required';
 				}
@@ -135,28 +172,39 @@ final class CatalogWatch {
 			}
 			$results[] = $this->result( $id, $status, $states, isset( $baseline[ $key ] ) );
 		}
+		return $results;
+	}
 
-		if ( ! $has_malformed ) {
-			foreach ( $baseline as $entry ) {
-				$key = 'id:' . $entry['id'];
-				if ( isset( $current[ $key ] ) ) {
-					continue;
-				}
-				$results[] = $this->result(
-					$entry['id'],
-					'retired',
-					array( 'retired', 'verification_required' ),
-					true
-				);
-			}
+	/**
+	 * Report baseline records missing from discovery as retired.
+	 *
+	 * Skipped when input was partially malformed so a bad snapshot cannot
+	 * retire the whole catalog.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @param array<string, array<string, mixed>> $baseline Baseline records by key.
+	 * @param array<string, array<string, mixed>> $current  Validated rows by key.
+	 * @param bool                                $has_malformed Whether input was partially malformed.
+	 * @return list<array<string, mixed>>
+	 */
+	private function retiredSweep( array $baseline, array $current, bool $has_malformed ): array {
+		if ( $has_malformed ) {
+			return array();
 		}
-
-		usort(
-			$results,
-			static function ( array $left, array $right ): int {
-				return strcmp( $left['id'], $right['id'] );
+		$results = array();
+		foreach ( $baseline as $entry ) {
+			$key = 'id:' . $entry['id'];
+			if ( isset( $current[ $key ] ) ) {
+				continue;
 			}
-		);
+			$results[] = $this->result(
+				$entry['id'],
+				'retired',
+				array( 'retired', 'verification_required' ),
+				true
+			);
+		}
 		return $results;
 	}
 

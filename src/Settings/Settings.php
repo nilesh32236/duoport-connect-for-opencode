@@ -17,6 +17,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use WordPress\AiClient\AiClient;
+use OpenCodeConnector\Availability\AvailabilityKeys;
+use OpenCodeConnector\Providers\OpenCodeGoProvider;
+use OpenCodeConnector\Providers\OpenCodeZenProvider;
 
 /**
  * Settings page and cache-bust handlers.
@@ -76,16 +79,7 @@ final class Settings {
 	public function bustCaches( $old_value, $new_value ): void {
 		if ( ( $old_value['show_all_models'] ?? false ) !== ( $new_value['show_all_models'] ?? false ) ) {
 			$this->clearModelCaches();
-			delete_transient( 'opencode_connector_avail_go' );
-			delete_transient( 'opencode_connector_avail_zen' );
-			delete_transient( 'opencode_connector_avail_go_lock' );
-			delete_transient( 'opencode_connector_avail_zen_lock' );
-			if ( function_exists( 'delete_site_transient' ) ) {
-				delete_site_transient( 'opencode_connector_avail_go' );
-				delete_site_transient( 'opencode_connector_avail_zen' );
-				delete_site_transient( 'opencode_connector_avail_go_lock' );
-				delete_site_transient( 'opencode_connector_avail_zen_lock' );
-			}
+			$this->clearAvailabilityCaches();
 		}
 	}
 
@@ -101,15 +95,27 @@ final class Settings {
 	public function bustCachesAdd( string $option, $value ): void {
 		unset( $option, $value );
 		$this->clearModelCaches();
-		delete_transient( 'opencode_connector_avail_go' );
-		delete_transient( 'opencode_connector_avail_zen' );
-		delete_transient( 'opencode_connector_avail_go_lock' );
-		delete_transient( 'opencode_connector_avail_zen_lock' );
+		$this->clearAvailabilityCaches();
+	}
+
+	/**
+	 * Clear cached availability probe results.
+	 *
+	 * Credential-blind by design: transient deletes only, never reads or
+	 * writes any `connectors_ai_*` option value.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @return void
+	 */
+	private function clearAvailabilityCaches(): void {
+		foreach ( AvailabilityKeys::allKeys() as $key ) {
+			delete_transient( $key );
+		}
 		if ( function_exists( 'delete_site_transient' ) ) {
-			delete_site_transient( 'opencode_connector_avail_go' );
-			delete_site_transient( 'opencode_connector_avail_zen' );
-			delete_site_transient( 'opencode_connector_avail_go_lock' );
-			delete_site_transient( 'opencode_connector_avail_zen_lock' );
+			foreach ( AvailabilityKeys::allKeys() as $key ) {
+				delete_site_transient( $key );
+			}
 		}
 	}
 
@@ -197,12 +203,12 @@ final class Settings {
 					// Use non-blocking check: transient-backed isConfigured() already has
 					// stampede lock + jitter; avoid double HTTP on render by tolerating exceptions.
 					try {
-						$go_ok = $registry->isProviderConfigured( 'opencode-go' );
+						$go_ok = $registry->isProviderConfigured( OpenCodeGoProvider::PROVIDER_ID );
 					} catch ( \Throwable ) {
 						$go_ok = false;
 					}
 					try {
-						$zen_ok = $registry->isProviderConfigured( 'opencode-zen' );
+						$zen_ok = $registry->isProviderConfigured( OpenCodeZenProvider::PROVIDER_ID );
 					} catch ( \Throwable ) {
 						$zen_ok = false;
 					}
