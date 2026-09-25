@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Metadata\Catalog;
+
 /**
  * OpenCode Zen provider (pay-as-you-go catalog including free models).
  *
@@ -27,11 +29,18 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	 * Provider ID.
 	 *
 	 * @since 0.1.0
+	 */
+	public const PROVIDER_ID = 'opencode-zen';
+
+	/**
+	 * Provider ID.
+	 *
+	 * @since 0.1.0
 	 *
 	 * @return string
 	 */
 	protected static function providerId(): string {
-		return 'opencode-zen';
+		return self::PROVIDER_ID;
 	}
 
 	/**
@@ -42,7 +51,7 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function catalogKey(): string {
-		return 'zen';
+		return Catalog::ZEN;
 	}
 
 	/**
@@ -81,6 +90,6 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function baseUrl(): string {
-		return 'https://opencode.ai/zen/v1';
+		return Endpoints::base( Catalog::ZEN );
 	}
 }

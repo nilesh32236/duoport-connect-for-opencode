@@ -18,6 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use OpenCodeConnector\Http\GoRequestHeaders;
 use OpenCodeConnector\Metadata\CapabilityAwareFallback;
+use OpenCodeConnector\Metadata\Catalog;
 use OpenCodeConnector\Metadata\ModelRegistry;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
@@ -40,6 +41,44 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * @var string|null
 	 */
 	private ?string $prepared_route_model_id = null;
+
+	/**
+	 * Injectable fallback selector (test seam).
+	 *
+	 * @since 0.1.6
+	 *
+	 * @var CapabilityAwareFallback|null
+	 */
+	private ?CapabilityAwareFallback $fallback_selector = null;
+
+	/**
+	 * Inject a fallback selector, e.g. with an isolated record resolver.
+	 *
+	 * Production callers omit this and get the canonical registry-backed
+	 * selector. Never throws.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @param CapabilityAwareFallback $fallback Selector to use.
+	 * @return void
+	 */
+	public function set_fallback_selector( CapabilityAwareFallback $fallback ): void {
+		$this->fallback_selector = $fallback;
+	}
+
+	/**
+	 * Resolve the fallback selector, defaulting to the canonical instance.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @return CapabilityAwareFallback
+	 */
+	protected function fallback_selector(): CapabilityAwareFallback {
+		if ( null === $this->fallback_selector ) {
+			$this->fallback_selector = new CapabilityAwareFallback();
+		}
+		return $this->fallback_selector;
+	}
 
 	/**
 	 * Provider class FQCN.
@@ -78,7 +117,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			throw new UnsupportedEndpointFamilyException( 'Model route metadata is unavailable.' );
 		}
 		$capability = null !== $prepared_model_id || ( is_array( $data ) && ! empty( $data['tools'] ) ) ? 'tools' : 'text';
-		$selection  = ( new CapabilityAwareFallback() )->select(
+		$selection  = $this->fallback_selector()->select(
 			$catalog,
 			$model_id,
 			$capability,
@@ -155,7 +194,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			if ( '' === $model_id || '' === $catalog ) {
 				return array();
 			}
-			$selection = ( new CapabilityAwareFallback() )->select(
+			$selection = $this->fallback_selector()->select(
 				$catalog,
 				$model_id,
 				'tools',
@@ -232,50 +271,82 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 */
 	private function model_id_for_tool_gate(): string {
 		try {
-			foreach ( array( 'metadata', 'getModelMetadata', 'getMetadata', 'getModel', 'model' ) as $accessor ) {
-				if ( ! method_exists( $this, $accessor ) ) {
-					continue;
-				}
+			$via_accessors = $this->resolveViaAccessors();
+			if ( null !== $via_accessors ) {
+				return $via_accessors;
+			}
+			return $this->resolveViaReflection();
+		} catch ( \Throwable ) {
+			return '';
+		}
+	}
+
+	/**
+	 * Resolve the model ID through SDK metadata accessors.
+	 *
+	 * Probes SDK metadata accessors first. Returns null when no accessor
+	 * resolves so the caller falls back to reflection, or the resolved ID
+	 * (possibly empty, failing open downstream). Never throws.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @return string|null
+	 */
+	private function resolveViaAccessors(): ?string {
+		foreach ( array( 'metadata', 'getModelMetadata', 'getMetadata', 'getModel', 'model' ) as $accessor ) {
+			if ( ! method_exists( $this, $accessor ) ) {
+				continue;
+			}
+			try {
+				$metadata = $this->{$accessor}();
+			} catch ( \Throwable ) {
+				continue;
+			}
+			if ( is_object( $metadata ) && method_exists( $metadata, 'getId' ) ) {
 				try {
-					$metadata = $this->{$accessor}();
+					return (string) $metadata->getId();
 				} catch ( \Throwable ) {
 					continue;
 				}
-				if ( is_object( $metadata ) && method_exists( $metadata, 'getId' ) ) {
-					try {
-						return (string) $metadata->getId();
-					} catch ( \Throwable ) {
-						continue;
-					}
-				}
 			}
-			// Last-resort fallback: reflect over object properties looking for
-			// SDK metadata holding a getId() accessor (targets the
-			// WordPress AI Client OpenAI-compatible base model). The
-			// public-accessor loop above is primary; prefer an explicit
-			// model-id accessor if the SDK exposes one. No setAccessible()
-			// call: it has been a no-op since PHP 8.1 and the floor here is 8.2.
-			try {
-				$reflection = new \ReflectionObject( $this );
-				foreach ( $reflection->getProperties() as $prop ) {
+		}
+		return null;
+	}
+
+	/**
+	 * Resolve the model ID by reflecting over object properties.
+	 *
+	 * Last-resort fallback: reflect over object properties looking for
+	 * SDK metadata holding a getId() accessor (targets the
+	 * WordPress AI Client OpenAI-compatible base model). The
+	 * public-accessor loop above is primary; prefer an explicit
+	 * model-id accessor if the SDK exposes one. No setAccessible()
+	 * call: it has been a no-op since PHP 8.1 and the floor here is 8.2.
+	 * Returns an empty string when unresolvable. Never throws.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @return string
+	 */
+	private function resolveViaReflection(): string {
+		try {
+			$reflection = new \ReflectionObject( $this );
+			foreach ( $reflection->getProperties() as $prop ) {
+				try {
+					$candidate = $prop->getValue( $this );
+				} catch ( \Throwable ) {
+					continue;
+				}
+				if ( is_object( $candidate ) && method_exists( $candidate, 'getId' ) ) {
 					try {
-						$candidate = $prop->getValue( $this );
+						$id = (string) $candidate->getId();
 					} catch ( \Throwable ) {
 						continue;
 					}
-					if ( is_object( $candidate ) && method_exists( $candidate, 'getId' ) ) {
-						try {
-							$id = (string) $candidate->getId();
-						} catch ( \Throwable ) {
-							continue;
-						}
-						if ( '' !== $id ) {
-							return $id;
-						}
+					if ( '' !== $id ) {
+						return $id;
 					}
 				}
-			} catch ( \Throwable ) {
-				return '';
 			}
 		} catch ( \Throwable ) {
 			return '';
@@ -304,10 +375,10 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 				return '';
 			}
 			if ( OpenCodeZenProvider::class === $cls ) {
-				return 'zen';
+				return Catalog::ZEN;
 			}
 			if ( OpenCodeGoProvider::class === $cls ) {
-				return 'go';
+				return Catalog::GO;
 			}
 		} catch ( \Throwable ) {
 			return '';

@@ -17,6 +17,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use OpenCodeConnector\Http\SessionHeader;
+use OpenCodeConnector\Metadata\Catalog;
+use OpenCodeConnector\Providers\Endpoints;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
 use WordPress\AiClient\Providers\Contracts\ProviderAvailabilityInterface;
@@ -42,9 +44,10 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 *
 	 * @since 0.1.0
 	 *
-	 * @param string $catalog Catalog slug.
+	 * @param string                     $catalog     Catalog slug.
+	 * @param ConnectionDiagnostics|null $diagnostics Optional diagnostics double for tests.
 	 */
-	public function __construct( private readonly string $catalog ) {
+	public function __construct( private readonly string $catalog, private readonly ?ConnectionDiagnostics $diagnostics = null ) {
 		// Catalog is go or zen.
 	}
 
@@ -75,7 +78,18 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return array<string, mixed>
 	 */
 	public function getLastResult(): array {
-		return $this->last_result ?? ( new ConnectionDiagnostics() )->unknown();
+		return $this->last_result ?? $this->diagnostics()->unknown();
+	}
+
+	/**
+	 * Diagnostics classifier, injectable for tests.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @return ConnectionDiagnostics
+	 */
+	private function diagnostics(): ConnectionDiagnostics {
+		return $this->diagnostics ?? new ConnectionDiagnostics();
 	}
 
 	/**
@@ -84,26 +98,25 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return array<string, mixed>
 	 */
 	private function probe(): array {
-		$tkey   = 'opencode_connector_avail_' . $this->catalog;
+		$tkey   = AvailabilityKeys::key( $this->catalog );
 		$cached = get_transient( $tkey );
 		if ( is_array( $cached ) && isset( $cached['state'] ) ) {
 			$this->last_result = $cached;
 			return $cached;
 		}
+		$diagnostics = $this->diagnostics();
 		if ( false !== $cached && is_bool( $cached ) ) {
-			$diagnostics       = new ConnectionDiagnostics();
 			$this->last_result = $cached ? $diagnostics->verified() : $diagnostics->notConfigured();
 			return $this->last_result;
 		}
 
 		// Stampede protection: short lock so concurrent requests share one probe.
-		$lock_key = $tkey . '_lock';
+		$lock_key = AvailabilityKeys::lockKey( $this->catalog );
 		if ( false !== get_transient( $lock_key ) ) {
-			$this->last_result = ( new ConnectionDiagnostics() )->unknown();
+			$this->last_result = $diagnostics->unknown();
 			return $this->last_result;
 		}
 
-		$diagnostics = new ConnectionDiagnostics();
 		try {
 			$this->getRequestAuthentication();
 		} catch ( \Throwable $exception ) {
@@ -114,7 +127,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		// Set lock before network I/O (10s).
 		set_transient( $lock_key, 1, 10 );
 
-		$cls = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
+		$cls = Catalog::GO === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
 		// Probe models are chosen to discriminate AUTHENTICATION, not model
 		// availability: paid models answer 401 CreditsError for a valid but
 		// empty-balance key (configured) versus other 401s for a bad key.
@@ -140,7 +153,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		);
 		$req           = new Request(
 			HttpMethodEnum::POST(),
-			$cls::url( 'chat/completions' ),
+			$cls::url( Endpoints::chatPath() ),
 			$probe_headers,
 			$probe_data
 		);

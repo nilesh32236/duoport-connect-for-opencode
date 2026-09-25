@@ -14,6 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use OpenCodeConnector\Metadata\ModelRegistry;
+use OpenCodeConnector\Providers\Endpoints;
 
 /**
  * Resolves only reviewed endpoint families and paths.
@@ -29,7 +30,7 @@ final class EndpointRoute {
 	 * @var array<string, string>
 	 */
 	private const PATHS = array(
-		'chat' => 'chat/completions',
+		'chat' => Endpoints::CHAT_COMPLETIONS_PATH,
 	);
 
 	/**

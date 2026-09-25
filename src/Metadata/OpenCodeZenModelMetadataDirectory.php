@@ -44,6 +44,6 @@ final class OpenCodeZenModelMetadataDirectory extends AbstractOpenCodeModelMetad
 	 * @return string
 	 */
 	protected function catalogKey(): string {
-		return 'zen';
+		return Catalog::ZEN;
 	}
 }
