@@ -2,7 +2,7 @@
 set -euo pipefail
 
 fixture=$(mktemp)
-trap 'rm -f "$fixture"' EXIT
+trap 'rm -f "$fixture" "$fixture.json"' EXIT
 php -r '
 define( "ABSPATH", getcwd() . "/" );
 require "src/autoload.php";
@@ -23,4 +23,7 @@ printf '%s' "$output" | jq -e '.catalogs.go.summary.free_candidates == 2 and .ca
 if printf '%s' "$output" | grep -Eq 'connectors_ai_|Authorization|Bearer'; then
 	exit 1
 fi
-echo 'model radar JSON contract passed'
+printf '%s' "$output" > "$fixture.json"
+php .github/scripts/model-radar-markdown.php < "$fixture.json" | grep -q '# OpenCode Model Radar'
+rm -f "$fixture.json"
+echo 'model radar JSON and Markdown contract passed'

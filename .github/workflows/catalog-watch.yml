@@ -37,7 +37,7 @@ jobs:
           set +e
           php .github/scripts/check-catalog-drift.php --json > /tmp/model-radar.json 2>/tmp/model-radar.err
           CODE=$?
-          php .github/scripts/check-catalog-drift.php --markdown > /tmp/model-radar.md 2>/dev/null
+          php .github/scripts/model-radar-markdown.php < /tmp/model-radar.json > /tmp/model-radar.md
           cat /tmp/model-radar.err >&2
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           exit 0

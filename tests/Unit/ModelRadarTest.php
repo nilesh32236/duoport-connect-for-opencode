@@ -152,6 +152,7 @@ final class ModelRadarTest extends MonkeyTestCase {
 		$workflow = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/workflows/catalog-watch.yml' );
 
 		self::assertStringContainsString( '--json', $workflow );
+		self::assertStringContainsString( 'model-radar-markdown.php', $workflow );
 		self::assertStringContainsString( 'model-radar', $workflow );
 		self::assertStringContainsString( 'free_candidates', $workflow );
 		self::assertStringContainsString( 'An active campaign issue exists', $workflow );
