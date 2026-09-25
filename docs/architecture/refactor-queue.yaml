@@ -9,7 +9,7 @@ items:
     status: in_progress
     title: Publish 0.1.5 after complete release gate
     github_issue: 87
-    github_pr: pending
+    github_pr: 88
     owner: campaign-lead
     priority: high
     difficulty: medium
