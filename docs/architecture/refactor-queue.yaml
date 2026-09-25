@@ -1,6 +1,6 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: 503d9c0ff06d080c3dbe31408258f7469ab18f7a
+source_commit: 241bb79d669cc1361b12a9ea305c095f7f1e3e75
 last_audited: 2026-09-24
 rule: exactly_one_active_item
 active_item: RELEASE-002
@@ -14,12 +14,12 @@ items:
     priority: high
     difficulty: medium
     depends_on: [AUDIT-041, PF-001, PF-002, PF-003, PF-004, PF-006, PF-007]
-    evidence: Main metadata, automated gates, and live WordPress runtime are ready; GitHub currently has no v0.1.5 tag or release.
+    evidence: Main metadata, automated gates, and live WordPress runtime are ready; GitHub currently has no v0.1.5 tag or release. Exact merged baseline 241bb79d669cc1361b12a9ea305c095f7f1e3e75 passed 137 PHPUnit tests/596 assertions, WPCS, PHPCompatibilityWP, reviewer/workflow contracts, release ZIP/unzip, and post-merge runtime checks.
     acceptance:
       - Release metadata is internally consistent at 0.1.5.
       - Complete automated, WordPress, browser, and release-ZIP gates pass on the exact release commit.
       - Annotated v0.1.5 is pushed only after all gates pass and the resulting artifact is verified.
-    status_note: Sole active campaign item; no release tag exists yet.
+    status_note: Sole active campaign item; exact pre-tag gate passed on 241bb79d669cc1361b12a9ea305c095f7f1e3e75; no release tag exists yet.
   - id: AUDIT-041
     status: completed
     title: Resolve current code-quality and version-documentation drift
