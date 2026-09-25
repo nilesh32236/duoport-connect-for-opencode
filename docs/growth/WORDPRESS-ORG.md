@@ -40,6 +40,6 @@ The images were captured with Playwright from the live WordPress environment aft
 
 ## Post-merge result
 
-PR #96 merged at exact head `54ae799b05195bd4cf0bad4f07f40e9d188cd944`, producing main `97296b20a0d76c98e661691956ebf0805f8cf191`. The exact post-merge main passed 148 tests/693 assertions, WPCS, PHPCompatibilityWP, catalog/model-radar contracts, release ZIP/unzip, live WordPress, and authenticated Playwright. The screenshots are present in the plugin ZIP. They are not yet visible in the public listing because WordPress.org publishes plugin screenshots from a release tag; `RELEASE-003` is the deliberate next packaging step.
+PR #96 merged at exact head `54ae799b05195bd4cf0bad4f07f40e9d188cd944`, producing main `97296b20a0d76c98e661691956ebf0805f8cf191`. The exact post-merge main passed 148 tests/694 assertions, WPCS, PHPCompatibilityWP, catalog/model-radar contracts, release ZIP/unzip, live WordPress, and authenticated Playwright. The screenshots were present in the plugin ZIP and were then published through RELEASE-003. WordPress.org now reports version 0.1.6 and serves both verified screenshots; the live 0.1.6 artifact and Playwright checks pass.
 
 `GROWTH-001` records the before-state above and changes screenshots/description structure only. A later `GROWTH-002` may evaluate title, short description, or tags after this baseline is deployed and measured. No fake reviews, installs, support activity, keyword stuffing, or misleading model claims are permitted.

@@ -1,20 +1,20 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: d7cc77a858261b3babd49c5d4b814704a4523408
+source_commit: 8bd45a4fe1da7b7f7d1af706d123e92ee52ff060
 last_audited: 2026-09-25
 rule: exactly_one_active_item
-active_item: RELEASE-003
+active_item: none
 items:
   - id: RELEASE-003
-    status: in_progress
+    status: completed
     title: Publish 0.1.6 with verified WordPress.org listing screenshots
     github_issue: 98
-    github_pr: 99
+    github_pr: 101
     owner: campaign-lead
     priority: high
     difficulty: medium
     depends_on: [MODEL-001, GROWTH-001]
-    evidence: WordPress.org serves 0.1.5 with no screenshots; the verified 0.1.5 source now contains two real 1440 × 868 screenshots and a factual listing conversion baseline.
+    evidence: PR #99 merged at exact head 7cbd81469788b53b73996e4d88585dfef5ff76e7; main 8bd45a4fe1da7b7f7d1af706d123e92ee52ff060 passed 148 tests/700 assertions, WPCS, PHPCompatibilityWP, catalog/model-radar contracts, release ZIP/unzip, live WordPress, and Playwright. GitHub v0.1.6 asset SHA-256 is b4b19a48322ebfb8392d34642dd10cd57c0ec2cfd069fd67785b5f07153e7608; WordPress.org API/SVN report 0.1.6 and both screenshots at revision 3712542.
     scope:
       - Synchronize 0.1.6 version metadata, stable tag, changelog, upgrade notice, and post-tag since annotations.
       - Build and verify a clean ZIP and GitHub release asset.
@@ -25,7 +25,7 @@ items:
       - WordPress.org serves 0.1.6 and both real screenshots.
       - No title/tag/icon/model/transport/capability/credential behavior changes.
       - Release notes, provenance, queue, architecture, and progress records agree.
-    status_note: Sole active campaign item; publication is deliberate and follows the GROWTH-001 baseline.
+    status_note: Completed after exact-head merge, tag/release publication, WordPress.org SVN deployment, public metadata/screenshot verification, live WordPress synchronization, and Playwright.
   - id: GROWTH-001
     status: completed
     title: Add real WordPress.org screenshots and listing conversion sections
@@ -318,8 +318,8 @@ items:
       - Refresh all architecture artifacts and produce ARCHITECTURE-FINAL.md.
     status_note: Final re-audit completed at c658df720408964d106895b9f14ea068b778207d; runtime and workflow evidence are recorded in ARCHITECTURE-FINAL.md.
 reconciled_github_items:
-  closed_issues: [11, 14, 17, 21, 28, 30, 34, 36, 38, 39, 40, 43, 46, 48, 50, 51, 53, 55, 57, 59, 61, 65, 67, 69, 79, 81, 83, 87, 92]
-  closed_pull_requests: [22, 23, 24, 47, 49, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 80, 82, 84, 88, 89, 90, 91, 93, 94]
+  closed_issues: [11, 14, 17, 21, 28, 30, 34, 36, 38, 39, 40, 43, 46, 48, 50, 51, 53, 55, 57, 59, 61, 65, 67, 69, 79, 81, 83, 87, 92, 95, 98]
+  closed_pull_requests: [22, 23, 24, 47, 49, 52, 54, 56, 58, 60, 62, 64, 66, 68, 70, 80, 82, 84, 88, 89, 90, 91, 93, 94, 96, 97, 99, 101]
   reason: Preserve history while enforcing one active campaign issue and one active campaign PR.
 future_candidates_not_issues:
   - PF-005

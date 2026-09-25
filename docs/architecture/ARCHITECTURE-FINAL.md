@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-25  
-**Merged baseline:** `97296b20a0d76c98e661691956ebf0805f8cf191` (`origin/main` after MODEL-001 and GROWTH-001)
+**Merged baseline:** `8bd45a4fe1da7b7f7d1af706d123e92ee52ff060` (`origin/main` after MODEL-001, GROWTH-001, and RELEASE-003)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -21,12 +21,12 @@ The updater never auto-merges. It opens or refreshes one traceable dependency PR
 
 ## Post-merge runtime evidence
 
-The merged plugin was synchronized to the live WordPress site and PHP-linted. WordPress deactivate/reactivate completed successfully at version 0.1.5. The AI Client registry reported both `OpenCodeGoProvider` and `OpenCodeZenProvider` registered. Model, metadata, availability, and HTTP helper classes loaded. The settings page rendered without warning capture or secret markers. No runtime errors were emitted during registry inspection.
+The merged plugin was synchronized to the live WordPress site and PHP-linted. WordPress deactivate/reactivate completed successfully at version 0.1.6. The AI Client registry reported both `OpenCodeGoProvider` and `OpenCodeZenProvider` registered. Model, metadata, availability, and HTTP helper classes loaded. The settings page rendered without warning capture or secret markers. No runtime errors were emitted during registry inspection.
 
 Local verification passed:
 
 - WPCS
-- PHPUnit: 148 tests, 698 assertions
+- PHPUnit: 148 tests, 700 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
@@ -71,7 +71,7 @@ PR #84 completed the image evidence boundary audit. The image allowlist remains 
 
 ## Stopping point
 
-No improvement item remains justified for implementation. PF-005 stays deferred because it overlaps WordPress AI Client selection, and PF-008 remains rejected. GROWTH-002 title/tag experiments and TRANSPORT-001/002 remain evidence-backed future candidates, not active work. RELEASE-003 is the next deliberate packaging step to publish the already-verified screenshots; the queue has no active item, issue, or PR after GROWTH-001 closeout.
+No improvement item remains justified for implementation. PF-005 stays deferred because it overlaps WordPress AI Client selection, and PF-008 remains rejected. GROWTH-002 title/tag experiments and TRANSPORT-001/002 remain evidence-backed future candidates, not active work. RELEASE-003 is complete; the queue has no active item, issue, or PR after 0.1.6 publication.
 
 ## RELEASE-002 result
 
@@ -83,7 +83,11 @@ PR #93 merged at exact reviewed head `6089eadb4837296f3c48729dd605fa7d7e61699e`,
 
 ## GROWTH-001 result
 
-PR #96 merged at exact reviewed head `54ae799b05195bd4cf0bad4f07f40e9d188cd944`, producing main `97296b20a0d76c98e661691956ebf0805f8cf191`. Two real 1440 × 868 WordPress admin screenshots (Connectors and Settings) were captured with Playwright after credential-value checks, cropped below the admin bar, and recorded with hashes in `docs/growth/WORDPRESS-ORG.md`. The readme now explains Go + Zen, free-model boundaries, verified support, and native WordPress AI Client integration without changing title, tags, banner, icon, runtime, registry, transport, or credentials. Post-merge 148 tests/694 assertions, WPCS, PHPCompatibilityWP, release ZIP/unzip, live WordPress, and Playwright checks pass. WordPress.org publication awaits the deliberate `RELEASE-003` packaging step.
+PR #96 merged at exact reviewed head `54ae799b05195bd4cf0bad4f07f40e9d188cd944`, producing main `97296b20a0d76c98e661691956ebf0805f8cf191`. Two real 1440 × 868 WordPress admin screenshots (Connectors and Settings) were captured with Playwright after credential-value checks, cropped below the admin bar, and recorded with hashes in `docs/growth/WORDPRESS-ORG.md`. The readme now explains Go + Zen, free-model boundaries, verified support, and native WordPress AI Client integration without changing title, tags, banner, icon, runtime, registry, transport, or credentials. Post-merge 148 tests/694 assertions, WPCS, PHPCompatibilityWP, release ZIP/unzip, live WordPress, and Playwright checks pass. WordPress.org publication then completed through RELEASE-003.
+
+## RELEASE-003 result
+
+PR #99 merged at exact reviewed head `7cbd81469788b53b73996e4d88585dfef5ff76e7`, producing main `8bd45a4fe1da7b7f7d1af706d123e92ee52ff060`. The `v0.1.6` tag points to that exact commit. GitHub release asset `duoport-connect-for-opencode-0.1.6.zip` has SHA-256 `b4b19a48322ebfb8392d34642dd10cd57c0ec2cfd069fd67785b5f07153e7608`; its extracted contents match the locally built source. The release workflow deployed `tags/0.1.6` to WordPress.org SVN at revision `3712542`. The public WordPress.org API reports version 0.1.6 and both verified screenshot URLs, whose bytes match the committed assets. The exact release artifact was installed into live WordPress; plugin 0.1.6 activation, providers, settings, diagnostics, image default-deny, and Playwright checks pass. No title, tags, banner, icon, model, transport, capability, or credential boundary changed.
 
 ## Final boundaries
 
