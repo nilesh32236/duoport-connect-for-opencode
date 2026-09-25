@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "generated_at": "2026-09-25",
-  "source_commit": "4987a078cd4a37a1d1a46719ec89f66426cfc05f",
-  "product_code_snapshot": "4987a078cd4a37a1d1a46719ec89f66426cfc05f",
-  "snapshot_note": "MODEL-001 is merged: credential-free Model Radar reports public catalog coverage, free candidates, and one aggregated issue while preserving default-deny promotion.",
+  "source_commit": "97296b20a0d76c98e661691956ebf0805f8cf191",
+  "product_code_snapshot": "97296b20a0d76c98e661691956ebf0805f8cf191",
+  "snapshot_note": "MODEL-001 and GROWTH-001 are merged: credential-free Model Radar plus factual listing screenshots/sections remain outside runtime, registry, transport, and credential boundaries.",
   "scope": "product runtime and campaign automation",
   "nodes": [
     {

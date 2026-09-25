@@ -46,7 +46,7 @@ final class ReleaseScriptTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Campaign evidence stays bounded to the active listing item and release-only scope.
+	 * Campaign evidence stays bounded to the completed listing item and release-only scope.
 	 */
 	public function test_release_evidence_artifacts_are_scoped(): void {
 		$root = dirname( __DIR__, 2 );
@@ -55,12 +55,13 @@ final class ReleaseScriptTest extends MonkeyTestCase {
 		$final = (string) file_get_contents( $root . '/docs/architecture/ARCHITECTURE-FINAL.md' );
 		$readme = (string) file_get_contents( $root . '/readme.txt' );
 
-		self::assertStringContainsString( 'active_item: GROWTH-001', $queue );
+		self::assertStringContainsString( 'active_item: none', $queue );
 		self::assertStringContainsString( 'github_issue: 95', $queue );
-		self::assertStringContainsString( 'github_pr: 96', $queue );
-		self::assertStringContainsString( '    status: in_progress', $queue );
-		self::assertStringContainsString( 'PHPUnit: 145 tests, 667 assertions', $final );
+		self::assertStringContainsString( 'github_pr: 97', $queue );
+		self::assertStringContainsString( '    status: completed', $queue );
+		self::assertStringContainsString( 'PHPUnit: 148 tests, 694 assertions', $final );
 		self::assertStringContainsString( '## MODEL-001 result', $final );
+		self::assertStringContainsString( '## GROWTH-001 result', $final );
 		self::assertStringContainsString( '== Screenshots ==', $readme );
 		self::assertStringContainsString( '## Release boundary', $scope );
 		self::assertStringContainsString( 'packaging and evidence milestone', $scope );

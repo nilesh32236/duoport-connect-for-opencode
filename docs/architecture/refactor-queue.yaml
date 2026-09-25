@@ -1,20 +1,20 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: 77f123ac5b7db5505ccda96a2271b462c57aaf42
+source_commit: 97296b20a0d76c98e661691956ebf0805f8cf191
 last_audited: 2026-09-25
 rule: exactly_one_active_item
-active_item: GROWTH-001
+active_item: none
 items:
   - id: GROWTH-001
-    status: in_progress
+    status: completed
     title: Add real WordPress.org screenshots and listing conversion sections
     github_issue: 95
-    github_pr: 96
+    github_pr: 97
     owner: campaign-lead
     priority: high
     difficulty: low
     depends_on: [MODEL-001]
-    evidence: WordPress.org has fewer than 10 active installs and no screenshots; competitor OpenCode listings publish screenshots and two show about 30 active installs.
+    evidence: PR #96 merged at exact head 54ae799b05195bd4cf0bad4f07f40e9d188cd944; main 97296b20a0d76c98e661691956ebf0805f8cf191 passed 148 tests/694 assertions, WPCS, PHPCompatibilityWP, catalog/model-radar contracts, release ZIP/unzip, live WordPress, and Playwright. The listing baseline and screenshot hashes are recorded in docs/growth/WORDPRESS-ORG.md; publication awaits a deliberate release.
     scope:
       - Capture real Connectors and settings screenshots with Playwright after credential-value safety checks.
       - Add natural Why DuoPort, Go + Zen, current/free model, verified support, and WordPress AI Client sections.
@@ -25,7 +25,7 @@ items:
       - Readme makes no unsupported capability, model-count, or permanence claims.
       - No runtime, model registry, transport, or credential behavior changes.
       - CI, AI review, real WordPress, and Playwright pass on the exact head.
-    status_note: Sole active campaign item; title, short-description, tags, banner, and icon remain unchanged for attribution.
+    status_note: Completed after exact-head merge and post-merge verification; screenshots and listing sections are source/release-ready, with title, tags, banner, and icon unchanged for attribution.
   - id: MODEL-001
     status: completed
     title: Add credential-free OpenCode Model Radar and free-model fast lane
@@ -303,5 +303,6 @@ reconciled_github_items:
 future_candidates_not_issues:
   - PF-005
   - GROWTH-002
+  - RELEASE-003
   - TRANSPORT-001
   - TRANSPORT-002

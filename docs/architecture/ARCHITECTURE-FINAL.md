@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-25  
-**Merged baseline:** `4987a078cd4a37a1d1a46719ec89f66426cfc05f` (`origin/main` after MODEL-001)
+**Merged baseline:** `97296b20a0d76c98e661691956ebf0805f8cf191` (`origin/main` after MODEL-001 and GROWTH-001)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -26,7 +26,7 @@ The merged plugin was synchronized to the live WordPress site and PHP-linted. Wo
 Local verification passed:
 
 - WPCS
-- PHPUnit: 145 tests, 667 assertions
+- PHPUnit: 148 tests, 694 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
@@ -71,7 +71,7 @@ PR #84 completed the image evidence boundary audit. The image allowlist remains 
 
 ## Stopping point
 
-No improvement item remains justified for implementation. PF-005 stays deferred because it overlaps WordPress AI Client selection, and PF-008 remains rejected. GROWTH-001 listing conversion/screenshots and TRANSPORT-001/002 remain evidence-backed future candidates, not active work. The queue has no active item, issue, or PR after MODEL-001 closeout; the architecture and progress records are the stopping-point evidence.
+No improvement item remains justified for implementation. PF-005 stays deferred because it overlaps WordPress AI Client selection, and PF-008 remains rejected. GROWTH-002 title/tag experiments and TRANSPORT-001/002 remain evidence-backed future candidates, not active work. RELEASE-003 is the next deliberate packaging step to publish the already-verified screenshots; the queue has no active item, issue, or PR after GROWTH-001 closeout.
 
 ## RELEASE-002 result
 
@@ -80,6 +80,10 @@ The fresh audit found internally consistent 0.1.5 metadata and green automated/Z
 ## MODEL-001 result
 
 PR #93 merged at exact reviewed head `6089eadb4837296f3c48729dd605fa7d7e61699e`, producing post-merge main `4987a078cd4a37a1d1a46719ec89f66426cfc05f`. The Model Radar now emits credential-free JSON/Markdown coverage, separates reviewed free models from unverified free-name candidates, records nullable fast-follow metrics, and updates or creates at most one aggregated `model-radar` issue. The live catalog baseline is Go 42 discovered/17 supported/25 verification-required/1 free candidate and Zen 80/14/66/10, with 3 Zen records unsupported pending adapter verification. Post-merge WordPress and Playwright checks pass; no model, capability, transport, or credential boundary was widened.
+
+## GROWTH-001 result
+
+PR #96 merged at exact reviewed head `54ae799b05195bd4cf0bad4f07f40e9d188cd944`, producing main `97296b20a0d76c98e661691956ebf0805f8cf191`. Two real 1440 × 868 WordPress admin screenshots (Connectors and Settings) were captured with Playwright after credential-value checks, cropped below the admin bar, and recorded with hashes in `docs/growth/WORDPRESS-ORG.md`. The readme now explains Go + Zen, free-model boundaries, verified support, and native WordPress AI Client integration without changing title, tags, banner, icon, runtime, registry, transport, or credentials. Post-merge 148 tests/694 assertions, WPCS, PHPCompatibilityWP, release ZIP/unzip, live WordPress, and Playwright checks pass. WordPress.org publication awaits the deliberate `RELEASE-003` packaging step.
 
 ## Final boundaries
 
