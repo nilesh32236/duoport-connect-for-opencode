@@ -9,7 +9,7 @@ items:
     status: in_progress
     title: Add credential-free OpenCode Model Radar and free-model fast lane
     github_issue: 92
-    github_pr: pending
+    github_pr: 93
     owner: campaign-lead
     priority: high
     difficulty: medium
