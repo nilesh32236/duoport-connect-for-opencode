@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-25  
-**Merged baseline:** `176aa80f1243de2f855bcd6f9ef7e016350c2788` (`v0.1.5` exact release commit)
+**Merged baseline:** `4987a078cd4a37a1d1a46719ec89f66426cfc05f` (`origin/main` after MODEL-001)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -26,7 +26,7 @@ The merged plugin was synchronized to the live WordPress site and PHP-linted. Wo
 Local verification passed:
 
 - WPCS
-- PHPUnit: 138 tests, 605 assertions
+- PHPUnit: 145 tests, 667 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
@@ -71,11 +71,15 @@ PR #84 completed the image evidence boundary audit. The image allowlist remains 
 
 ## Stopping point
 
-No improvement item remains justified for implementation. PF-005 stays deferred because it overlaps WordPress AI Client selection, and PF-008 remains rejected. The queue has no active item, issue, or PR; the architecture and progress records are the stopping-point evidence.
+No improvement item remains justified for implementation. PF-005 stays deferred because it overlaps WordPress AI Client selection, and PF-008 remains rejected. GROWTH-001 listing conversion/screenshots and TRANSPORT-001/002 remain evidence-backed future candidates, not active work. The queue has no active item, issue, or PR after MODEL-001 closeout; the architecture and progress records are the stopping-point evidence.
 
 ## RELEASE-002 result
 
 The fresh audit found internally consistent 0.1.5 metadata and green automated/ZIP gates. Exact commit `176aa80f1243de2f855bcd6f9ef7e016350c2788` passed 138 PHPUnit tests/601 assertions, WPCS, PHPCompatibilityWP, reviewer/workflow contracts, release ZIP and unzip checks, and post-merge WordPress runtime checks. The subsequent documentation-only closeout main passed 138 tests/605 assertions. Authenticated Playwright reached Plugins, activation/deactivation, settings persistence, Connectors, and the public site with no secret-shaped input values; three console/network 404s were isolated to unrelated `ai-provider-for-*` WordPress REST routes and are not DuoPort requests. Annotated `v0.1.5` points to the exact release commit. GitHub release asset `duoport-connect-for-opencode-0.1.5.zip` SHA-256 is `42f7b5b82009b23a71fb23e9db1abf2058d792027fe0b79582d8037650ac4eff`; WordPress.org’s repackaged ZIP has identical extracted contents. Issue #87 is complete and the queue has no active item.
+
+## MODEL-001 result
+
+PR #93 merged at exact reviewed head `6089eadb4837296f3c48729dd605fa7d7e61699e`, producing post-merge main `4987a078cd4a37a1d1a46719ec89f66426cfc05f`. The Model Radar now emits credential-free JSON/Markdown coverage, separates reviewed free models from unverified free-name candidates, records nullable fast-follow metrics, and updates or creates at most one aggregated `model-radar` issue. The live catalog baseline is Go 42 discovered/17 supported/25 verification-required/1 free candidate and Zen 80/14/66/10, with 3 Zen records unsupported pending adapter verification. Post-merge WordPress and Playwright checks pass; no model, capability, transport, or credential boundary was widened.
 
 ## Final boundaries
 
