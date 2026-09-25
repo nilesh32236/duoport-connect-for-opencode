@@ -33,20 +33,20 @@ final class ReleaseScriptTest extends MonkeyTestCase {
 	/**
 	 * The release metadata is synchronized before tagging.
 	 */
-	public function test_release_metadata_is_prepared_for_0_1_5(): void {
+	public function test_release_metadata_is_prepared_for_0_1_6(): void {
 		$root = dirname( __DIR__, 2 );
 		$main = (string) file_get_contents( $root . '/duoport-connect-for-opencode.php' );
 		$readme = (string) file_get_contents( $root . '/readme.txt' );
 
-		self::assertStringContainsString( 'Version:           0.1.5', $main );
-		self::assertStringContainsString( "const VERSION     = '0.1.5';", $main );
-		self::assertStringContainsString( 'Stable tag: 0.1.5', $readme );
-		self::assertMatchesRegularExpression( '/^= 0\.1\.5 =/m', $readme );
-		self::assertStringContainsString( '= 0.1.5 =', substr( $readme, strpos( $readme, '== Upgrade Notice ==' ) ) );
+		self::assertStringContainsString( 'Version:           0.1.6', $main );
+		self::assertStringContainsString( "const VERSION     = '0.1.6';", $main );
+		self::assertStringContainsString( 'Stable tag: 0.1.6', $readme );
+		self::assertMatchesRegularExpression( '/^= 0\.1\.6 =/m', $readme );
+		self::assertStringContainsString( '= 0.1.6 =', substr( $readme, strpos( $readme, '== Upgrade Notice ==' ) ) );
 	}
 
 	/**
-	 * Campaign evidence stays bounded to the completed listing item and release-only scope.
+	 * Campaign evidence stays bounded to the active release item and release-only scope.
 	 */
 	public function test_release_evidence_artifacts_are_scoped(): void {
 		$root = dirname( __DIR__, 2 );
@@ -55,11 +55,11 @@ final class ReleaseScriptTest extends MonkeyTestCase {
 		$final = (string) file_get_contents( $root . '/docs/architecture/ARCHITECTURE-FINAL.md' );
 		$readme = (string) file_get_contents( $root . '/readme.txt' );
 
-		self::assertStringContainsString( 'active_item: none', $queue );
-		self::assertStringContainsString( 'github_issue: 95', $queue );
-		self::assertStringContainsString( 'github_pr: 97', $queue );
-		self::assertStringContainsString( '    status: completed', $queue );
-		self::assertStringContainsString( 'PHPUnit: 148 tests, 694 assertions', $final );
+		self::assertStringContainsString( 'active_item: RELEASE-003', $queue );
+		self::assertStringContainsString( 'github_issue: 98', $queue );
+		self::assertStringContainsString( 'github_pr: 99', $queue );
+		self::assertStringContainsString( '    status: in_progress', $queue );
+		self::assertStringContainsString( 'PHPUnit: 148 tests, 698 assertions', $final );
 		self::assertStringContainsString( '## MODEL-001 result', $final );
 		self::assertStringContainsString( '## GROWTH-001 result', $final );
 		self::assertStringContainsString( '== Screenshots ==', $readme );

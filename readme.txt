@@ -4,7 +4,7 @@ Tags: ai, artificial-intelligence, connector, opencode, zen
 Requires at least: 7.0
 Tested up to: 7.1
 Requires PHP: 8.2
-Stable tag: 0.1.5
+Stable tag: 0.1.6
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -109,6 +109,11 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 == Changelog ==
 
+= 0.1.6 =
+* Added two real WordPress.org screenshots for the Connectors and DuoPort Settings screens.
+* Expanded the listing with factual Go + Zen, free-model, verified-support, and WordPress AI Client sections.
+* No model registry, transport, capability, or credential behavior changed.
+
 = 0.1.5 =
 * Centralized Go session and client User-Agent headers across text and image requests.
 * Added an authoritative architecture baseline, class inventory, dependency graph, boundaries, scope, improvement rules, and single-item improvement queue.
@@ -129,6 +134,9 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 * Initial release: Go and Zen providers, allowlisted models with free labels, probe availability, shared-key sync, and Show all models toggle.
 
 == Upgrade Notice ==
+
+= 0.1.6 =
+No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged; this release publishes the verified listing screenshots and documentation improvements.
 
 = 0.1.5 =
 No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged.
