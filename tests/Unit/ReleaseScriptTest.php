@@ -52,11 +52,14 @@ final class ReleaseScriptTest extends MonkeyTestCase {
 		$root = dirname( __DIR__, 2 );
 		$queue = (string) file_get_contents( $root . '/docs/architecture/refactor-queue.yaml' );
 		$scope = (string) file_get_contents( $root . '/docs/architecture/PRODUCT-SCOPE.md' );
+		$final = (string) file_get_contents( $root . '/docs/architecture/ARCHITECTURE-FINAL.md' );
 
 		self::assertStringContainsString( 'active_item: none', $queue );
 		self::assertStringContainsString( 'github_issue: 87', $queue );
-		self::assertStringContainsString( 'github_pr: 90', $queue );
+		self::assertStringContainsString( 'github_pr: 91', $queue );
 		self::assertStringContainsString( '    status: completed', $queue );
+		self::assertStringContainsString( 'passed 138 PHPUnit tests/601 assertions', $final );
+		self::assertStringContainsString( 'closeout main passed 138 tests/603 assertions', $final );
 		self::assertStringContainsString( '## Release boundary', $scope );
 		self::assertStringContainsString( 'packaging and evidence milestone', $scope );
 	}
