@@ -2,11 +2,11 @@
 
 **Audit snapshot:** 2026-09-25
 
-**Baseline repository head:** `97296b20a0d76c98e661691956ebf0805f8cf191` (`origin/main`)
+**Baseline repository head:** `d7cc77a858261b3babd49c5d4b814704a4523408` (`origin/main`)
 
-**Active campaign PR:** none; GROWTH-001 closeout is complete
+**Active campaign PR:** pending for `RELEASE-003` (the exact head will be captured in the merge gate)
 
-**Active queue item:** none; `GROWTH-001` / GitHub issue [#95](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/95) is completed after PR #96 and post-merge verification
+**Active queue item:** `RELEASE-003` / GitHub issue [#98](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/98) / PR pending
 
 **Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; post-merge deactivate/reactivate passes, both providers register, image capabilities remain default-deny, settings render 1301 bytes with no secret markers, and authenticated Playwright reaches Plugins, settings persistence, Connectors, and the public site. The listing screenshots are real, cropped, credential-free UI captures; only unrelated `ai-provider-for-*` connector-card 404s remain.
 

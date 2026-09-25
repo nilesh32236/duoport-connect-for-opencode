@@ -22,10 +22,11 @@ final class CodeQualityRatchetTest extends MonkeyTestCase {
 		$main = (string) file_get_contents( $root . '/duoport-connect-for-opencode.php' );
 		$readme = (string) file_get_contents( $root . '/readme.txt' );
 
-		self::assertStringContainsString( 'Version:           0.1.5', $main );
-		self::assertStringContainsString( "const VERSION     = '0.1.5';", $main );
-		self::assertStringContainsString( 'Stable tag: 0.1.5', $readme );
-		self::assertStringContainsString( '= 0.1.5 =', $readme );
+		self::assertStringContainsString( 'Version:           0.1.6', $main );
+		self::assertStringContainsString( "const VERSION     = '0.1.6';", $main );
+		self::assertStringContainsString( 'Stable tag: 0.1.6', $readme );
+		self::assertStringContainsString( '= 0.1.6 =', $readme );
+		self::assertStringContainsString( "const FALLBACK_VERSION = '0.1.6';", (string) file_get_contents( $root . '/src/Http/ClientUserAgent.php' ) );
 
 		$post_release_files = array(
 			$root . '/src/Http/ClientUserAgent.php',

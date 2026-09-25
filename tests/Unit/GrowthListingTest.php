@@ -32,6 +32,7 @@ final class GrowthListingTest extends MonkeyTestCase {
 		self::assertStringContainsString( '== WordPress AI Client integration ==', $readme );
 		self::assertStringContainsString( '== Verified model support ==', $readme );
 		self::assertStringContainsString( '== Screenshots ==', $readme );
+		self::assertStringContainsString( 'Stable tag: 0.1.6', $readme );
 		self::assertStringContainsString( 'screenshot-1.png', $growth );
 		self::assertStringContainsString( 'screenshot-2.png', $growth );
 		self::assertStringNotContainsString( 'connectors_ai_', $readme . $growth );

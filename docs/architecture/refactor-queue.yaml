@@ -1,10 +1,31 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: 97296b20a0d76c98e661691956ebf0805f8cf191
+source_commit: d7cc77a858261b3babd49c5d4b814704a4523408
 last_audited: 2026-09-25
 rule: exactly_one_active_item
-active_item: none
+active_item: RELEASE-003
 items:
+  - id: RELEASE-003
+    status: in_progress
+    title: Publish 0.1.6 with verified WordPress.org listing screenshots
+    github_issue: 98
+    github_pr: pending
+    owner: campaign-lead
+    priority: high
+    difficulty: medium
+    depends_on: [MODEL-001, GROWTH-001]
+    evidence: WordPress.org serves 0.1.5 with no screenshots; the verified 0.1.5 source now contains two real 1440 × 868 screenshots and a factual listing conversion baseline.
+    scope:
+      - Synchronize 0.1.6 version metadata, stable tag, changelog, upgrade notice, and post-tag since annotations.
+      - Build and verify a clean ZIP and GitHub release asset.
+      - Deploy the exact tag through WordPress.org SVN and verify version/screenshots.
+      - Repeat live WordPress, settings, Connectors, and Playwright verification.
+    acceptance:
+      - Exact release commit passes source, CI, AI review, ZIP, artifact, WordPress.org, and live runtime gates.
+      - WordPress.org serves 0.1.6 and both real screenshots.
+      - No title/tag/icon/model/transport/capability/credential behavior changes.
+      - Release notes, provenance, queue, architecture, and progress records agree.
+    status_note: Sole active campaign item; publication is deliberate and follows the GROWTH-001 baseline.
   - id: GROWTH-001
     status: completed
     title: Add real WordPress.org screenshots and listing conversion sections
@@ -303,6 +324,5 @@ reconciled_github_items:
 future_candidates_not_issues:
   - PF-005
   - GROWTH-002
-  - RELEASE-003
   - TRANSPORT-001
   - TRANSPORT-002
