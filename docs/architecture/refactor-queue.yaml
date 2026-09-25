@@ -1,6 +1,6 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: de27b6c1270ace0565bc92e940aaa265a168758d
+source_commit: 503d9c0ff06d080c3dbe31408258f7469ab18f7a
 last_audited: 2026-09-24
 rule: exactly_one_active_item
 active_item: RELEASE-002
