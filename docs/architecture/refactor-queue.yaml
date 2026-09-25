@@ -1,10 +1,31 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: 4987a078cd4a37a1d1a46719ec89f66426cfc05f
+source_commit: 77f123ac5b7db5505ccda96a2271b462c57aaf42
 last_audited: 2026-09-25
 rule: exactly_one_active_item
-active_item: none
+active_item: GROWTH-001
 items:
+  - id: GROWTH-001
+    status: in_progress
+    title: Add real WordPress.org screenshots and listing conversion sections
+    github_issue: 95
+    github_pr: 96
+    owner: campaign-lead
+    priority: high
+    difficulty: low
+    depends_on: [MODEL-001]
+    evidence: WordPress.org has fewer than 10 active installs and no screenshots; competitor OpenCode listings publish screenshots and two show about 30 active installs.
+    scope:
+      - Capture real Connectors and settings screenshots with Playwright after credential-value safety checks.
+      - Add natural Why DuoPort, Go + Zen, current/free model, verified support, and WordPress AI Client sections.
+      - Add WordPress.org screenshot captions and a safe installation/FAQ path.
+      - Record the baseline and defer title/tag/icon experiments.
+    acceptance:
+      - Screenshots are actual product UI, contain no credentials or authorization headers, and pass image checks.
+      - Readme makes no unsupported capability, model-count, or permanence claims.
+      - No runtime, model registry, transport, or credential behavior changes.
+      - CI, AI review, real WordPress, and Playwright pass on the exact head.
+    status_note: Sole active campaign item; title, short-description, tags, banner, and icon remain unchanged for attribution.
   - id: MODEL-001
     status: completed
     title: Add credential-free OpenCode Model Radar and free-model fast lane
@@ -281,6 +302,6 @@ reconciled_github_items:
   reason: Preserve history while enforcing one active campaign issue and one active campaign PR.
 future_candidates_not_issues:
   - PF-005
-  - GROWTH-001
+  - GROWTH-002
   - TRANSPORT-001
   - TRANSPORT-002
