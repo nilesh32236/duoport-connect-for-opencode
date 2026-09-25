@@ -46,7 +46,7 @@ final class ReleaseScriptTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Release evidence stays bounded to the completed issue and release-only scope.
+	 * Campaign evidence stays bounded to the active Model Radar issue and release-only scope.
 	 */
 	public function test_release_evidence_artifacts_are_scoped(): void {
 		$root = dirname( __DIR__, 2 );
@@ -54,10 +54,10 @@ final class ReleaseScriptTest extends MonkeyTestCase {
 		$scope = (string) file_get_contents( $root . '/docs/architecture/PRODUCT-SCOPE.md' );
 		$final = (string) file_get_contents( $root . '/docs/architecture/ARCHITECTURE-FINAL.md' );
 
-		self::assertStringContainsString( 'active_item: none', $queue );
-		self::assertStringContainsString( 'github_issue: 87', $queue );
-		self::assertStringContainsString( 'github_pr: 91', $queue );
-		self::assertStringContainsString( '    status: completed', $queue );
+		self::assertStringContainsString( 'active_item: MODEL-001', $queue );
+		self::assertStringContainsString( 'github_issue: 92', $queue );
+		self::assertStringContainsString( 'github_pr: pending', $queue );
+		self::assertStringContainsString( '    status: in_progress', $queue );
 		self::assertStringContainsString( 'passed 138 PHPUnit tests/601 assertions', $final );
 		self::assertStringContainsString( 'closeout main passed 138 tests/605 assertions', $final );
 		self::assertStringContainsString( '## Release boundary', $scope );

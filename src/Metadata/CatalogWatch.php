@@ -119,6 +119,11 @@ final class CatalogWatch {
 					$states[] = 'verification_required';
 					$status   = 'verification_required';
 				}
+				if ( $this->free_changed( $snapshot, $record ) ) {
+					$states[] = 'free_changed';
+					$states[] = 'verification_required';
+					$status   = 'verification_required';
+				}
 				if ( $this->metadata_changed( $snapshot, $record ) ) {
 					$states[] = 'metadata_changed';
 					$states[] = 'verification_required';
@@ -194,6 +199,17 @@ final class CatalogWatch {
 	}
 
 	/**
+	 * Compare an explicitly supplied free-status field.
+	 *
+	 * @param array<string, mixed> $snapshot Normalized discovery row.
+	 * @param array<string, mixed> $record   Reviewed record.
+	 * @return bool
+	 */
+	private function free_changed( array $snapshot, array $record ): bool {
+		return array_key_exists( 'free', $snapshot ) && $snapshot['free'] !== $record['free'];
+	}
+
+	/**
 	 * Compare only explicitly supplied safe metadata fields.
 	 *
 	 * @param array<string, mixed> $snapshot Normalized discovery row.
@@ -201,7 +217,7 @@ final class CatalogWatch {
 	 * @return bool
 	 */
 	private function metadata_changed( array $snapshot, array $record ): bool {
-		foreach ( array( 'display_name', 'free' ) as $field ) {
+		foreach ( array( 'display_name' ) as $field ) {
 			if ( array_key_exists( $field, $snapshot ) && $snapshot[ $field ] !== $record[ $field ] ) {
 				return true;
 			}

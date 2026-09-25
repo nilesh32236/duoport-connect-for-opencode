@@ -1,0 +1,1988 @@
+{
+    "schema_version": 1,
+    "checked_at": "2026-09-25T06:07:12+00:00",
+    "sources": {
+        "go": "https://opencode.ai/zen/go/v1/models",
+        "zen": "https://opencode.ai/zen/v1/models"
+    },
+    "metrics": {
+        "measurement_started_at": "2026-09-25T06:07:12+00:00",
+        "detection_to_verification": null,
+        "verification_to_merge": null,
+        "merge_to_release": null,
+        "total_detection_to_release": null
+    },
+    "catalogs": {
+        "go": {
+            "unreachable": false,
+            "summary": {
+                "discovered": 42,
+                "supported": 17,
+                "free_supported": 0,
+                "registry_candidates": 17,
+                "unsupported": 0,
+                "verification_required": 25,
+                "new": 25,
+                "retired": 0,
+                "free_candidates": 1,
+                "free_name_candidates": 1,
+                "explicit_free_evidence": 0,
+                "endpoint_change": 0,
+                "capability_change": 0,
+                "metadata_change": 0,
+                "free_change": 0,
+                "malformed": 0
+            },
+            "endpoint_evidence": [],
+            "endpoint_evidence_available": false,
+            "changes": [
+                {
+                    "id": "deepseek-flash",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "deepseek-v4-flash",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "deepseek-v4-flash-vision-exp",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "deepseek-v4-pro",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "deepseek-v4.1-flash",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "glm-5",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "glm-5.1",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "glm-5.2",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "glm-5.3",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "glm-5.3-flash",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.6-luna",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-6-luna",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "grok-4.5",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "grok-4.6",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "grok-4.7",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "hy3",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "hy3-preview",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "hy4-preview",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "kimi-k2.5",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "kimi-k2.6",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "kimi-k2.7-code",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "kimi-k3",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "longcat-2.0",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "mimo-v2-omni",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "mimo-v2-pro",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "mimo-v2.5",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "mimo-v2.5-pro",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "mimo-v2.6-flash",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "mimo-v2.6-pro",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "minimax-m2.5",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "minimax-m2.7",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "minimax-m3",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "muse-spark-1.2-contributor",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "muse-spark-1.3-contributor",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "omen-alpha",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "qwen3.5-plus",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "qwen3.6-plus",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "qwen3.7-max",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "qwen3.7-plus",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "qwen3.8-flash",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "qwen3.8-max",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "space-bunny-free",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": true,
+                    "free_candidate_basis": "unverified_name",
+                    "priority": "high",
+                    "promotable": false
+                }
+            ]
+        },
+        "zen": {
+            "unreachable": false,
+            "summary": {
+                "discovered": 80,
+                "supported": 14,
+                "free_supported": 5,
+                "registry_candidates": 17,
+                "unsupported": 3,
+                "verification_required": 66,
+                "new": 63,
+                "retired": 0,
+                "free_candidates": 10,
+                "free_name_candidates": 10,
+                "explicit_free_evidence": 0,
+                "endpoint_change": 0,
+                "capability_change": 0,
+                "metadata_change": 0,
+                "free_change": 0,
+                "malformed": 0
+            },
+            "endpoint_evidence": [],
+            "endpoint_evidence_available": false,
+            "changes": [
+                {
+                    "id": "big-pickle",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": true,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "claude-fable-5",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "claude-fable-5-1",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "claude-haiku-4-5",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "claude-opus-4-5",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "claude-opus-4-6",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "claude-opus-4-7",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "claude-opus-4-8",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "claude-opus-5",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "claude-opus-5-5",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "claude-sonnet-4",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "claude-sonnet-4-5",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "claude-sonnet-4-6",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "claude-sonnet-5",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "deepseek-v4-flash",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "deepseek-v4-flash-free",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": true,
+                    "free_candidate": true,
+                    "free_candidate_basis": "unverified_name",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "deepseek-v4-flash-vision-exp",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "deepseek-v4-pro",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "deepseek-v4.1-flash",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gemini-3-flash",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gemini-3.1-pro",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gemini-3.5-flash",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gemini-3.5-flash-lite",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gemini-3.6-flash",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gemini-3.7-flash",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gemini-3.8-flash",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "glm-5",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "glm-5.1",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "glm-5.2",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "glm-5.3",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "glm-5.3-flash",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5-codex",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5-nano",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.1",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.1-codex",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.1-codex-max",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.1-codex-mini",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.2",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.2-codex",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.3-codex",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.3-codex-spark",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.4",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.4-mini",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.4-nano",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.4-pro",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.5",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.5-pro",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.6-luna",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.6-sol",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-5.6-terra",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-6-astra",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-6-luna",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "gpt-6-sol",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "grok-4.5",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "grok-4.6",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "grok-4.7",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "grok-build-0.1",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "jev-1.13",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "jev-1.13-free",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": true,
+                    "free_candidate_basis": "unverified_name",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "kimi-k2.5",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "kimi-k2.6",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "kimi-k2.7-code",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "kimi-k3",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "normal",
+                    "promotable": false
+                },
+                {
+                    "id": "ling-3.0-flash-fin-free",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": true,
+                    "free_candidate_basis": "unverified_name",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "mimo-v2.5-free",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": true,
+                    "free_candidate": true,
+                    "free_candidate_basis": "unverified_name",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "mimo-v2.6-flash-free",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": true,
+                    "free_candidate_basis": "unverified_name",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "minimax-m2.5",
+                    "status": "verification_required",
+                    "states": [
+                        "allowlisted",
+                        "verification_required"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "minimax-m2.7",
+                    "status": "verification_required",
+                    "states": [
+                        "allowlisted",
+                        "verification_required"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "minimax-m3",
+                    "status": "verification_required",
+                    "states": [
+                        "allowlisted",
+                        "verification_required"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "muse-spark-1.2",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "muse-spark-1.2-contributor-free",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": true,
+                    "free_candidate_basis": "unverified_name",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "muse-spark-1.3",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "muse-spark-1.3-contributor-free",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": true,
+                    "free_candidate_basis": "unverified_name",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "nemotron-3-ultra-free",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": true,
+                    "free_candidate": true,
+                    "free_candidate_basis": "unverified_name",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "nemotron-3.5-lightning-free",
+                    "status": "allowlisted",
+                    "states": [
+                        "allowlisted"
+                    ],
+                    "allowlisted": true,
+                    "registry_candidate": true,
+                    "supported": true,
+                    "free_registry": true,
+                    "free_candidate": true,
+                    "free_candidate_basis": "unverified_name",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "qwen3.5-plus",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "qwen3.6-plus",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "qwen3.8-flash",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": false,
+                    "free_candidate_basis": "none",
+                    "priority": "high",
+                    "promotable": false
+                },
+                {
+                    "id": "space-bunny-free",
+                    "status": "verification_required",
+                    "states": [
+                        "new",
+                        "verification_required"
+                    ],
+                    "allowlisted": false,
+                    "registry_candidate": false,
+                    "supported": false,
+                    "free_registry": false,
+                    "free_candidate": true,
+                    "free_candidate_basis": "unverified_name",
+                    "priority": "high",
+                    "promotable": false
+                }
+            ]
+        }
+    }
+}

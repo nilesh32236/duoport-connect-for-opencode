@@ -4,6 +4,7 @@
 
 - Register OpenCode Go and Zen with the WordPress AI Client / Connectors system.
 - Discover and safely filter the OpenCode model catalogs.
+- Run a credential-free OpenCode Model Radar that measures coverage, surfaces free-model candidates, and aggregates verification work without auto-promotion.
 - Resolve model metadata and capabilities from verified evidence.
 - Select a verified endpoint family and transport for each supported model.
 - Build authenticated requests through WordPress AI Client interfaces.
@@ -18,6 +19,7 @@
 - Prompt library, RAG, vector database, or embeddings UI.
 - AI agents, local model runtime, provider routing dashboard, or generic AI platform.
 - Arbitrary model auto-promotion from `/models`.
+- Unrestricted free-model promotion based only on a model name or a catalog listing.
 - Unsupported endpoint families or capabilities.
 - A second credential/settings system competing with WordPress Connectors.
 - Unverified image, vision, web-search, or tool support.
