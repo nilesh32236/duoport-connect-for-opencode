@@ -22,3 +22,13 @@ Publish the two verified WordPress.org screenshots and the factual listing secti
 7. Synchronize the live plugin and repeat WordPress, settings, Connectors, and Playwright checks.
 
 No automatic release is allowed before all gates pass. If WordPress.org deployment fails, keep the tag/release evidence explicit and do not claim publication.
+
+## Published evidence
+
+- exact release head: `8bd45a4fe1da7b7f7d1af706d123e92ee52ff060`
+- exact reviewed PR head: `7cbd81469788b53b73996e4d88585dfef5ff76e7` (PR #99)
+- GitHub release: `v0.1.6`; asset SHA-256 `b4b19a48322ebfb8392d34642dd10cd57c0ec2cfd069fd67785b5f07153e7608`
+- WordPress.org SVN: `tags/0.1.6` deployed at revision `3712542`
+- public API: version `0.1.6`, last updated `2026-09-25 7:02am GMT`, both screenshot URLs present
+- screenshot hashes: `89859473776b4cc5f735676fc663f7743a31524fc131d1e16553aadc635a5727` and `d737a505fce7cf3f7db5616e0f4946d1928ff4dba9a38ae5168e7df94f73987c`
+- live WordPress 7.1.2/PHP 8.3.33/AI Client 1.3.1: plugin 0.1.6 activation, provider registration, diagnostics, settings, and Playwright pass with no network/console errors

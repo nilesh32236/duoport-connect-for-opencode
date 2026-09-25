@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "generated_at": "2026-09-25",
-  "source_commit": "d7cc77a858261b3babd49c5d4b814704a4523408",
-  "product_code_snapshot": "d7cc77a858261b3babd49c5d4b814704a4523408",
-  "snapshot_note": "MODEL-001 and GROWTH-001 are merged; RELEASE-003 is preparing the deliberate 0.1.6 listing-screenshot publication without runtime or credential changes.",
+  "source_commit": "8bd45a4fe1da7b7f7d1af706d123e92ee52ff060",
+  "product_code_snapshot": "8bd45a4fe1da7b7f7d1af706d123e92ee52ff060",
+  "snapshot_note": "MODEL-001, GROWTH-001, and RELEASE-003 are complete: Model Radar, factual listing screenshots, and 0.1.6 publication preserve runtime and credential boundaries.",
   "scope": "product runtime and campaign automation",
   "nodes": [
     {
