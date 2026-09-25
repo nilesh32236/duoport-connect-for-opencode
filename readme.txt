@@ -8,21 +8,64 @@ Stable tag: 0.1.5
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-Connect OpenCode Go and Zen catalogs (including free models) to WordPress 7.0 AI.
+Connect OpenCode Go and Zen to the WordPress AI Client with a conservative, WordPress-native integration.
 
 == Description ==
 
-Registers two AI providers — **OpenCode Go** (subscription catalog) and **OpenCode Zen** (pay-as-you-go catalog including free models) — with the WordPress 7.0 AI Client. Enter your API key in both the Go and Zen fields on Settings → Connectors; the same opencode.ai key works for both catalogs.
+DuoPort Connector for OpenCode registers two WordPress AI Client providers:
+
+* **OpenCode Go** for the subscription catalog.
+* **OpenCode Zen** for the pay-as-you-go catalog, including reviewed free-model records.
+
+Enter your opencode.ai key in the Go and Zen fields on **Settings → Connectors**. The same key works for both catalogs, while each field remains independently testable. DuoPort keeps credentials in WordPress and keeps model policy in a reviewed registry.
 
 This plugin is not affiliated with or endorsed by OpenCode (Anomaly Innovations, Inc.).
+
+== Why DuoPort? ==
+
+DuoPort gives WordPress teams a small, auditable OpenCode bridge instead of another opaque AI dashboard. It works with the native WordPress AI Client, keeps Go and Zen catalog identities separate, and exposes only model routes whose endpoint and capability contracts have been reviewed. The optional Model Radar tracks public catalog changes and queues new or free-model candidates for verification; it never auto-promotes a model.
+
+== OpenCode Go and Zen ==
+
+= OpenCode Go =
+
+Use the Go subscription catalog for its reviewed text-generation models. Go availability is checked with a bounded probe and transient cache, so the plugin can report configured or unavailable states without repeatedly calling the catalog API.
+
+= OpenCode Zen =
+
+Use the Zen pay-as-you-go catalog for reviewed text-generation models, including records explicitly identified as free. Free availability is supplied by OpenCode and can change; a free-looking model name is only a verification candidate, not a promise of free access.
+
+== Current OpenCode models ==
+
+Model lists change over time. By default, DuoPort presents the reviewed chat/completions records for each catalog and labels Zen free records. The credential-free Model Radar compares current public Go and Zen `/models` evidence with that registry and reports new, retired, unsupported, and verification-required changes in one aggregate issue.
+
+Enable **Show all models** only when you want to inspect the complete live catalog. Unknown models, unknown endpoint families, unsupported capabilities, and unverified free-name candidates remain default-deny; discovering a model is not the same as making it routable.
+
+== Free OpenCode models ==
+
+Zen records with explicit free evidence are marked `(Free)` in the model picker when they are part of the reviewed registry. Free models still require an API key and may have limits, availability changes, or catalog retirement. DuoPort does not promise that every free-looking ID is free or supported.
+
+== WordPress AI Client integration ==
+
+DuoPort uses the native WordPress AI Client provider registry. It does not create a separate site-wide model router, duplicate WordPress credentials, or read connector secrets for diagnostics. Model selection, metadata, and request transport remain inside the plugin's reviewed boundaries.
+
+== Verified model support ==
+
+Only reviewed chat/completions records are advertised by default. The current adapter does not claim Responses, Messages, image, tool, or web-search support unless the corresponding contract is explicitly present in the registry. Unknown or unresolved routes fail clearly instead of silently falling back.
 
 = Features =
 
 * Two providers (`opencode-go` / `opencode-zen`) auto-discovered by the Connectors screen.
 * Allowlisted chat/completions models per catalog — verified against the OpenCode `/models` API.
-* Free models labeled `(Free)` in the model picker (Zen catalog).
+* Explicitly reviewed free models labeled `(Free)` in the model picker (Zen catalog).
+* Credential-free Model Radar and catalog watch for fast-follow verification work.
 * Availability probe with transient caching — validates key without calling `/models`.
 * **Show all models** toggle on Settings → DuoPort Connector (off by default).
+
+== Screenshots ==
+
+1. The WordPress Connectors screen lists the real OpenCode Go and Zen provider setup entries.
+2. DuoPort's native Settings page shows connection state, the optional model-view toggle, and the small settings surface.
 
 == Installation ==
 
@@ -30,6 +73,7 @@ This plugin is not affiliated with or endorsed by OpenCode (Anomaly Innovations,
 2. Activate through the Plugins menu
 3. Go to Settings → Connectors and enter your opencode.ai key in both the Go and Zen fields (the same key works for both catalogs)
 4. (Optional) Go to Settings → DuoPort Connector to enable **Show all models** or check connection status
+5. Use the WordPress AI Client's normal provider/model selection flow
 
 == Frequently Asked Questions ==
 
@@ -43,11 +87,15 @@ Yes. OpenCode uses a unified auth domain, so paste the same opencode.ai key into
 
 = Which models are available? =
 
-By default only allowlisted chat/completions models are shown (Go: 17, Zen: 17 including free models). Enable **Show all models** on Settings → DuoPort Connector to expose every model from the API (including non-chat models that may fail).
+By default, only reviewed chat/completions models are shown. Zen may include explicitly reviewed free-model records. Enable **Show all models** on Settings → DuoPort Connector to inspect every live API model, including non-chat models that may fail. The toggle is for inspection, not a guarantee of support.
 
 = Does it work without WordPress 7.0? =
 
 No. Requires WordPress 7.0+ and PHP 8.2+. On older installs an admin notice is shown and registration is skipped.
+
+= Is DuoPort affiliated with OpenCode? =
+
+No. DuoPort is an independent WordPress integration and is not endorsed by OpenCode or Anomaly Innovations, Inc.
 
 == External Services ==
 

@@ -11,6 +11,7 @@
 - Cache and classify lightweight availability diagnostics.
 - Show a deliberately small settings page with connection/catalog status, model information, show-all behavior, and safe diagnostics.
 - Save already-generated image bytes to the Media Library when image support has been explicitly verified.
+- Maintain a factual WordPress.org listing baseline with real, credential-free screenshots and conversion sections.
 - Maintain focused tests, WPCS compliance, release metadata, and safe GitHub automation.
 
 ## Out of scope by default
@@ -24,6 +25,7 @@
 - A second credential/settings system competing with WordPress Connectors.
 - Unverified image, vision, web-search, or tool support.
 - Analytics, telemetry, or paid-request monitoring beyond minimal provider diagnostics.
+- Simultaneous listing title, short-description, tag, banner, icon, and screenshot experiments; each conversion change must be attributable.
 
 ## Release boundary
 
