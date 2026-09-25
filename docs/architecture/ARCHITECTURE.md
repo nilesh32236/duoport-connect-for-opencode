@@ -4,9 +4,9 @@
 
 **Baseline repository head:** `241bb79d669cc1361b12a9ea305c095f7f1e3e75` (`origin/main`)
 
-**Active campaign PR:** pending for `RELEASE-002` final evidence (the exact head will be captured before the v0.1.5 tag)
+**Active campaign PR:** #89 for `RELEASE-002` final evidence (the exact head will be captured before the v0.1.5 tag)
 
-**Active queue item:** `RELEASE-002` / GitHub issue [#87](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/87) / PR pending
+**Active queue item:** `RELEASE-002` / GitHub issue [#87](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/87) / PR [#89](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/89)
 
 **Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; both providers registered, image capabilities remain default-deny, settings render 1301 bytes with no secret markers, and the plugin deactivate/reactivate flow passes. Authenticated Playwright reaches Plugins, settings persistence, Connectors, and the public site; only unrelated `ai-provider-for-*` connector-card 404s remain.
 
