@@ -2,13 +2,13 @@
 
 **Audit snapshot:** 2026-09-25
 
-**Baseline repository head:** `74a5342c234cca787a5c47cee3374b78a1854069` (`origin/main`)
+**Baseline repository head:** `4987a078cd4a37a1d1a46719ec89f66426cfc05f` (`origin/main`)
 
-**Active campaign PR:** pending for `MODEL-001` (the exact head will be captured in the merge gate)
+**Active campaign PR:** none; MODEL-001 closeout is complete
 
-**Active queue item:** `MODEL-001` / GitHub issue [#92](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/92) / PR pending
+**Active queue item:** none; `MODEL-001` / GitHub issue [#92](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/92) is completed after PR #93 and post-merge verification
 
-**Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; exact GitHub release ZIP installed into the live plugin, both providers registered, image capabilities remain default-deny, settings render 1301 bytes with no secret markers, and deactivate/reactivate passes. Authenticated Playwright reaches Plugins, settings persistence, Connectors, and the public site; only unrelated `ai-provider-for-*` connector-card 404s remain. WordPress.org reports version 0.1.5 and its ZIP contents match the GitHub release contents.
+**Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; post-merge deactivate/reactivate passes, both providers register, image capabilities remain default-deny, settings render 1301 bytes with no secret markers, and authenticated Playwright reaches Plugins, settings persistence, Connectors, and the public site. Only unrelated `ai-provider-for-*` connector-card 404s remain.
 
 This document is the current architecture source of truth. `class-inventory.json`, `DEPENDENCY-GRAPH.json`, `BOUNDARIES.md`, and `refactor-queue.yaml` are companion artifacts. Older files under `AUDIT/` are historical evidence, not a competing plan.
 

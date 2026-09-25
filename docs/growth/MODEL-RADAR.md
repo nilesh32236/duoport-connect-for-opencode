@@ -15,7 +15,7 @@ Captured: `2026-09-25T06:20:27+00:00`
 | Go | 42 | 17 | 0 | 0 | 25 | 1 |
 | Zen | 80 | 14 | 5 | 3 | 66 | 10 |
 
-The machine-readable snapshot is [model-radar-snapshot.json](<model-radar-snapshot.json>). The public sources are:
+The machine-readable snapshot is [model-radar-snapshot.json](<model-radar-snapshot.json>). It was generated from the public sources below and the radar implementation merged in PR #93; post-merge runtime and browser checks passed. The public sources are:
 
 - <https://opencode.ai/zen/go/v1/models>
 - <https://opencode.ai/zen/v1/models>
