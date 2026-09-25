@@ -1,10 +1,25 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: de27b6c1270ace0565bc92e940aaa265a168758d
+source_commit: 503d9c0ff06d080c3dbe31408258f7469ab18f7a
 last_audited: 2026-09-24
 rule: exactly_one_active_item
-active_item: none
+active_item: RELEASE-002
 items:
+  - id: RELEASE-002
+    status: in_progress
+    title: Publish 0.1.5 after complete release gate
+    github_issue: 87
+    github_pr: 88
+    owner: campaign-lead
+    priority: high
+    difficulty: medium
+    depends_on: [AUDIT-041, PF-001, PF-002, PF-003, PF-004, PF-006, PF-007]
+    evidence: Main metadata, automated gates, and live WordPress runtime are ready; GitHub currently has no v0.1.5 tag or release.
+    acceptance:
+      - Release metadata is internally consistent at 0.1.5.
+      - Complete automated, WordPress, browser, and release-ZIP gates pass on the exact release commit.
+      - Annotated v0.1.5 is pushed only after all gates pass and the resulting artifact is verified.
+    status_note: Sole active campaign item; no release tag exists yet.
   - id: AUDIT-041
     status: completed
     title: Resolve current code-quality and version-documentation drift

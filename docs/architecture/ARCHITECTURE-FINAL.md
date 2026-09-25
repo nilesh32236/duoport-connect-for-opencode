@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-24  
-**Merged baseline:** `de27b6c1270ace0565bc92e940aaa265a168758d` (`origin/main`)
+**Merged baseline:** `503d9c0ff06d080c3dbe31408258f7469ab18f7a` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -71,6 +71,10 @@ PR #84 completed the image evidence boundary audit. The image allowlist remains 
 ## Stopping point
 
 No improvement item remains justified for implementation. PF-005 stays deferred because it overlaps WordPress AI Client selection, and PF-008 remains rejected. The queue has no active item, issue, or PR; the architecture and progress records are the stopping-point evidence.
+
+## RELEASE-002
+
+The fresh audit found internally consistent 0.1.5 metadata, no existing v0.1.5 tag, green automated/ZIP gates, and a clean live runtime. Playwright authenticated verification reached Plugins, activation/deactivation, settings persistence, Connectors, and the public site; three connector-card 404s were isolated to unrelated `ai-provider-for-*` WordPress REST routes and are not DuoPort requests. Issue #87 is the sole active release item; no tag has been created yet.
 
 ## Final boundaries
 

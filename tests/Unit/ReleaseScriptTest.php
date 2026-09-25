@@ -31,6 +31,21 @@ final class ReleaseScriptTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * The release metadata is synchronized before tagging.
+	 */
+	public function test_release_metadata_is_prepared_for_0_1_5(): void {
+		$root = dirname( __DIR__, 2 );
+		$main = (string) file_get_contents( $root . '/duoport-connect-for-opencode.php' );
+		$readme = (string) file_get_contents( $root . '/readme.txt' );
+
+		self::assertStringContainsString( 'Version:           0.1.5', $main );
+		self::assertStringContainsString( "const VERSION     = '0.1.5';", $main );
+		self::assertStringContainsString( 'Stable tag: 0.1.5', $readme );
+		self::assertMatchesRegularExpression( '/^= 0\.1\.5 =/m', $readme );
+		self::assertStringContainsString( '= 0.1.5 =', substr( $readme, strpos( $readme, '== Upgrade Notice ==' ) ) );
+	}
+
+	/**
 	 * The behavioral fixture exercises good, missing, and forbidden archives.
 	 */
 	public function test_release_zip_behavior_fixture(): void {
