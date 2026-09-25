@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-09-24",
-  "source_commit": "241bb79d669cc1361b12a9ea305c095f7f1e3e75",
-  "product_code_snapshot": "241bb79d669cc1361b12a9ea305c095f7f1e3e75",
-  "snapshot_note": "Fresh release audit snapshot; PF-006 fallback and PF-007 image boundary are verified, with 0.1.5 release preparation active and exact post-merge runtime/browser gates passed.",
+  "generated_at": "2026-09-25",
+  "source_commit": "176aa80f1243de2f855bcd6f9ef7e016350c2788",
+  "product_code_snapshot": "176aa80f1243de2f855bcd6f9ef7e016350c2788",
+  "snapshot_note": "v0.1.5 release audit complete; PF-006 fallback and PF-007 image boundary remain verified, with exact runtime, browser, artifact, and WordPress.org evidence recorded.",
   "scope": "product runtime and campaign automation",
   "nodes": [
     {

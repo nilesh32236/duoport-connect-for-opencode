@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
 **Snapshot:** 2026-09-25  
-**Merged baseline:** `241bb79d669cc1361b12a9ea305c095f7f1e3e75` (`origin/main`)
+**Merged baseline:** `176aa80f1243de2f855bcd6f9ef7e016350c2788` (`v0.1.5` exact release commit)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -26,7 +26,7 @@ The merged plugin was synchronized to the live WordPress site and PHP-linted. Wo
 Local verification passed:
 
 - WPCS
-- PHPUnit: 137 tests, 596 assertions
+- PHPUnit: 138 tests, 603 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
@@ -73,9 +73,9 @@ PR #84 completed the image evidence boundary audit. The image allowlist remains 
 
 No improvement item remains justified for implementation. PF-005 stays deferred because it overlaps WordPress AI Client selection, and PF-008 remains rejected. The queue has no active item, issue, or PR; the architecture and progress records are the stopping-point evidence.
 
-## RELEASE-002
+## RELEASE-002 result
 
-The fresh audit found internally consistent 0.1.5 metadata, no existing v0.1.5 tag, green automated/ZIP gates, and a clean live runtime. Exact merged commit `241bb79d669cc1361b12a9ea305c095f7f1e3e75` passed 137 PHPUnit tests/596 assertions, WPCS, PHPCompatibilityWP, reviewer/workflow contracts, release ZIP and unzip checks, and post-merge WordPress runtime checks. Authenticated Playwright reached Plugins, activation/deactivation, settings persistence, Connectors, and the public site with no secret-shaped input values; three console/network 404s were isolated to unrelated `ai-provider-for-*` WordPress REST routes and are not DuoPort requests. Issue #87 is the sole active release item; no tag has been created yet.
+The fresh audit found internally consistent 0.1.5 metadata and green automated/ZIP gates. Exact commit `176aa80f1243de2f855bcd6f9ef7e016350c2788` passed 138 PHPUnit tests/603 assertions, WPCS, PHPCompatibilityWP, reviewer/workflow contracts, release ZIP and unzip checks, and post-merge WordPress runtime checks. Authenticated Playwright reached Plugins, activation/deactivation, settings persistence, Connectors, and the public site with no secret-shaped input values; three console/network 404s were isolated to unrelated `ai-provider-for-*` WordPress REST routes and are not DuoPort requests. Annotated `v0.1.5` points to the exact release commit. GitHub release asset `duoport-connect-for-opencode-0.1.5.zip` SHA-256 is `42f7b5b82009b23a71fb23e9db1abf2058d792027fe0b79582d8037650ac4eff`; WordPress.org’s repackaged ZIP has identical extracted contents. Issue #87 is complete and the queue has no active item.
 
 ## Final boundaries
 

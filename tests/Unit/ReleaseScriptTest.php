@@ -46,16 +46,17 @@ final class ReleaseScriptTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Release evidence stays bounded to the active issue and release-only scope.
+	 * Release evidence stays bounded to the completed issue and release-only scope.
 	 */
 	public function test_release_evidence_artifacts_are_scoped(): void {
 		$root = dirname( __DIR__, 2 );
 		$queue = (string) file_get_contents( $root . '/docs/architecture/refactor-queue.yaml' );
 		$scope = (string) file_get_contents( $root . '/docs/architecture/PRODUCT-SCOPE.md' );
 
-		self::assertStringContainsString( 'active_item: RELEASE-002', $queue );
+		self::assertStringContainsString( 'active_item: none', $queue );
 		self::assertStringContainsString( 'github_issue: 87', $queue );
-		self::assertStringContainsString( 'github_pr: 89', $queue );
+		self::assertStringContainsString( 'github_pr: 90', $queue );
+		self::assertStringContainsString( '    status: completed', $queue );
 		self::assertStringContainsString( '## Release boundary', $scope );
 		self::assertStringContainsString( 'packaging and evidence milestone', $scope );
 	}

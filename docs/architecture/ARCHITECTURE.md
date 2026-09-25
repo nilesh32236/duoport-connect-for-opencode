@@ -2,13 +2,13 @@
 
 **Audit snapshot:** 2026-09-25
 
-**Baseline repository head:** `241bb79d669cc1361b12a9ea305c095f7f1e3e75` (`origin/main`)
+**Baseline repository head:** `176aa80f1243de2f855bcd6f9ef7e016350c2788` (`v0.1.5` exact release commit)
 
-**Active campaign PR:** #89 for `RELEASE-002` final evidence (the exact head will be captured before the v0.1.5 tag)
+**Active campaign PR:** none; release closeout is complete
 
-**Active queue item:** `RELEASE-002` / GitHub issue [#87](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/87) / PR [#89](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/89)
+**Active queue item:** none; `RELEASE-002` / GitHub issue [#87](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/87) is completed
 
-**Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; both providers registered, image capabilities remain default-deny, settings render 1301 bytes with no secret markers, and the plugin deactivate/reactivate flow passes. Authenticated Playwright reaches Plugins, settings persistence, Connectors, and the public site; only unrelated `ai-provider-for-*` connector-card 404s remain.
+**Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; exact GitHub release ZIP installed into the live plugin, both providers registered, image capabilities remain default-deny, settings render 1301 bytes with no secret markers, and deactivate/reactivate passes. Authenticated Playwright reaches Plugins, settings persistence, Connectors, and the public site; only unrelated `ai-provider-for-*` connector-card 404s remain. WordPress.org reports version 0.1.5 and its ZIP contents match the GitHub release contents.
 
 This document is the current architecture source of truth. `class-inventory.json`, `DEPENDENCY-GRAPH.json`, `BOUNDARIES.md`, and `refactor-queue.yaml` are companion artifacts. Older files under `AUDIT/` are historical evidence, not a competing plan.
 
