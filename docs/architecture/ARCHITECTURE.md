@@ -4,7 +4,7 @@
 
 **Baseline repository head:** `77f123ac5b7db5505ccda96a2271b462c57aaf42` (`origin/main`)
 
-**Active campaign PR:** pending for `GROWTH-001` (the exact head will be captured in the merge gate)
+**Active campaign PR:** [#96](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/96) for `GROWTH-001` (the exact head will be captured in the merge gate)
 
 **Active queue item:** `GROWTH-001` / GitHub issue [#95](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/95) / PR pending
 
