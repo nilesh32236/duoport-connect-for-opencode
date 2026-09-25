@@ -9,7 +9,7 @@ items:
     status: in_progress
     title: Publish 0.1.6 with verified WordPress.org listing screenshots
     github_issue: 98
-    github_pr: pending
+    github_pr: 99
     owner: campaign-lead
     priority: high
     difficulty: medium

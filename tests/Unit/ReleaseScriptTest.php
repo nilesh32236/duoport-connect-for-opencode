@@ -57,7 +57,7 @@ final class ReleaseScriptTest extends MonkeyTestCase {
 
 		self::assertStringContainsString( 'active_item: RELEASE-003', $queue );
 		self::assertStringContainsString( 'github_issue: 98', $queue );
-		self::assertStringContainsString( 'github_pr: pending', $queue );
+		self::assertStringContainsString( 'github_pr: 99', $queue );
 		self::assertStringContainsString( '    status: in_progress', $queue );
 		self::assertStringContainsString( 'PHPUnit: 148 tests, 694 assertions', $final );
 		self::assertStringContainsString( '## MODEL-001 result', $final );

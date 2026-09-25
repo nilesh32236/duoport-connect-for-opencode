@@ -4,7 +4,7 @@
 
 **Baseline repository head:** `d7cc77a858261b3babd49c5d4b814704a4523408` (`origin/main`)
 
-**Active campaign PR:** pending for `RELEASE-003` (the exact head will be captured in the merge gate)
+**Active campaign PR:** [#99](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/99) for `RELEASE-003` (the exact head will be captured in the merge gate)
 
 **Active queue item:** `RELEASE-003` / GitHub issue [#98](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/98) / PR pending
 
