@@ -26,7 +26,7 @@ The merged plugin was synchronized to the live WordPress site and PHP-linted. Wo
 Local verification passed:
 
 - WPCS
-- PHPUnit: 138 tests, 603 assertions
+- PHPUnit: 138 tests, 605 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
@@ -75,7 +75,7 @@ No improvement item remains justified for implementation. PF-005 stays deferred 
 
 ## RELEASE-002 result
 
-The fresh audit found internally consistent 0.1.5 metadata and green automated/ZIP gates. Exact commit `176aa80f1243de2f855bcd6f9ef7e016350c2788` passed 138 PHPUnit tests/601 assertions, WPCS, PHPCompatibilityWP, reviewer/workflow contracts, release ZIP and unzip checks, and post-merge WordPress runtime checks. The subsequent documentation-only closeout main passed 138 tests/603 assertions. Authenticated Playwright reached Plugins, activation/deactivation, settings persistence, Connectors, and the public site with no secret-shaped input values; three console/network 404s were isolated to unrelated `ai-provider-for-*` WordPress REST routes and are not DuoPort requests. Annotated `v0.1.5` points to the exact release commit. GitHub release asset `duoport-connect-for-opencode-0.1.5.zip` SHA-256 is `42f7b5b82009b23a71fb23e9db1abf2058d792027fe0b79582d8037650ac4eff`; WordPress.org’s repackaged ZIP has identical extracted contents. Issue #87 is complete and the queue has no active item.
+The fresh audit found internally consistent 0.1.5 metadata and green automated/ZIP gates. Exact commit `176aa80f1243de2f855bcd6f9ef7e016350c2788` passed 138 PHPUnit tests/601 assertions, WPCS, PHPCompatibilityWP, reviewer/workflow contracts, release ZIP and unzip checks, and post-merge WordPress runtime checks. The subsequent documentation-only closeout main passed 138 tests/605 assertions. Authenticated Playwright reached Plugins, activation/deactivation, settings persistence, Connectors, and the public site with no secret-shaped input values; three console/network 404s were isolated to unrelated `ai-provider-for-*` WordPress REST routes and are not DuoPort requests. Annotated `v0.1.5` points to the exact release commit. GitHub release asset `duoport-connect-for-opencode-0.1.5.zip` SHA-256 is `42f7b5b82009b23a71fb23e9db1abf2058d792027fe0b79582d8037650ac4eff`; WordPress.org’s repackaged ZIP has identical extracted contents. Issue #87 is complete and the queue has no active item.
 
 ## Final boundaries
 

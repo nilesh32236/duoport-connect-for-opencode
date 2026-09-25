@@ -59,7 +59,7 @@ final class ReleaseScriptTest extends MonkeyTestCase {
 		self::assertStringContainsString( 'github_pr: 91', $queue );
 		self::assertStringContainsString( '    status: completed', $queue );
 		self::assertStringContainsString( 'passed 138 PHPUnit tests/601 assertions', $final );
-		self::assertStringContainsString( 'closeout main passed 138 tests/603 assertions', $final );
+		self::assertStringContainsString( 'closeout main passed 138 tests/605 assertions', $final );
 		self::assertStringContainsString( '## Release boundary', $scope );
 		self::assertStringContainsString( 'packaging and evidence milestone', $scope );
 	}

@@ -14,7 +14,7 @@ items:
     priority: high
     difficulty: medium
     depends_on: [AUDIT-041, PF-001, PF-002, PF-003, PF-004, PF-006, PF-007]
-    evidence: Annotated v0.1.5 points to exact commit 176aa80f1243de2f855bcd6f9ef7e016350c2788. The release workflow, GitHub ZIP, WordPress.org 0.1.5 deployment, exact artifact installation, WordPress activation, runtime, and Playwright checks all pass; closeout suite is 138 PHPUnit tests/603 assertions.
+    evidence: Annotated v0.1.5 points to exact commit 176aa80f1243de2f855bcd6f9ef7e016350c2788. The release workflow, GitHub ZIP, WordPress.org 0.1.5 deployment, exact artifact installation, WordPress activation, runtime, and Playwright checks all pass; release commit suite is 138 PHPUnit tests/601 assertions and the final documentation correction suite is 138 tests/605 assertions.
     acceptance:
       - Release metadata is internally consistent at 0.1.5.
       - Complete automated, WordPress, browser, and release-ZIP gates pass on the exact release commit.
