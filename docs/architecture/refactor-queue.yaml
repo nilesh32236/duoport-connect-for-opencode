@@ -1,10 +1,32 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: 176aa80f1243de2f855bcd6f9ef7e016350c2788
+source_commit: 74a5342c234cca787a5c47cee3374b78a1854069
 last_audited: 2026-09-25
 rule: exactly_one_active_item
-active_item: none
+active_item: MODEL-001
 items:
+  - id: MODEL-001
+    status: in_progress
+    title: Add credential-free OpenCode Model Radar and free-model fast lane
+    github_issue: 92
+    github_pr: 93
+    owner: campaign-lead
+    priority: high
+    difficulty: medium
+    depends_on: [PF-001, PF-002, PF-004]
+    evidence: Fresh public catalogs contain 42 Go and 80 Zen IDs versus 17 reviewed records per catalog; the current drift output is aggregated but has no machine-readable coverage or free-model priority lane.
+    scope:
+      - Reuse public catalog evidence and CatalogWatch without credentials.
+      - Emit stable JSON and Markdown coverage reports with discovered/supported/free/unsupported/verification-required counts.
+      - Separate reviewed free models from unverified free-name candidates.
+      - Record checked_at and nullable fast-follow metric fields without fabricating history.
+      - Aggregate radar findings into at most one issue and preserve default-deny promotion.
+    acceptance:
+      - New, retired, endpoint, capability, free-metadata, malformed, and unreachable cases have safe fixtures.
+      - Radar output is credential-free and never marks a candidate promotable.
+      - CI and catalog-watch execute the report contract.
+      - docs/growth/MODEL-RADAR.md records the measurement start and operating rules.
+    status_note: Sole active campaign item; no model is auto-promoted by this radar.
   - id: RELEASE-002
     status: completed
     title: Publish 0.1.5 after complete release gate
@@ -259,3 +281,6 @@ reconciled_github_items:
   reason: Preserve history while enforcing one active campaign issue and one active campaign PR.
 future_candidates_not_issues:
   - PF-005
+  - GROWTH-001
+  - TRANSPORT-001
+  - TRANSPORT-002

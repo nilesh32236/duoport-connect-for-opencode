@@ -75,6 +75,7 @@ final class CatalogWatchTest extends MonkeyTestCase {
 		self::assertSame( 'verification_required', $result['status'] );
 		self::assertContains( 'endpoint_changed', $result['states'] );
 		self::assertContains( 'capability_changed', $result['states'] );
+		self::assertContains( 'free_changed', $result['states'] );
 		self::assertContains( 'metadata_changed', $result['states'] );
 	}
 

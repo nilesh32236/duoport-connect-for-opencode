@@ -48,6 +48,14 @@ Known hotspots are Go/Zen header logic, request construction, catalog/allowlist 
 - Cache-bust hooks are credential-blind and may only delete plugin-owned transients.
 - New settings are plugin-owned, additive, sanitized, and default-safe.
 
+## Model radar rules
+
+- Public `/models` and official documentation are evidence, not promotion authority.
+- Distinguish API unreachable, malformed evidence, new, retired, endpoint, capability, free-status, and metadata changes.
+- Keep explicit free evidence separate from free-looking names; neither auto-promotes a model.
+- Aggregate meaningful changes into one radar issue and defer when a campaign issue is already active.
+- Start detection-to-release measurements only when real timestamps are observed; do not fabricate history.
+
 ## WordPress compatibility
 
 - Target WordPress 7.0+ and PHP 8.2+.

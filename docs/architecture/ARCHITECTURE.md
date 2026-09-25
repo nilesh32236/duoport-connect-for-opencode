@@ -2,11 +2,11 @@
 
 **Audit snapshot:** 2026-09-25
 
-**Baseline repository head:** `176aa80f1243de2f855bcd6f9ef7e016350c2788` (`v0.1.5` exact release commit)
+**Baseline repository head:** `74a5342c234cca787a5c47cee3374b78a1854069` (`origin/main`)
 
-**Active campaign PR:** none; release closeout is complete
+**Active campaign PR:** pending for `MODEL-001` (the exact head will be captured in the merge gate)
 
-**Active queue item:** none; `RELEASE-002` / GitHub issue [#87](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/87) is completed
+**Active queue item:** `MODEL-001` / GitHub issue [#92](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/92) / PR pending
 
 **Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; exact GitHub release ZIP installed into the live plugin, both providers registered, image capabilities remain default-deny, settings render 1301 bytes with no secret markers, and deactivate/reactivate passes. Authenticated Playwright reaches Plugins, settings persistence, Connectors, and the public site; only unrelated `ai-provider-for-*` connector-card 404s remain. WordPress.org reports version 0.1.5 and its ZIP contents match the GitHub release contents.
 
@@ -45,6 +45,16 @@ Availability
   -> all other responses/exceptions are not configured
 ```
 
+Model Radar flow:
+
+```text
+  public Go/Zen /models
+    -> CatalogWatch evidence normalization
+    -> ModelRadar coverage JSON/Markdown
+    -> one aggregated model-radar issue
+    -> human verification queue (no registry mutation)
+```
+
 ## Layers and ownership
 
 | Layer | Current files | Owns | Must not own |
@@ -75,8 +85,9 @@ Availability
 1. **Image evidence boundary (intentional defer):** the image allowlist remains intentionally empty; provider request/response shape, media safety, and end-to-end capability evidence must be established before exposure.
 2. **Workflow dependency (controlled):** reviewer workflows pin the released reviewer v1.22.0 peeled commit and checksum-verified OpenCode CLI v1.18.31. `.github/reviewer-dependency.json` records the release identity, and `reviewer-update.yml` proposes a traceable stable-release update PR while deferring when a campaign PR is active. The updater still requires normal deterministic review/merge; it never silently switches to unreleased code.
 3. **Automation issue flood risk (medium):** scheduled audit/research/catalog jobs can create or update multiple open issues. The campaign reconciles them into one active queue item; future automation must preserve that invariant or report without opening a competing issue.
-4. **Settings responsibility drift (medium):** `Settings` currently knows cache key formats, model directory classes, and the AI Client cache shape. These are future extraction candidates, not a reason to grow a dashboard.
-5. **WordPress compatibility evidence (medium):** the live site is newer than the plugin minimum and has AI Client 1.3.1. The repository does not yet run a real WP 7.0 core-client matrix in CI; guarded source/unit tests are not a substitute for post-merge runtime verification.
+4. **Model freshness visibility (high):** public Go/Zen catalogs now contain many IDs beyond the reviewed registry. The existing evidence-only watcher needs a machine-readable coverage report and free-model fast lane before a new model is promoted.
+5. **Settings responsibility drift (medium):** `Settings` currently knows cache key formats, model directory classes, and the AI Client cache shape. These are future extraction candidates, not a reason to grow a dashboard.
+6. **WordPress compatibility evidence (medium):** the live site is newer than the plugin minimum and has AI Client 1.3.1. The repository does not yet run a real WP 7.0 core-client matrix in CI; guarded source/unit tests are not a substitute for post-merge runtime verification.
 
 ## Architecture decisions
 
@@ -102,6 +113,6 @@ The reviewer updater is deliberately not a direct auto-merge path. It resolves o
 
 ## Baseline metrics
 
-The machine-readable inventory on the active PR head reports 26 PHP classes, 3,457 source lines, largest class `AbstractOpenCodeTextGenerationModel` (282 lines), largest method `CatalogWatch::compare` (118 lines), and the highest fan-in `OpenCodeGoProvider` (8) / fan-out `AbstractOpenCodeTextGenerationModel` (7) concentration. The previous pre-correction baseline was 19 classes and 1,843 source lines. These are measurements, not a target to optimize by splitting code merely to reduce numbers.
+The machine-readable inventory on the active PR head reports 27 PHP classes, 3,833 source lines, largest class `ModelRadar` (338 lines), largest method `ModelRadar::catalog_report` (126 lines), and the highest fan-in `OpenCodeGoProvider` (8) / fan-out `AbstractOpenCodeTextGenerationModel` (7) concentration. The previous v0.1.5 baseline was 26 classes and 3,457 source lines. These are measurements, not a target to optimize by splitting code merely to reduce numbers.
 
 The live unauthenticated catalogs returned 80 Zen IDs and 42 Go IDs at audit time, while the curated allowlist contains 17 IDs per catalog. The difference is intentional safety drift; new IDs require verification before promotion.

@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "generated_at": "2026-09-25",
-  "source_commit": "176aa80f1243de2f855bcd6f9ef7e016350c2788",
-  "product_code_snapshot": "176aa80f1243de2f855bcd6f9ef7e016350c2788",
-  "snapshot_note": "v0.1.5 release audit complete; PF-006 fallback and PF-007 image boundary remain verified, with exact runtime, browser, artifact, and WordPress.org evidence recorded.",
+  "source_commit": "74a5342c234cca787a5c47cee3374b78a1854069",
+  "product_code_snapshot": "74a5342c234cca787a5c47cee3374b78a1854069",
+  "snapshot_note": "MODEL-001 working tree adds a credential-free Model Radar; public catalog evidence is compared with the reviewed registry and free candidates remain non-promotable.",
   "scope": "product runtime and campaign automation",
   "nodes": [
     {
@@ -141,6 +141,12 @@
       "id": "github",
       "kind": "automation",
       "label": "GitHub Actions / API"
+    },
+    {
+      "id": "model-radar",
+      "kind": "automation",
+      "file": ".github/scripts/check-catalog-drift.php",
+      "label": "Credential-free OpenCode Model Radar"
     }
   ],
   "edges": [
@@ -298,6 +304,26 @@
       "from": "github",
       "to": "opencode-cli",
       "kind": "release API metadata (updater planned)"
+    },
+    {
+      "from": "github",
+      "to": "model-radar",
+      "kind": "scheduled catalog watch"
+    },
+    {
+      "from": "model-radar",
+      "to": "opencode-api",
+      "kind": "public /models evidence"
+    },
+    {
+      "from": "model-radar",
+      "to": "metadata",
+      "kind": "reviewed registry comparison"
+    },
+    {
+      "from": "model-radar",
+      "to": "github",
+      "kind": "one aggregated issue"
     }
   ],
   "forbidden_edges": [
@@ -320,6 +346,11 @@
       "from": "unknown-endpoint",
       "to": "chat",
       "reason": "transport correctness; unknown families must fail clearly"
+    },
+    {
+      "from": "model-radar",
+      "to": "credentials",
+      "reason": "radar uses public catalog evidence only"
     }
   ],
   "current_hotspots": [

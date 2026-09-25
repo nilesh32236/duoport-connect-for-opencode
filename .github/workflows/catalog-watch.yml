@@ -1,9 +1,9 @@
 name: Catalog Drift Watch
 
-# OpenCode adds/removes models without notice. This workflow diffs the live
-# /models catalogs against src/Metadata/ModelAllowlist.php and files an
-# issue when they drift, so the allowlist (and readme model counts) can be
-# updated and released. Needs no AI secrets — pure API comparison.
+# OpenCode adds/removes models without notice. This credential-free Model Radar
+# compares public /models evidence with the reviewed registry, reports coverage,
+# and aggregates actionable free/catalog changes into one issue. It never
+# promotes a model and needs no AI secrets.
 
 on:
   schedule:
@@ -31,30 +31,44 @@ jobs:
         with:
           php-version: '8.2'
 
-      - name: Compare live catalogs with allowlist
+      - name: Build credential-free Model Radar report
         id: drift
         run: |
           set +e
-          php .github/scripts/check-catalog-drift.php > /tmp/drift.txt 2>&1
+          php .github/scripts/check-catalog-drift.php --json > /tmp/model-radar.json 2>/tmp/model-radar.err
           CODE=$?
-          cat /tmp/drift.txt
-          php .github/scripts/check-catalog-drift.php --markdown > /tmp/drift.md 2>/dev/null
+          php .github/scripts/model-radar-markdown.php < /tmp/model-radar.json > /tmp/model-radar.md
+          cat /tmp/model-radar.err >&2
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
           exit 0
 
-      - name: File or update drift issue
+      - name: File or update one aggregated radar issue
         if: steps.drift.outputs.code == '2'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          BODY="$(cat /tmp/drift.md)"
-          BODY="$BODY
-
-          _Detected by Catalog Drift Watch. Comment \`/fix\` to trigger the AI fix loop, or update the allowlist manually._"
+          set -euo pipefail
+          gh label create "model-radar" --force --color "1d76db" --description "Credential-free OpenCode model coverage report" -R "${{ github.repository }}" 2>/dev/null || true
           gh label create "catalog-drift" --force --color "1d76db" --description "OpenCode model catalog changed" -R "${{ github.repository }}" 2>/dev/null || true
-          EXISTING=$(gh issue list -R "${{ github.repository }}" --label "catalog-drift" --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          EXISTING=$(gh issue list -R "${{ github.repository }}" --label "model-radar" --state open --json number --jq '.[0].number // empty')
+          if [ -z "$EXISTING" ]; then
+            CAMPAIGN=$(gh issue list -R "${{ github.repository }}" --state open --label "model-radar" --json number --jq '.[0].number // empty')
+            CAMPAIGN="${CAMPAIGN:-$(gh issue list -R "${{ github.repository }}" --state open --label "growth" --json number --jq '.[0].number // empty')}"
+            if [ -n "$CAMPAIGN" ]; then
+              echo "An active campaign issue exists; deferring radar issue creation."
+              exit 0
+            fi
+          fi
+          BODY="$(cat /tmp/model-radar.md)
+
+          _Detected by credential-free Model Radar. Free-name candidates require endpoint, request, response, capability, and WordPress compatibility verification. No model is promoted automatically._"
+          if jq -e '[.catalogs[].summary.free_candidates] | add > 0' /tmp/model-radar.json >/dev/null; then
+            TITLE="[OpenCode Radar] New free models detected — $(date -u '+%Y-%m-%d')"
+          else
+            TITLE="[OpenCode Radar] Catalog changes detected — $(date -u '+%Y-%m-%d')"
+          fi
           if [ -n "$EXISTING" ]; then
             gh issue comment "$EXISTING" -R "${{ github.repository }}" --body "$BODY"
           else
-            gh issue create -R "${{ github.repository }}" --title "OpenCode catalog drift — $(date -u '+%Y-%m-%d')" --label "catalog-drift" --body "$BODY"
+            gh issue create -R "${{ github.repository }}" --title "$TITLE" --label "model-radar" --label "catalog-drift" --body "$BODY"
           fi

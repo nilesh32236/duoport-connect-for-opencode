@@ -2,10 +2,11 @@
 /**
  * Compares live OpenCode model catalogs with the reviewed registry.
  *
- * Usage: php check-catalog-drift.php [--markdown]
+ * Usage: php check-catalog-drift.php [--json|--markdown]
  * Exit 0 = no drift (or API unreachable — prints a warning, stays green so
  * a short API outage doesn't file issues). Exit 2 = drift detected.
- * With --markdown, prints a report body suitable for a GitHub issue.
+ * With --json, prints the Model Radar coverage report. With --markdown,
+ * prints a report body suitable for one aggregated GitHub issue.
  */
 
 declare(strict_types=1);
@@ -68,6 +69,7 @@ function fetch_discovery( string $url ): ?array {
 }
 
 $markdown     = in_array( '--markdown', $argv, true );
+$json         = in_array( '--json', $argv, true );
 $fixture_path = '';
 foreach ( $argv as $argument ) {
 	if ( str_starts_with( $argument, '--fixture=' ) ) {
@@ -75,12 +77,14 @@ foreach ( $argv as $argument ) {
 	}
 }
 $watch      = new \OpenCodeConnector\Metadata\CatalogWatch();
-$drift      = array();
-$unreachable = array();
+$drift           = array();
+$live_by_catalog = array();
+$unreachable     = array();
 $fixture    = null !== $fixture_path && is_file( $fixture_path ) ? json_decode( (string) file_get_contents( $fixture_path ), true ) : null;
 
 foreach ( $catalogs as $catalog => $url ) {
 	$live = is_array( $fixture ) ? decode_discovery( $fixture[ $catalog ] ?? null ) : fetch_discovery( $url );
+	$live_by_catalog[ $catalog ] = $live;
 	if ( null === $live ) {
 		$unreachable[] = $catalog;
 		continue;
@@ -98,25 +102,14 @@ foreach ( $drift as $results ) {
 	}
 }
 
+$radar       = new \OpenCodeConnector\Metadata\ModelRadar();
+$radar_report = $radar->report( $live_by_catalog );
+if ( $json ) {
+	echo json_encode( $radar_report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ), "\n";
+	exit( $has_drift ? 2 : 0 );
+}
 if ( $markdown ) {
-	echo "## OpenCode catalog drift — " . gmdate( 'Y-m-d' ) . "\n\n";
-	echo "Live `/models` evidence is compared with the reviewed `ModelRegistry`; no discovery ID is promoted automatically.\n\n";
-	foreach ( $drift as $catalog => $results ) {
-		echo "### `$catalog`\n\n";
-		if ( array() === $results ) {
-			echo "_No usable rows._\n\n";
-			continue;
-		}
-		foreach ( $results as $result ) {
-			$states = implode( ', ', $result['states'] );
-			echo '- `' . $result['id'] . '` — **' . $result['status'] . '** (' . $states . ")\n";
-		}
-		echo "\n";
-	}
-	if ( $unreachable ) {
-		echo '_Note: could not reach the API for: ' . implode( ', ', $unreachable ) . " — those catalogs were skipped._\n\n";
-	}
-	echo "Suggested action: review the registry record, endpoint family, capabilities, and verification date before any promotion.\n";
+	echo $radar->markdown( $radar_report ), "\n";
 	exit( $has_drift ? 2 : 0 );
 }
 
