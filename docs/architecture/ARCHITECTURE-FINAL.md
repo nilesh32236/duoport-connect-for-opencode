@@ -1,7 +1,7 @@
 # Architecture final re-audit
 
-**Snapshot:** 2026-09-24  
-**Merged baseline:** `503d9c0ff06d080c3dbe31408258f7469ab18f7a` (`origin/main`)
+**Snapshot:** 2026-09-25  
+**Merged baseline:** `241bb79d669cc1361b12a9ea305c095f7f1e3e75` (`origin/main`)
 **Runtime:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1
 
 ## Decision
@@ -26,11 +26,12 @@ The merged plugin was synchronized to the live WordPress site and PHP-linted. Wo
 Local verification passed:
 
 - WPCS
-- PHPUnit: 121 tests, 509 assertions
+- PHPUnit: 137 tests, 596 assertions
 - PHPCompatibilityWP for PHP 8.2+
 - Reviewer dependency verifier
 - YAML and shell syntax checks
 - Release ZIP build and executable release contract
+- Exact post-merge WordPress runtime and authenticated Playwright browser checks
 
 ## OPS-002 result
 
@@ -74,7 +75,7 @@ No improvement item remains justified for implementation. PF-005 stays deferred 
 
 ## RELEASE-002
 
-The fresh audit found internally consistent 0.1.5 metadata, no existing v0.1.5 tag, green automated/ZIP gates, and a clean live runtime. Playwright authenticated verification reached Plugins, activation/deactivation, settings persistence, Connectors, and the public site; three connector-card 404s were isolated to unrelated `ai-provider-for-*` WordPress REST routes and are not DuoPort requests. Issue #87 is the sole active release item; no tag has been created yet.
+The fresh audit found internally consistent 0.1.5 metadata, no existing v0.1.5 tag, green automated/ZIP gates, and a clean live runtime. Exact merged commit `241bb79d669cc1361b12a9ea305c095f7f1e3e75` passed 137 PHPUnit tests/596 assertions, WPCS, PHPCompatibilityWP, reviewer/workflow contracts, release ZIP and unzip checks, and post-merge WordPress runtime checks. Authenticated Playwright reached Plugins, activation/deactivation, settings persistence, Connectors, and the public site with no secret-shaped input values; three console/network 404s were isolated to unrelated `ai-provider-for-*` WordPress REST routes and are not DuoPort requests. Issue #87 is the sole active release item; no tag has been created yet.
 
 ## Final boundaries
 

@@ -23,7 +23,10 @@
 - Unverified image, vision, web-search, or tool support.
 - Analytics, telemetry, or paid-request monitoring beyond minimal provider diagnostics.
 
-## Feature admission filter
+## Release boundary
+
+A release is a packaging and evidence milestone, not a feature expansion. The plugin may publish only after the exact commit passes source, CI, security, live WordPress, Playwright, ZIP, and artifact gates; WordPress.org deployment and the installed runtime must be verified afterward. The release must not widen the provider, capability, transport, or credential boundaries described here.
+
 
 A proposed feature must answer all five questions in the campaign brief:
 

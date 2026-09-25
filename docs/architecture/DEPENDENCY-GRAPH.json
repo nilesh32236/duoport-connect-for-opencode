@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "generated_at": "2026-09-24",
-  "source_commit": "503d9c0",
-  "product_code_snapshot": "503d9c0",
-  "snapshot_note": "Fresh release audit snapshot; PF-006 fallback and PF-007 image boundary are verified, with 0.1.5 release preparation active.",
+  "source_commit": "241bb79d669cc1361b12a9ea305c095f7f1e3e75",
+  "product_code_snapshot": "241bb79d669cc1361b12a9ea305c095f7f1e3e75",
+  "snapshot_note": "Fresh release audit snapshot; PF-006 fallback and PF-007 image boundary are verified, with 0.1.5 release preparation active and exact post-merge runtime/browser gates passed.",
   "scope": "product runtime and campaign automation",
   "nodes": [
     {

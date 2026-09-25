@@ -1,14 +1,14 @@
 # Architecture baseline
 
-**Audit snapshot:** 2026-09-24
+**Audit snapshot:** 2026-09-25
 
-**Baseline repository head:** `503d9c0ff06d080c3dbe31408258f7469ab18f7a` (`origin/main`)
+**Baseline repository head:** `241bb79d669cc1361b12a9ea305c095f7f1e3e75` (`origin/main`)
 
-**Active campaign PR:** pending for `RELEASE-002` (the exact head will be captured in the merge gate)
+**Active campaign PR:** #89 for `RELEASE-002` final evidence (the exact head will be captured before the v0.1.5 tag)
 
-**Active queue item:** `RELEASE-002` / GitHub issue [#87](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/87) / PR pending
+**Active queue item:** `RELEASE-002` / GitHub issue [#87](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/87) / PR [#89](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/89)
 
-**Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; both providers are registered in the available WordPress runtime.
+**Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1; both providers registered, image capabilities remain default-deny, settings render 1301 bytes with no secret markers, and the plugin deactivate/reactivate flow passes. Authenticated Playwright reaches Plugins, settings persistence, Connectors, and the public site; only unrelated `ai-provider-for-*` connector-card 404s remain.
 
 This document is the current architecture source of truth. `class-inventory.json`, `DEPENDENCY-GRAPH.json`, `BOUNDARIES.md`, and `refactor-queue.yaml` are companion artifacts. Older files under `AUDIT/` are historical evidence, not a competing plan.
 
