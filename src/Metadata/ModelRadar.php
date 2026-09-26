@@ -32,7 +32,7 @@ final class ModelRadar {
 	/**
 	 * Build a radar with the canonical watch or an isolated double.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param CatalogWatch|null $watch Optional watch double for tests.
 	 */
@@ -130,7 +130,7 @@ final class ModelRadar {
 	/**
 	 * Render the Markdown section for one catalog.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param string               $catalog Catalog slug.
 	 * @param array<string, mixed> $data Per-catalog report data.
@@ -175,7 +175,7 @@ final class ModelRadar {
 	/**
 	 * States text for one change row.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param array<string, mixed> $change Change row.
 	 * @return string
@@ -187,7 +187,7 @@ final class ModelRadar {
 	/**
 	 * Human label for one change row.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param array<string, mixed> $change Change row.
 	 * @return string
@@ -203,7 +203,7 @@ final class ModelRadar {
 	/**
 	 * Render the Markdown measurement section.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param array<string, mixed> $report Report from report().
 	 * @return list<string>
@@ -296,7 +296,7 @@ final class ModelRadar {
 	/**
 	 * Scan discovery rows for explicit free evidence and endpoint families.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param list<array<string, mixed>> $rows Public discovery rows.
 	 * @return array{explicit_free: array<string, bool>, endpoint_counts: array<string, int>}
@@ -325,7 +325,7 @@ final class ModelRadar {
 	/**
 	 * Empty per-catalog summary counters.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @return array<string, int>
 	 */
@@ -354,7 +354,7 @@ final class ModelRadar {
 	/**
 	 * Build one change row for a watch result.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param string               $catalog Catalog key.
 	 * @param array<string, mixed> $result Watch result.
@@ -399,7 +399,7 @@ final class ModelRadar {
 	 * Reads the private `_`-prefixed scaffolding keys carried by
 	 * buildChangeRow(); they are stripped before the report is returned.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param array<string, int>   $summary Summary counters (updated in place).
 	 * @param array<string, mixed> $row Change row (scaffolding keys removed in place).

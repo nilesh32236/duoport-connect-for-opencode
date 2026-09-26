@@ -102,7 +102,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	/**
 	 * Build the shared text-model option set.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @return array
 	 */
@@ -123,7 +123,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	/**
 	 * Build metadata for one API row, or null when filtered out.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param mixed $row Raw API row.
 	 * @param bool  $show_all Whether show-all mode is enabled.
@@ -183,7 +183,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	/**
 	 * Sort metadata free-first, then by ID.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param array $metadata Sorted in place.
 	 * @return void

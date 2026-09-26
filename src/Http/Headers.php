@@ -3,7 +3,7 @@
  * Case-insensitive HTTP header helpers.
  *
  * @package OpenCodeConnector
- * @since 0.1.7
+ * @since 0.1.6
  */
 
 declare(strict_types=1);
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Shared header-name comparison helper.
  *
  * @package OpenCodeConnector
- * @since 0.1.7
+ * @since 0.1.6
  */
 final class Headers {
 	/**
@@ -26,7 +26,7 @@ final class Headers {
 	 *
 	 * Never throws; non-string keys are ignored.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param array  $headers Request headers.
 	 * @param string $name    Header name to look for.

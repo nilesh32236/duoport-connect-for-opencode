@@ -3,7 +3,7 @@
  * Shared image MIME allowlist and extension map.
  *
  * @package OpenCodeConnector
- * @since 0.1.7
+ * @since 0.1.6
  */
 
 declare(strict_types=1);
@@ -18,13 +18,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Single source of truth for generated-image MIME types.
  *
  * @package OpenCodeConnector
- * @since 0.1.7
+ * @since 0.1.6
  */
 final class ImageMime {
 	/**
 	 * MIME types accepted for generated images.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @var list<string>
 	 */
@@ -33,7 +33,7 @@ final class ImageMime {
 	/**
 	 * File extension per MIME type.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @var array<string, string>
 	 */
@@ -48,7 +48,7 @@ final class ImageMime {
 	 *
 	 * Returns a copy so callers cannot mutate the shared constant.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @return list<string>
 	 */
@@ -59,7 +59,7 @@ final class ImageMime {
 	/**
 	 * File extension for a MIME type (fail-open to png).
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param string $mime_type MIME type.
 	 * @return string

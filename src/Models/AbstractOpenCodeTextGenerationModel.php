@@ -54,7 +54,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * Production callers never set this; the canonical registry-backed
 	 * selector is used by default.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param CapabilityAwareFallback $fallback Fallback selector double.
 	 * @return void
@@ -69,7 +69,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * Protected as a test seam so unit tests can substitute a stub resolver
 	 * without running the full ModelRegistry/ModelAllowlist stack.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @return CapabilityAwareFallback
 	 */
@@ -226,7 +226,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * Returns null for unmappable declarations so the caller fails open to
 	 * plain text. Never throws.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param mixed $declaration Function declaration.
 	 * @return array<string, mixed>|null
@@ -299,7 +299,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	/**
 	 * Resolve the model ID via SDK metadata accessors.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @return string Empty string when unresolvable. Never throws.
 	 */
@@ -338,7 +338,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * call: it has been a no-op since PHP 8.1 and the floor here is 8.2.
 	 * Never throws.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @return string Empty string when unresolvable.
 	 */

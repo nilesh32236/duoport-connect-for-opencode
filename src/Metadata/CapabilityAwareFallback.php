@@ -99,7 +99,7 @@ final class CapabilityAwareFallback {
 	/**
 	 * Validate the primary record (catalog match, endpoint, verification).
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param string $primary_id Primary model ID.
 	 * @param string $catalog Catalog slug.
@@ -138,7 +138,7 @@ final class CapabilityAwareFallback {
 	 * `array('record' => ...)` on acceptance or `array('rejection' => ...)`
 	 * on rejection — never throws.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param mixed               $candidate_id Candidate model ID.
 	 * @param string              $catalog Catalog slug.

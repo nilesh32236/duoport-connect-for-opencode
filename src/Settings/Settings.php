@@ -103,7 +103,7 @@ final class Settings {
 	 * dependency-free Catalog::allAvailabilityKeys() so renames stay in one
 	 * place without loading any SDK-trait-dependent class.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @return void
 	 */
@@ -188,7 +188,7 @@ final class Settings {
 	 * Credential-blind by design: status comes only from the boolean
 	 * `isProviderConfigured()` probe. Never reads `connectors_ai_*` values.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @return array{go: bool, zen: bool}
 	 */

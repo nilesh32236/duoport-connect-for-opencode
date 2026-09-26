@@ -132,7 +132,7 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * Single source of truth for the catalog → model-class mapping; adding a
 	 * catalog or model family means editing this map only.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param string $family Capability family (`image` or `text`).
 	 * @return string Model class FQCN.
@@ -272,7 +272,7 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	/**
 	 * Metadata directory class for the bound catalog.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @return string Directory class FQCN.
 	 */

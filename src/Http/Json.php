@@ -3,7 +3,7 @@
  * WP-aware JSON encoding helper that never throws.
  *
  * @package OpenCodeConnector
- * @since 0.1.7
+ * @since 0.1.6
  */
 
 declare(strict_types=1);
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Shared JSON encoder (wp_json_encode with plain fallback).
  *
  * @package OpenCodeConnector
- * @since 0.1.7
+ * @since 0.1.6
  */
 final class Json {
 	/**
@@ -27,7 +27,7 @@ final class Json {
 	 * Uses `wp_json_encode()` when available, plain `json_encode()` outside
 	 * a WP context (e.g. unit tests). Returns null when unencodable.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param mixed $value Value to encode.
 	 * @return string|null Encoded JSON, or null when unencodable.

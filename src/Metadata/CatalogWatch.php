@@ -65,7 +65,7 @@ final class CatalogWatch {
 	/**
 	 * Validate raw discovery rows into a deduplicated snapshot map.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param array<int, mixed> $discovered Raw discovery rows.
 	 * @return array{current: array<string, array<string, mixed>>, has_malformed: bool, saw_valid: bool}
@@ -119,7 +119,7 @@ final class CatalogWatch {
 	/**
 	 * Diff validated discovery snapshots against the reviewed baseline.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param array<string, array<string, mixed>> $baseline Baseline records keyed by `id:<id>`.
 	 * @param array<string, array<string, mixed>> $current Validated snapshots keyed by `id:<id>`.
@@ -180,7 +180,7 @@ final class CatalogWatch {
 	 * Retirements are suppressed when any malformed input was seen so a
 	 * corrupt snapshot can never retire the reviewed registry.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param list<array<string, mixed>>          $results Existing results.
 	 * @param array<string, array<string, mixed>> $baseline Baseline records keyed by `id:<id>`.

@@ -38,17 +38,6 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	use WithRequestAuthenticationTrait;
 
 	/**
-	 * Transient key prefix for availability probes and stampede locks.
-	 *
-	 * Mirrors Catalog::AVAIL_PREFIX; kept as a class alias so probe code
-	 * reads locally while the canonical list lives in dependency-free
-	 * Catalog (safe for slim bootstraps without SDK traits).
-	 *
-	 * @since 0.1.7
-	 */
-	const PREFIX = \OpenCodeConnector\Metadata\Catalog::AVAIL_PREFIX;
-
-	/**
 	 * Probe model used to discriminate authentication state.
 	 *
 	 * A paid model is probed deliberately: a valid but empty-balance key
@@ -59,7 +48,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * DeepSeek IDs from tool/JSON-schema capability — the probe depends on
 	 * the opposite property (paid-model 401 discrimination), not capability.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 */
 	const PROBE_MODEL = 'deepseek-v4-flash';
 
@@ -114,33 +103,6 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	}
 
 	/**
-	 * Transient keys for one catalog (result + stampede lock).
-	 *
-	 * Delegates to Catalog::availabilityKeys() so slim bootstraps
-	 * (Settings, entry-file hook, uninstall) never need to load this
-	 * SDK-trait-dependent class just to clear caches.
-	 *
-	 * @since 0.1.7
-	 *
-	 * @param string $catalog Catalog slug.
-	 * @return list<string>
-	 */
-	public static function transientKeys( string $catalog ): array {
-		return \OpenCodeConnector\Metadata\Catalog::availabilityKeys( $catalog );
-	}
-
-	/**
-	 * All availability transient keys across catalogs.
-	 *
-	 * @since 0.1.7
-	 *
-	 * @return list<string>
-	 */
-	public static function allTransientKeys(): array {
-		return \OpenCodeConnector\Metadata\Catalog::allAvailabilityKeys();
-	}
-
-	/**
 	 * Probe, classify, and briefly cache the safe result.
 	 *
 	 * @return array<string, mixed>
@@ -153,7 +115,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 
 		// Stampede protection: short lock so concurrent requests share one probe.
-		$lock_key = self::PREFIX . $this->catalog . '_lock';
+		$lock_key = \OpenCodeConnector\Metadata\Catalog::AVAIL_PREFIX . $this->catalog . '_lock';
 		if ( false !== get_transient( $lock_key ) ) {
 			$this->last_result = $this->diagnostics()->unknown();
 			return $this->last_result;
@@ -185,12 +147,12 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Read a cached probe result, preserving the legacy boolean contract.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @return array<string, mixed>|null Null when no usable cache exists.
 	 */
 	private function readCachedResult(): ?array {
-		$tkey   = self::PREFIX . $this->catalog;
+		$tkey   = \OpenCodeConnector\Metadata\Catalog::AVAIL_PREFIX . $this->catalog;
 		$cached = get_transient( $tkey );
 		if ( is_array( $cached ) && isset( $cached['state'] ) ) {
 			return $cached;
@@ -204,7 +166,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Build the probe request for the bound catalog.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @return Request
 	 */
@@ -238,13 +200,13 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Persist a probe result with jittered TTL and release the lock.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param array<string, mixed> $result Classified result.
 	 * @return void
 	 */
 	private function persistResult( array $result ): void {
-		$tkey = self::PREFIX . $this->catalog;
+		$tkey = \OpenCodeConnector\Metadata\Catalog::AVAIL_PREFIX . $this->catalog;
 		// Stagger expiry ±60s to avoid synchronized stampedes.
 		$ttl = 5 * MINUTE_IN_SECONDS + wp_rand( -60, 60 );
 		delete_transient( $tkey . '_lock' );
@@ -254,7 +216,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Diagnostics collaborator (canonical instance unless overridden).
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @return ConnectionDiagnostics
 	 */

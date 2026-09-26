@@ -96,7 +96,7 @@ final class CompatibilityDiagnostics {
 	/**
 	 * Check the WordPress version surface.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param string $wordpress_version WordPress version string.
 	 * @return list<string> Issue codes.
@@ -111,7 +111,7 @@ final class CompatibilityDiagnostics {
 	/**
 	 * Resolve the registry and check its method surface.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param object|null $registry Optional registry override for tests.
 	 * @return array{registry: object|null, available: bool, methods: list<string>, issues: list<string>}
@@ -154,7 +154,7 @@ final class CompatibilityDiagnostics {
 	/**
 	 * Check provider class existence and registration.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param object $registry Registry instance.
 	 * @return array{providers: array<string, array<string, bool>>, issues: list<string>}

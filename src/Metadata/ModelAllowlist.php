@@ -30,7 +30,7 @@ final class ModelAllowlist {
 	 * ID must stay allowlisted here or CapabilityAwareFallback returns
 	 * exhausted for tool requests.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 */
 	const GO_TOOL_FALLBACK = 'glm-5.3';
 
@@ -39,7 +39,7 @@ final class ModelAllowlist {
 	 *
 	 * Shared with OpenCodeZenTextGenerationModel::fallback_model_ids().
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 */
 	const ZEN_TOOL_FALLBACK = 'glm-5.2';
 

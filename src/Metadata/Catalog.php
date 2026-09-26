@@ -3,7 +3,7 @@
  * Catalog slugs and endpoints shared by Go and Zen.
  *
  * @package OpenCodeConnector
- * @since 0.1.7
+ * @since 0.1.6
  */
 
 declare(strict_types=1);
@@ -18,27 +18,27 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Single source of truth for catalog slugs and base URLs.
  *
  * @package OpenCodeConnector
- * @since 0.1.7
+ * @since 0.1.6
  */
 final class Catalog {
 	/**
 	 * Go catalog slug (subscription catalog).
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 */
 	const GO = 'go';
 
 	/**
 	 * Zen catalog slug (pay-as-you-go catalog).
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 */
 	const ZEN = 'zen';
 
 	/**
 	 * All known catalog slugs.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @var list<string>
 	 */
@@ -47,14 +47,14 @@ final class Catalog {
 	/**
 	 * Go catalog base URL (without the trailing /models path).
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 */
 	const GO_BASE_URL = 'https://opencode.ai/zen/go/v1';
 
 	/**
 	 * Zen catalog base URL (without the trailing /models path).
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 */
 	const ZEN_BASE_URL = 'https://opencode.ai/zen/v1';
 
@@ -65,14 +65,14 @@ final class Catalog {
 	 * uninstall.php derive cache keys from here without loading any
 	 * SDK-trait-dependent class.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 */
 	const AVAIL_PREFIX = 'opencode_connector_avail_';
 
 	/**
 	 * Base URLs per catalog (without the trailing /models path).
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @var array<string, string>
 	 */
@@ -84,7 +84,7 @@ final class Catalog {
 	/**
 	 * Whether a slug is a known catalog.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param string $catalog Catalog slug.
 	 * @return bool
@@ -96,7 +96,7 @@ final class Catalog {
 	/**
 	 * Base URL for a catalog.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param string $catalog Catalog slug.
 	 * @return string Empty string for unknown catalogs (fail-open).
@@ -108,7 +108,7 @@ final class Catalog {
 	/**
 	 * Public /models discovery URL for a catalog.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param string $catalog Catalog slug.
 	 * @return string Empty string for unknown catalogs.
@@ -121,7 +121,7 @@ final class Catalog {
 	/**
 	 * Availability transient keys for one catalog (result + stampede lock).
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @param string $catalog Catalog slug.
 	 * @return list<string>
@@ -134,7 +134,7 @@ final class Catalog {
 	/**
 	 * All availability transient keys across catalogs.
 	 *
-	 * @since 0.1.7
+	 * @since 0.1.6
 	 *
 	 * @return list<string>
 	 */

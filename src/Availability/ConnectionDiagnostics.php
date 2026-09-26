@@ -62,7 +62,12 @@ final class ConnectionDiagnostics {
 	}
 
 	/**
-	 * Build a verified result for legacy boolean cache compatibility.
+	 * Build a verified result.
+	 *
+	 * Persists the probed 2xx status verbatim: classify() passes the actual
+	 * status through (matching the pre-refactor result() call), so 201/204
+	 * responses keep their status in the cached result. The default 200 is
+	 * only for the legacy boolean-cache path, which has no status to report.
 	 *
 	 * @param int $status HTTP status (defaults to 200 for legacy callers).
 	 * @return array<string, mixed>
