@@ -31,25 +31,25 @@ final class ConnectionDiagnostics {
 	 */
 	public function classify( int $status, ?array $data = null, ?\Throwable $exception = null ): array {
 		if ( null !== $exception || 0 === $status ) {
-			return $this->result( 'network_error', false, false, false, 0, 'network_failure' );
+			return $this->networkError();
 		}
 		if ( $status >= 200 && $status < 300 ) {
-			return $this->result( 'verified', true, true, true, $status, 'ok' );
+			return $this->verified( $status );
 		}
 		if ( 401 === $status ) {
 			$error_type = is_array( $data ) ? (string) ( $data['error']['type'] ?? '' ) : '';
 			if ( 'CreditsError' === $error_type ) {
-				return $this->result( 'no_credits', true, true, false, $status, 'credits_error' );
+				return $this->noCredits( $status );
 			}
-			return $this->result( 'invalid_key', false, true, false, $status, 'invalid_key' );
+			return $this->invalidKey( $status );
 		}
 		if ( 429 === $status ) {
-			return $this->result( 'rate_limited', true, true, false, $status, 'rate_limited' );
+			return $this->rateLimited( $status );
 		}
 		if ( $status >= 500 && $status < 600 ) {
-			return $this->result( 'server_error', true, true, false, $status, 'server_error' );
+			return $this->serverError( $status );
 		}
-		return $this->result( 'unknown', true, true, false, $status, 'unknown' );
+		return $this->unknown( $status );
 	}
 
 	/**
@@ -64,19 +64,71 @@ final class ConnectionDiagnostics {
 	/**
 	 * Build a verified result for legacy boolean cache compatibility.
 	 *
+	 * @param int $status HTTP status (defaults to 200 for legacy callers).
 	 * @return array<string, mixed>
 	 */
-	public function verified(): array {
-		return $this->result( 'verified', true, true, true, 200, 'ok' );
+	public function verified( int $status = 200 ): array {
+		return $this->result( 'verified', true, true, true, $status, 'ok' );
 	}
 
 	/**
 	 * Build an unknown result for a concurrent probe.
 	 *
+	 * @param int $status HTTP status (defaults to 0 when no response exists).
 	 * @return array<string, mixed>
 	 */
-	public function unknown(): array {
-		return $this->result( 'unknown', false, false, false, 0, 'unknown' );
+	public function unknown( int $status = 0 ): array {
+		$configured = 0 !== $status;
+		return $this->result( 'unknown', $configured, $configured, false, $status, 'unknown' );
+	}
+
+	/**
+	 * Build a network-error result.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function networkError(): array {
+		return $this->result( 'network_error', false, false, false, 0, 'network_failure' );
+	}
+
+	/**
+	 * Build a no-credits result (valid key, empty balance).
+	 *
+	 * @param int $status HTTP status.
+	 * @return array<string, mixed>
+	 */
+	public function noCredits( int $status ): array {
+		return $this->result( 'no_credits', true, true, false, $status, 'credits_error' );
+	}
+
+	/**
+	 * Build an invalid-key result.
+	 *
+	 * @param int $status HTTP status.
+	 * @return array<string, mixed>
+	 */
+	public function invalidKey( int $status ): array {
+		return $this->result( 'invalid_key', false, true, false, $status, 'invalid_key' );
+	}
+
+	/**
+	 * Build a rate-limited result.
+	 *
+	 * @param int $status HTTP status.
+	 * @return array<string, mixed>
+	 */
+	public function rateLimited( int $status ): array {
+		return $this->result( 'rate_limited', true, true, false, $status, 'rate_limited' );
+	}
+
+	/**
+	 * Build a server-error result.
+	 *
+	 * @param int $status HTTP status.
+	 * @return array<string, mixed>
+	 */
+	public function serverError( int $status ): array {
+		return $this->result( 'server_error', true, true, false, $status, 'server_error' );
 	}
 
 	/**

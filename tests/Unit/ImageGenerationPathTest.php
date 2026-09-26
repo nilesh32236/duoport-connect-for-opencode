@@ -32,36 +32,6 @@ namespace OpenCodeConnector\Tests\Unit\Bootstrap {
 }
 
 namespace WordPress\AiClient\Providers\Models\Enums {
-	if ( ! class_exists( __NAMESPACE__ . '\CapabilityEnum' ) ) {
-		class CapabilityEnum {
-			private string $value;
-			private function __construct( string $value ) {
-				$this->value = $value;
-			}
-			public static function textGeneration(): self {
-				return new self( 'text-generation' );
-			}
-			public static function imageGeneration(): self {
-				return new self( 'image-generation' );
-			}
-			public static function chatHistory(): self {
-				return new self( 'chat-history' );
-			}
-			public function isTextGeneration(): bool {
-				return 'text-generation' === $this->value;
-			}
-			public function isImageGeneration(): bool {
-				return 'image-generation' === $this->value;
-			}
-			public function isChatHistory(): bool {
-				return in_array( $this->value, array( 'chat-history', 'chat_history' ), true );
-			}
-			public function getValue(): string {
-				return $this->value;
-			}
-		}
-	}
-
 	if ( ! class_exists( __NAMESPACE__ . '\ModalityEnum' ) ) {
 		class ModalityEnum {
 			private string $value;

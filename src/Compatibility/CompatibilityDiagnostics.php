@@ -59,9 +59,7 @@ final class CompatibilityDiagnostics {
 		$sdk_available     = class_exists( AiClient::class ) || null !== $registry;
 		$issues            = array();
 
-		if ( ! preg_match( '/^\d+\.\d+(?:\.\d+)?$/', $wordpress_version ) || version_compare( $wordpress_version, self::MINIMUM_WORDPRESS_VERSION, '<' ) ) {
-			$issues[] = 'unsupported-wordpress-version';
-		}
+		$issues = array_merge( $issues, $this->checkWordPress( $wordpress_version ) );
 		if ( ! $sdk_available ) {
 			$issues[] = 'missing-ai-client-sdk';
 		}
@@ -69,52 +67,18 @@ final class CompatibilityDiagnostics {
 		$registry_available = false;
 		$registry_methods   = array();
 		if ( $sdk_available ) {
-			if ( null === $registry && class_exists( AiClient::class ) && method_exists( AiClient::class, 'defaultRegistry' ) ) {
-				try {
-					$registry = AiClient::defaultRegistry();
-				} catch ( \Throwable ) {
-					$registry = null;
-				}
-			}
-			if ( is_object( $registry ) ) {
-				$registry_available = true;
-				foreach ( array( 'hasProvider', 'registerProvider' ) as $method ) {
-					if ( method_exists( $registry, $method ) ) {
-						$registry_methods[] = $method;
-					}
-				}
-				if ( count( $registry_methods ) < 2 ) {
-					$issues[] = 'malformed-ai-client-registry';
-				}
-			} else {
-				$issues[] = 'missing-ai-client-registry';
-			}
+			$checked            = $this->checkRegistry( $registry );
+			$registry           = $checked['registry'];
+			$registry_available = $checked['available'];
+			$registry_methods   = $checked['methods'];
+			$issues             = array_merge( $issues, $checked['issues'] );
 		}
 
 		$providers = array();
-		if ( $registry_available && method_exists( $registry, 'hasProvider' ) ) {
-			foreach ( $this->provider_classes as $provider_class ) {
-				try {
-					$class_exists = class_exists( $provider_class );
-				} catch ( \Throwable ) {
-					$class_exists = false;
-				}
-				$registered = false;
-				if ( $class_exists ) {
-					try {
-						$registered = (bool) $registry->hasProvider( $provider_class );
-					} catch ( \Throwable ) {
-						$registered = false;
-					}
-				}
-				$providers[ $provider_class ] = array(
-					'class_exists' => $class_exists,
-					'registered'   => $registered,
-				);
-				if ( ! $class_exists || ! $registered ) {
-					$issues[] = 'provider-not-registered';
-				}
-			}
+		if ( $registry_available && is_object( $registry ) && method_exists( $registry, 'hasProvider' ) ) {
+			$checked   = $this->checkProviders( $registry );
+			$providers = $checked['providers'];
+			$issues    = array_merge( $issues, $checked['issues'] );
 		}
 
 		return array(
@@ -126,6 +90,103 @@ final class CompatibilityDiagnostics {
 			'providers'           => $providers,
 			'issues'              => array_values( array_unique( $issues ) ),
 			'ok'                  => array() === $issues,
+		);
+	}
+
+	/**
+	 * Check the WordPress version surface.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @param string $wordpress_version WordPress version string.
+	 * @return list<string> Issue codes.
+	 */
+	private function checkWordPress( string $wordpress_version ): array {
+		if ( ! preg_match( '/^\d+\.\d+(?:\.\d+)?$/', $wordpress_version ) || version_compare( $wordpress_version, self::MINIMUM_WORDPRESS_VERSION, '<' ) ) {
+			return array( 'unsupported-wordpress-version' );
+		}
+		return array();
+	}
+
+	/**
+	 * Resolve the registry and check its method surface.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @param object|null $registry Optional registry override for tests.
+	 * @return array{registry: object|null, available: bool, methods: list<string>, issues: list<string>}
+	 */
+	private function checkRegistry( ?object $registry ): array {
+		$issues = array();
+		if ( null === $registry && class_exists( AiClient::class ) && method_exists( AiClient::class, 'defaultRegistry' ) ) {
+			try {
+				$registry = AiClient::defaultRegistry();
+			} catch ( \Throwable ) {
+				$registry = null;
+			}
+		}
+		$methods = array();
+		if ( is_object( $registry ) ) {
+			foreach ( array( 'hasProvider', 'registerProvider' ) as $method ) {
+				if ( method_exists( $registry, $method ) ) {
+					$methods[] = $method;
+				}
+			}
+			if ( count( $methods ) < 2 ) {
+				$issues[] = 'malformed-ai-client-registry';
+			}
+			return array(
+				'registry'  => $registry,
+				'available' => true,
+				'methods'   => $methods,
+				'issues'    => $issues,
+			);
+		}
+		$issues[] = 'missing-ai-client-registry';
+		return array(
+			'registry'  => null,
+			'available' => false,
+			'methods'   => $methods,
+			'issues'    => $issues,
+		);
+	}
+
+	/**
+	 * Check provider class existence and registration.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @param object $registry Registry instance.
+	 * @return array{providers: array<string, array<string, bool>>, issues: list<string>}
+	 */
+	private function checkProviders( object $registry ): array {
+		$providers = array();
+		$issues    = array();
+		foreach ( $this->provider_classes as $provider_class ) {
+			try {
+				$class_exists = class_exists( $provider_class );
+			} catch ( \Throwable ) {
+				$class_exists = false;
+			}
+			$registered = false;
+			if ( $class_exists ) {
+				try {
+					$registered = (bool) $registry->hasProvider( $provider_class );
+				} catch ( \Throwable ) {
+					$registered = false;
+				}
+			}
+			$providers[ $provider_class ] = array(
+				'class_exists' => $class_exists,
+				'registered'   => $registered,
+			);
+			if ( ! $class_exists || ! $registered ) {
+				$issues[] = 'provider-not-registered';
+			}
+		}
+		return array(
+			'providers' => $providers,
+			'issues'    => $issues,
 		);
 	}
 

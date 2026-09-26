@@ -42,6 +42,6 @@ final class OpenCodeGoTextGenerationModel extends AbstractOpenCodeTextGeneration
 	 * @return array<int, string>
 	 */
 	protected function fallback_model_ids(): array {
-		return array( 'glm-5.3' );
+		return array( \OpenCodeConnector\Metadata\ModelAllowlist::GO_TOOL_FALLBACK );
 	}
 }

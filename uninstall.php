@@ -13,14 +13,30 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 }
 delete_option( 'opencode_connector_settings' );
 delete_site_option( 'opencode_connector_settings' );
-delete_transient( 'opencode_connector_avail_go' );
-delete_transient( 'opencode_connector_avail_zen' );
-delete_site_transient( 'opencode_connector_avail_go' );
-delete_site_transient( 'opencode_connector_avail_zen' );
-delete_transient( 'opencode_connector_avail_go_lock' );
-delete_transient( 'opencode_connector_avail_zen_lock' );
-delete_site_transient( 'opencode_connector_avail_go_lock' );
-delete_site_transient( 'opencode_connector_avail_zen_lock' );
+// Availability probe keys: single source of truth is
+// OpenCodeConnector\Metadata\Catalog::allAvailabilityKeys() (dependency-free);
+// literals below are a fail-open fallback when the autoloader is unavailable
+// at uninstall time.
+$opencode_connector_avail_keys = array(
+	'opencode_connector_avail_go',
+	'opencode_connector_avail_zen',
+	'opencode_connector_avail_go_lock',
+	'opencode_connector_avail_zen_lock',
+);
+if ( defined( 'ABSPATH' ) ) {
+	$opencode_connector_autoload = __DIR__ . '/src/autoload.php';
+	if ( file_exists( $opencode_connector_autoload ) ) {
+		require_once $opencode_connector_autoload;
+	}
+	if ( class_exists( 'OpenCodeConnector\\Metadata\\Catalog' ) && method_exists( 'OpenCodeConnector\\Metadata\\Catalog', 'allAvailabilityKeys' ) ) {
+		$opencode_connector_avail_keys = OpenCodeConnector\Metadata\Catalog::allAvailabilityKeys();
+	}
+}
+foreach ( $opencode_connector_avail_keys as $opencode_connector_avail_key ) {
+	delete_transient( $opencode_connector_avail_key );
+	delete_site_transient( $opencode_connector_avail_key );
+}
+unset( $opencode_connector_avail_keys, $opencode_connector_avail_key, $opencode_connector_autoload );
 // AI Client model caches (ai_client_<VERSION>_<md5>_models) — best-effort cleanup
 // for both single-site transients and multisite site-transients + direct DB fallback.
 global $wpdb;

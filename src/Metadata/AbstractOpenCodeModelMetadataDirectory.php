@@ -85,9 +85,29 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 		if ( ! is_array( $data['data'] ) || array() === $data['data'] ) {
 			return array();
 		}
-		$show_all = (bool) ( get_option( \OpenCodeConnector\OPTION_NAME, array() )['show_all_models'] ?? false );
+		$show_all    = (bool) ( get_option( \OpenCodeConnector\OPTION_NAME, array() )['show_all_models'] ?? false );
+		$common_opts = $this->buildCommonOptions();
 
-		$common_opts = array(
+		$list = array();
+		foreach ( (array) $data['data'] as $row ) {
+			$metadata = $this->metadataForRow( $row, $show_all, $common_opts );
+			if ( null !== $metadata ) {
+				$list[] = $metadata;
+			}
+		}
+		$this->sortByFreeFirst( $list );
+		return $list;
+	}
+
+	/**
+	 * Build the shared text-model option set.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @return array
+	 */
+	private function buildCommonOptions(): array {
+		return array(
 			new SupportedOption( OptionEnum::systemInstruction() ),
 			new SupportedOption( OptionEnum::maxTokens() ),
 			new SupportedOption( OptionEnum::temperature() ),
@@ -98,60 +118,79 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 			new SupportedOption( OptionEnum::inputModalities(), array( array( ModalityEnum::text() ) ) ),
 			new SupportedOption( OptionEnum::outputModalities(), array( array( ModalityEnum::text() ) ) ),
 		);
+	}
 
-		$list = array();
-		foreach ( (array) $data['data'] as $row ) {
-			$id = $row['id'] ?? '';
-			if ( ! $id ) {
-				continue;
-			}
-			$record = ModelRegistry::record( $id, $this->catalogKey() );
-			if ( null !== $record && 'unsupported' === ( $record['endpoint_family'] ?? '' ) ) {
-				continue;
-			}
-			$is_image = (bool) ( $record['capabilities']['image'] ?? false );
-			if ( ! $is_image && ! $show_all && null === $record ) {
-				continue;
-			}
-			$name = (string) ( $record['display_name'] ?? ModelAllowlist::displayName( $id ) );
-			if ( (bool) ( $record['free'] ?? ModelAllowlist::isFree( $id ) ) ) {
-				$name .= ' ' . __( '(Free)', 'duoport-connect-for-opencode' );
-			}
-			if ( $is_image ) {
-				$list[] = new ModelMetadata(
-					$id,
-					$name,
-					array( CapabilityEnum::imageGeneration() ),
-					array(
-						new SupportedOption( OptionEnum::inputModalities(), array( array( ModalityEnum::text() ) ) ),
-						new SupportedOption( OptionEnum::outputModalities(), array( array( ModalityEnum::image() ) ) ),
-						new SupportedOption( OptionEnum::outputMimeType(), array( 'image/png', 'image/jpeg', 'image/webp' ) ),
-						new SupportedOption( OptionEnum::customOptions() ),
-					)
-				);
-				continue;
-			}
-			// DeepSeek models return malformed JSON for strict schema; hide outputSchema so JSON tasks pick a capable model.
-			$is_json_capable = ! str_starts_with( $id, 'deepseek' );
-			$opts            = $common_opts;
-			if ( $is_json_capable ) {
-				array_splice( $opts, 5, 0, array( new SupportedOption( OptionEnum::outputSchema() ) ) );
-			}
-			// Function-calling transport is inherited from the OpenAI-compatible
-			// base model (tools param + tool_calls response parsing), so
-			// tool-verified models advertise it and stop being filtered out of
-			// Abilities-API tool tasks. Web search stays gated until the
-			// chat/completions payload is gateway-verified (fail-open default).
-			if ( ModelRegistry::supports( $id, $this->catalogKey(), 'tools' ) ) {
-				$opts[] = new SupportedOption( OptionEnum::functionDeclarations() );
-			}
-			if ( ModelRegistry::supports( $id, $this->catalogKey(), 'web_search' ) ) {
-				$opts[] = new SupportedOption( OptionEnum::webSearch() );
-			}
-			$list[] = new ModelMetadata( $id, $name, array( CapabilityEnum::textGeneration(), CapabilityEnum::chatHistory() ), $opts );
+	/**
+	 * Build metadata for one API row, or null when filtered out.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @param mixed $row Raw API row.
+	 * @param bool  $show_all Whether show-all mode is enabled.
+	 * @param array $common_opts Shared text-model options.
+	 * @return ModelMetadata|null
+	 */
+	private function metadataForRow( $row, bool $show_all, array $common_opts ): ?ModelMetadata {
+		$id = is_array( $row ) ? ( $row['id'] ?? '' ) : '';
+		if ( ! $id ) {
+			return null;
 		}
+		$record = ModelRegistry::record( $id, $this->catalogKey() );
+		if ( null !== $record && 'unsupported' === ( $record['endpoint_family'] ?? '' ) ) {
+			return null;
+		}
+		$is_image = (bool) ( $record['capabilities']['image'] ?? false );
+		if ( ! $is_image && ! $show_all && null === $record ) {
+			return null;
+		}
+		$name = (string) ( $record['display_name'] ?? ModelAllowlist::displayName( $id ) );
+		if ( (bool) ( $record['free'] ?? ModelAllowlist::isFree( $id ) ) ) {
+			$name .= ' ' . __( '(Free)', 'duoport-connect-for-opencode' );
+		}
+		if ( $is_image ) {
+			return new ModelMetadata(
+				$id,
+				$name,
+				array( CapabilityEnum::imageGeneration() ),
+				array(
+					new SupportedOption( OptionEnum::inputModalities(), array( array( ModalityEnum::text() ) ) ),
+					new SupportedOption( OptionEnum::outputModalities(), array( array( ModalityEnum::image() ) ) ),
+					new SupportedOption( OptionEnum::outputMimeType(), \OpenCodeConnector\Media\ImageMime::all() ),
+					new SupportedOption( OptionEnum::customOptions() ),
+				)
+			);
+		}
+		// DeepSeek models return malformed JSON for strict schema; hide outputSchema so JSON tasks pick a capable model.
+		$is_json_capable = ! str_starts_with( $id, 'deepseek' );
+		$opts            = $common_opts;
+		if ( $is_json_capable ) {
+			array_splice( $opts, 5, 0, array( new SupportedOption( OptionEnum::outputSchema() ) ) );
+		}
+		// Function-calling transport is inherited from the OpenAI-compatible
+		// base model (tools param + tool_calls response parsing), so
+		// tool-verified models advertise it and stop being filtered out of
+		// Abilities-API tool tasks. Web search stays gated until the
+		// chat/completions payload is gateway-verified (fail-open default).
+		if ( ModelRegistry::supports( $id, $this->catalogKey(), 'tools' ) ) {
+			$opts[] = new SupportedOption( OptionEnum::functionDeclarations() );
+		}
+		if ( ModelRegistry::supports( $id, $this->catalogKey(), 'web_search' ) ) {
+			$opts[] = new SupportedOption( OptionEnum::webSearch() );
+		}
+		return new ModelMetadata( $id, $name, array( CapabilityEnum::textGeneration(), CapabilityEnum::chatHistory() ), $opts );
+	}
+
+	/**
+	 * Sort metadata free-first, then by ID.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @param array $metadata Sorted in place.
+	 * @return void
+	 */
+	private function sortByFreeFirst( array &$metadata ): void {
 		usort(
-			$list,
+			$metadata,
 			static function ( ModelMetadata $a, ModelMetadata $b ): int {
 				$af = ModelAllowlist::isFree( $a->getId() ) ? 0 : 1;
 				$bf = ModelAllowlist::isFree( $b->getId() ) ? 0 : 1;
@@ -161,6 +200,5 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 				return strcmp( $a->getId(), $b->getId() );
 			}
 		);
-		return $list;
 	}
 }

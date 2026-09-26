@@ -24,6 +24,26 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class ModelAllowlist {
 	/**
+	 * Curated same-catalog tool fallback for the Go catalog.
+	 *
+	 * Shared with OpenCodeGoTextGenerationModel::fallback_model_ids(); the
+	 * ID must stay allowlisted here or CapabilityAwareFallback returns
+	 * exhausted for tool requests.
+	 *
+	 * @since 0.1.7
+	 */
+	const GO_TOOL_FALLBACK = 'glm-5.3';
+
+	/**
+	 * Curated same-catalog tool fallback for the Zen catalog.
+	 *
+	 * Shared with OpenCodeZenTextGenerationModel::fallback_model_ids().
+	 *
+	 * @since 0.1.7
+	 */
+	const ZEN_TOOL_FALLBACK = 'glm-5.2';
+
+	/**
 	 * Allowlisted IDs.
 	 *
 	 * @since 0.1.0
@@ -31,7 +51,7 @@ final class ModelAllowlist {
 	 * @var array<string, list<string>>
 	 */
 	private const ALLOW = array(
-		'go'  => array(
+		Catalog::GO  => array(
 			'glm-5.3',
 			'glm-5.2',
 			'glm-5.1',
@@ -50,7 +70,7 @@ final class ModelAllowlist {
 			'hy3',
 			'hy3-preview',
 		),
-		'zen' => array(
+		Catalog::ZEN => array(
 			'deepseek-v4-pro',
 			'deepseek-v4-flash',
 			'minimax-m3',
@@ -98,8 +118,8 @@ final class ModelAllowlist {
 	 * @var array<string, list<string>>
 	 */
 	private const IMAGE = array(
-		'go'  => array(),
-		'zen' => array(),
+		Catalog::GO  => array(),
+		Catalog::ZEN => array(),
 	);
 
 	/**

@@ -94,19 +94,16 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 		$caps = $model->getSupportedCapabilities();
 		foreach ( $caps as $capability ) {
 			if ( self::capability_matches( $capability, 'isImageGeneration', array( 'image-generation', 'image_generation' ) ) ) {
-				return 'go' === static::catalogKey()
-					? new OpenCodeGoImageGenerationModel( $model, $provider )
-					: new OpenCodeZenImageGenerationModel( $model, $provider );
+				$class = self::modelClassFor( 'image' );
+				return new $class( $model, $provider );
 			}
 			if ( self::capability_matches( $capability, 'isTextGeneration', array( 'text-generation', 'text_generation' ) ) ) {
-				return 'go' === static::catalogKey()
-					? new OpenCodeGoTextGenerationModel( $model, $provider )
-					: new OpenCodeZenTextGenerationModel( $model, $provider );
+				$class = self::modelClassFor( 'text' );
+				return new $class( $model, $provider );
 			}
 			if ( self::capability_matches( $capability, 'isChatHistory', array( 'chat-history', 'chat_history' ) ) ) {
-				return 'go' === static::catalogKey()
-					? new OpenCodeGoTextGenerationModel( $model, $provider )
-					: new OpenCodeZenTextGenerationModel( $model, $provider );
+				$class = self::modelClassFor( 'text' );
+				return new $class( $model, $provider );
 			}
 		}
 		$cap_names = array_map(
@@ -127,6 +124,25 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 		);
 		// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message, not output.
 		throw new \WordPress\AiClient\Common\Exception\RuntimeException( 'Unsupported capability: ' . implode( ', ', $cap_names ) );
+	}
+
+	/**
+	 * Model class for a capability family in the bound catalog.
+	 *
+	 * Single source of truth for the catalog → model-class mapping; adding a
+	 * catalog or model family means editing this map only.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @param string $family Capability family (`image` or `text`).
+	 * @return string Model class FQCN.
+	 */
+	private static function modelClassFor( string $family ): string {
+		$is_go = \OpenCodeConnector\Metadata\Catalog::GO === static::catalogKey();
+		if ( 'image' === $family ) {
+			return $is_go ? OpenCodeGoImageGenerationModel::class : OpenCodeZenImageGenerationModel::class;
+		}
+		return $is_go ? OpenCodeGoTextGenerationModel::class : OpenCodeZenTextGenerationModel::class;
 	}
 
 	/**
@@ -249,8 +265,20 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * @return ModelMetadataDirectoryInterface
 	 */
 	protected static function createModelMetadataDirectory(): ModelMetadataDirectoryInterface {
-		return 'go' === static::catalogKey()
-			? new OpenCodeGoModelMetadataDirectory()
-			: new OpenCodeZenModelMetadataDirectory();
+		$class = self::directoryClassFor();
+		return new $class();
+	}
+
+	/**
+	 * Metadata directory class for the bound catalog.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @return string Directory class FQCN.
+	 */
+	private static function directoryClassFor(): string {
+		return \OpenCodeConnector\Metadata\Catalog::GO === static::catalogKey()
+			? OpenCodeGoModelMetadataDirectory::class
+			: OpenCodeZenModelMetadataDirectory::class;
 	}
 }

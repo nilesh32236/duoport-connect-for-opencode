@@ -42,6 +42,42 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	private ?string $prepared_route_model_id = null;
 
 	/**
+	 * Injected fallback selector override (test seam; defaults to canonical).
+	 *
+	 * @var CapabilityAwareFallback|null
+	 */
+	private ?CapabilityAwareFallback $fallback_override = null;
+
+	/**
+	 * Inject a fallback selector double for isolated tests.
+	 *
+	 * Production callers never set this; the canonical registry-backed
+	 * selector is used by default.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @param CapabilityAwareFallback $fallback Fallback selector double.
+	 * @return void
+	 */
+	public function setFallback( CapabilityAwareFallback $fallback ): void {
+		$this->fallback_override = $fallback;
+	}
+
+	/**
+	 * Fallback selector for this request (canonical unless overridden).
+	 *
+	 * Protected as a test seam so unit tests can substitute a stub resolver
+	 * without running the full ModelRegistry/ModelAllowlist stack.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @return CapabilityAwareFallback
+	 */
+	protected function fallbackSelector(): CapabilityAwareFallback {
+		return $this->fallback_override ?? new CapabilityAwareFallback();
+	}
+
+	/**
 	 * Provider class FQCN.
 	 *
 	 * @since 0.1.0
@@ -78,7 +114,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			throw new UnsupportedEndpointFamilyException( 'Model route metadata is unavailable.' );
 		}
 		$capability = null !== $prepared_model_id || ( is_array( $data ) && ! empty( $data['tools'] ) ) ? 'tools' : 'text';
-		$selection  = ( new CapabilityAwareFallback() )->select(
+		$selection  = $this->fallbackSelector()->select(
 			$catalog,
 			$model_id,
 			$capability,
@@ -155,7 +191,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			if ( '' === $model_id || '' === $catalog ) {
 				return array();
 			}
-			$selection = ( new CapabilityAwareFallback() )->select(
+			$selection = $this->fallbackSelector()->select(
 				$catalog,
 				$model_id,
 				'tools',
@@ -170,20 +206,9 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			}
 			$tools = array();
 			foreach ( $function_declarations as $declaration ) {
-				try {
-					if ( ! is_object( $declaration ) || ! method_exists( $declaration, 'toArray' ) ) {
-						continue;
-					}
-					$declaration_array = $declaration->toArray();
-					if ( ! is_array( $declaration_array ) ) {
-						continue;
-					}
-					$tools[] = array(
-						'type'     => 'function',
-						'function' => $declaration_array,
-					);
-				} catch ( \Throwable ) {
-					continue;
+				$tool = $this->mapDeclarationToTool( $declaration );
+				if ( null !== $tool ) {
+					$tools[] = $tool;
 				}
 			}
 			if ( array() !== $tools ) {
@@ -192,6 +217,35 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			return $tools;
 		} catch ( \Throwable ) {
 			return array();
+		}
+	}
+
+	/**
+	 * Map one function declaration to the tools wire shape.
+	 *
+	 * Returns null for unmappable declarations so the caller fails open to
+	 * plain text. Never throws.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @param mixed $declaration Function declaration.
+	 * @return array<string, mixed>|null
+	 */
+	private function mapDeclarationToTool( $declaration ): ?array {
+		try {
+			if ( ! is_object( $declaration ) || ! method_exists( $declaration, 'toArray' ) ) {
+				return null;
+			}
+			$declaration_array = $declaration->toArray();
+			if ( ! is_array( $declaration_array ) ) {
+				return null;
+			}
+			return array(
+				'type'     => 'function',
+				'function' => $declaration_array,
+			);
+		} catch ( \Throwable ) {
+			return null;
 		}
 	}
 
@@ -232,50 +286,81 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 */
 	private function model_id_for_tool_gate(): string {
 		try {
-			foreach ( array( 'metadata', 'getModelMetadata', 'getMetadata', 'getModel', 'model' ) as $accessor ) {
-				if ( ! method_exists( $this, $accessor ) ) {
-					continue;
-				}
+			$via_accessors = $this->resolveViaAccessors();
+			if ( '' !== $via_accessors ) {
+				return $via_accessors;
+			}
+			return $this->resolveViaReflection();
+		} catch ( \Throwable ) {
+			return '';
+		}
+	}
+
+	/**
+	 * Resolve the model ID via SDK metadata accessors.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @return string Empty string when unresolvable. Never throws.
+	 */
+	private function resolveViaAccessors(): string {
+		foreach ( array( 'metadata', 'getModelMetadata', 'getMetadata', 'getModel', 'model' ) as $accessor ) {
+			if ( ! method_exists( $this, $accessor ) ) {
+				continue;
+			}
+			try {
+				$metadata = $this->{$accessor}();
+			} catch ( \Throwable ) {
+				continue;
+			}
+			if ( ! is_object( $metadata ) || ! method_exists( $metadata, 'getId' ) ) {
+				continue;
+			}
+			try {
+				$id = (string) $metadata->getId();
+			} catch ( \Throwable ) {
+				continue;
+			}
+			if ( '' !== $id ) {
+				return $id;
+			}
+		}
+		return '';
+	}
+
+	/**
+	 * Last-resort model ID resolution via reflection.
+	 *
+	 * Reflects over object properties looking for SDK metadata holding a
+	 * getId() accessor (targets the WordPress AI Client OpenAI-compatible
+	 * base model). The public-accessor loop above is primary; prefer an
+	 * explicit model-id accessor if the SDK exposes one. No setAccessible()
+	 * call: it has been a no-op since PHP 8.1 and the floor here is 8.2.
+	 * Never throws.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @return string Empty string when unresolvable.
+	 */
+	private function resolveViaReflection(): string {
+		try {
+			$reflection = new \ReflectionObject( $this );
+			foreach ( $reflection->getProperties() as $prop ) {
 				try {
-					$metadata = $this->{$accessor}();
+					$candidate = $prop->getValue( $this );
 				} catch ( \Throwable ) {
 					continue;
 				}
-				if ( is_object( $metadata ) && method_exists( $metadata, 'getId' ) ) {
+				if ( is_object( $candidate ) && method_exists( $candidate, 'getId' ) ) {
 					try {
-						return (string) $metadata->getId();
+						$id = (string) $candidate->getId();
 					} catch ( \Throwable ) {
 						continue;
 					}
-				}
-			}
-			// Last-resort fallback: reflect over object properties looking for
-			// SDK metadata holding a getId() accessor (targets the
-			// WordPress AI Client OpenAI-compatible base model). The
-			// public-accessor loop above is primary; prefer an explicit
-			// model-id accessor if the SDK exposes one. No setAccessible()
-			// call: it has been a no-op since PHP 8.1 and the floor here is 8.2.
-			try {
-				$reflection = new \ReflectionObject( $this );
-				foreach ( $reflection->getProperties() as $prop ) {
-					try {
-						$candidate = $prop->getValue( $this );
-					} catch ( \Throwable ) {
-						continue;
-					}
-					if ( is_object( $candidate ) && method_exists( $candidate, 'getId' ) ) {
-						try {
-							$id = (string) $candidate->getId();
-						} catch ( \Throwable ) {
-							continue;
-						}
-						if ( '' !== $id ) {
-							return $id;
-						}
+					if ( '' !== $id ) {
+						return $id;
 					}
 				}
-			} catch ( \Throwable ) {
-				return '';
 			}
 		} catch ( \Throwable ) {
 			return '';
@@ -304,10 +389,10 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 				return '';
 			}
 			if ( OpenCodeZenProvider::class === $cls ) {
-				return 'zen';
+				return \OpenCodeConnector\Metadata\Catalog::ZEN;
 			}
 			if ( OpenCodeGoProvider::class === $cls ) {
-				return 'go';
+				return \OpenCodeConnector\Metadata\Catalog::GO;
 			}
 		} catch ( \Throwable ) {
 			return '';

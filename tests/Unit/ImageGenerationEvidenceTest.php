@@ -36,8 +36,8 @@ final class ImageGenerationEvidenceTest extends MonkeyTestCase {
 		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Metadata/ModelAllowlist.php' );
 
 		self::assertStringContainsString( 'Image capability is advertised only for IDs in this set', $source );
-		self::assertStringContainsString( "'go'  => array()", $source );
-		self::assertStringContainsString( "'zen' => array()", $source );
+		self::assertStringContainsString( 'Catalog::GO', $source );
+		self::assertStringContainsString( 'Catalog::ZEN', $source );
 		self::assertStringNotContainsString( 'connectors_ai_', $source );
 	}
 }
