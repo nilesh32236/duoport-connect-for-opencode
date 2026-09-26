@@ -13,22 +13,37 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 }
 delete_option( 'opencode_connector_settings' );
 delete_site_option( 'opencode_connector_settings' );
-delete_transient( 'opencode_connector_avail_go' );
-delete_transient( 'opencode_connector_avail_zen' );
-delete_site_transient( 'opencode_connector_avail_go' );
-delete_site_transient( 'opencode_connector_avail_zen' );
-delete_transient( 'opencode_connector_avail_go_lock' );
-delete_transient( 'opencode_connector_avail_zen_lock' );
-delete_site_transient( 'opencode_connector_avail_go_lock' );
-delete_site_transient( 'opencode_connector_avail_zen_lock' );
-delete_transient( 'opencode_connector_verify_go' );
-delete_transient( 'opencode_connector_verify_zen' );
-delete_site_transient( 'opencode_connector_verify_go' );
-delete_site_transient( 'opencode_connector_verify_zen' );
-delete_transient( 'opencode_connector_verify_go_lock' );
-delete_transient( 'opencode_connector_verify_zen_lock' );
-delete_site_transient( 'opencode_connector_verify_go_lock' );
-delete_site_transient( 'opencode_connector_verify_zen_lock' );
+// Plugin-owned transients: availability results, stampede locks, the
+// last-known-good flags, and the opt-in verification verdicts. The single
+// source of truth is OpenCodeConnector\Metadata\Catalog::allTransientKeys()
+// (dependency-free); literals below are a fail-open fallback when the
+// autoloader is unavailable at uninstall time.
+$opencode_connector_avail_keys = array(
+	'opencode_connector_avail_go',
+	'opencode_connector_avail_zen',
+	'opencode_connector_avail_go_lock',
+	'opencode_connector_avail_zen_lock',
+	'opencode_connector_avail_go_last_good',
+	'opencode_connector_avail_zen_last_good',
+	'opencode_connector_verify_go',
+	'opencode_connector_verify_zen',
+	'opencode_connector_verify_go_lock',
+	'opencode_connector_verify_zen_lock',
+);
+if ( defined( 'ABSPATH' ) ) {
+	$opencode_connector_autoload = __DIR__ . '/src/autoload.php';
+	if ( file_exists( $opencode_connector_autoload ) ) {
+		require_once $opencode_connector_autoload;
+	}
+	if ( class_exists( 'OpenCodeConnector\\Metadata\\Catalog' ) && method_exists( 'OpenCodeConnector\\Metadata\\Catalog', 'allTransientKeys' ) ) {
+		$opencode_connector_avail_keys = OpenCodeConnector\Metadata\Catalog::allTransientKeys();
+	}
+}
+foreach ( $opencode_connector_avail_keys as $opencode_connector_avail_key ) {
+	delete_transient( $opencode_connector_avail_key );
+	delete_site_transient( $opencode_connector_avail_key );
+}
+unset( $opencode_connector_avail_keys, $opencode_connector_avail_key, $opencode_connector_autoload );
 // AI Client model caches (ai_client_<VERSION>_<md5>_models) — best-effort cleanup
 // for both single-site transients and multisite site-transients + direct DB fallback.
 global $wpdb;

@@ -76,28 +76,7 @@ final class Settings {
 	public function bustCaches( $old_value, $new_value ): void {
 		if ( ( $old_value['show_all_models'] ?? false ) !== ( $new_value['show_all_models'] ?? false ) ) {
 			$this->clearModelCaches();
-			delete_transient( 'opencode_connector_avail_go' );
-			delete_transient( 'opencode_connector_avail_zen' );
-			delete_transient( 'opencode_connector_avail_go_lock' );
-			delete_transient( 'opencode_connector_avail_zen_lock' );
-			delete_transient( 'opencode_connector_verify_go' );
-			delete_transient( 'opencode_connector_verify_zen' );
-			delete_transient( 'opencode_connector_verify_go_lock' );
-			delete_transient( 'opencode_connector_verify_zen_lock' );
-			delete_transient( 'opencode_connector_avail_go_last_good' );
-			delete_transient( 'opencode_connector_avail_zen_last_good' );
-			if ( function_exists( 'delete_site_transient' ) ) {
-				delete_site_transient( 'opencode_connector_avail_go' );
-				delete_site_transient( 'opencode_connector_avail_zen' );
-				delete_site_transient( 'opencode_connector_avail_go_lock' );
-				delete_site_transient( 'opencode_connector_avail_zen_lock' );
-				delete_site_transient( 'opencode_connector_verify_go' );
-				delete_site_transient( 'opencode_connector_verify_zen' );
-				delete_site_transient( 'opencode_connector_verify_go_lock' );
-				delete_site_transient( 'opencode_connector_verify_zen_lock' );
-				delete_site_transient( 'opencode_connector_avail_go_last_good' );
-				delete_site_transient( 'opencode_connector_avail_zen_last_good' );
-			}
+			$this->clearAvailabilityCaches();
 		}
 	}
 
@@ -113,27 +92,31 @@ final class Settings {
 	public function bustCachesAdd( string $option, $value ): void {
 		unset( $option, $value );
 		$this->clearModelCaches();
-		delete_transient( 'opencode_connector_avail_go' );
-		delete_transient( 'opencode_connector_avail_zen' );
-		delete_transient( 'opencode_connector_avail_go_lock' );
-		delete_transient( 'opencode_connector_avail_zen_lock' );
-		delete_transient( 'opencode_connector_verify_go' );
-		delete_transient( 'opencode_connector_verify_zen' );
-		delete_transient( 'opencode_connector_verify_go_lock' );
-		delete_transient( 'opencode_connector_verify_zen_lock' );
-		delete_transient( 'opencode_connector_avail_go_last_good' );
-		delete_transient( 'opencode_connector_avail_zen_last_good' );
-		if ( function_exists( 'delete_site_transient' ) ) {
-			delete_site_transient( 'opencode_connector_avail_go' );
-			delete_site_transient( 'opencode_connector_avail_zen' );
-			delete_site_transient( 'opencode_connector_avail_go_lock' );
-			delete_site_transient( 'opencode_connector_avail_zen_lock' );
-			delete_site_transient( 'opencode_connector_verify_go' );
-			delete_site_transient( 'opencode_connector_verify_zen' );
-			delete_site_transient( 'opencode_connector_verify_go_lock' );
-			delete_site_transient( 'opencode_connector_verify_zen_lock' );
-			delete_site_transient( 'opencode_connector_avail_go_last_good' );
-			delete_site_transient( 'opencode_connector_avail_zen_last_good' );
+		$this->clearAvailabilityCaches();
+	}
+
+	/**
+	 * Clear every transient this plugin owns, for all catalogs.
+	 *
+	 * Credential-blind by design: only transient deletes, never reads or
+	 * writes any `connectors_ai_*` option value. Keys come from the
+	 * dependency-free Catalog::allTransientKeys() so renames stay in one
+	 * place without loading any SDK-trait-dependent class.
+	 *
+	 * Covers the availability result, its stampede lock, the last-known-good
+	 * flag, and the opt-in verification verdict with its lock, so a settings
+	 * or key change can never leave a stale verdict behind.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @return void
+	 */
+	public static function clearAvailabilityCaches(): void {
+		foreach ( \OpenCodeConnector\Metadata\Catalog::allTransientKeys() as $key ) {
+			delete_transient( $key );
+			if ( function_exists( 'delete_site_transient' ) ) {
+				delete_site_transient( $key );
+			}
 		}
 	}
 
@@ -204,6 +187,48 @@ final class Settings {
 	}
 
 	/**
+	 * Fetch Go/Zen provider connection status without reading credentials.
+	 *
+	 * Credential-blind by design: status comes only from the boolean
+	 * `isProviderConfigured()` probe. Never reads `connectors_ai_*` values.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @return array{go: bool, zen: bool}
+	 */
+	private function fetchProviderStatus(): array {
+		$status = array(
+			'go'  => false,
+			'zen' => false,
+		);
+		if ( ! class_exists( AiClient::class ) || ! method_exists( AiClient::class, 'defaultRegistry' ) ) {
+			return $status;
+		}
+		try {
+			$registry = AiClient::defaultRegistry();
+			if ( ! is_object( $registry ) || ! method_exists( $registry, 'isProviderConfigured' ) ) {
+				return $status;
+			}
+			// Use non-blocking check: transient-backed isConfigured() already has
+			// stampede lock + jitter; avoid double HTTP on render by tolerating exceptions.
+			foreach ( \OpenCodeConnector\Metadata\Catalog::ALL as $catalog ) {
+				$provider_id = 'opencode-' . $catalog;
+				try {
+					$status[ $catalog ] = (bool) $registry->isProviderConfigured( $provider_id );
+				} catch ( \Throwable ) {
+					$status[ $catalog ] = false;
+				}
+			}
+		} catch ( \Throwable ) {
+			return array(
+				'go'  => false,
+				'zen' => false,
+			);
+		}
+		return $status;
+	}
+
+	/**
 	 * Render settings page.
 	 *
 	 * @since 0.1.0
@@ -212,30 +237,9 @@ final class Settings {
 	 */
 	public function render(): void {
 		$opts   = get_option( \OpenCodeConnector\OPTION_NAME, array( 'show_all_models' => false ) );
-		$go_ok  = false;
-		$zen_ok = false;
-		if ( class_exists( AiClient::class ) && method_exists( AiClient::class, 'defaultRegistry' ) ) {
-			try {
-				$registry = AiClient::defaultRegistry();
-				if ( is_object( $registry ) && method_exists( $registry, 'isProviderConfigured' ) ) {
-					// Use non-blocking check: transient-backed isConfigured() already has
-					// stampede lock + jitter; avoid double HTTP on render by tolerating exceptions.
-					try {
-						$go_ok = $registry->isProviderConfigured( 'opencode-go' );
-					} catch ( \Throwable ) {
-						$go_ok = false;
-					}
-					try {
-						$zen_ok = $registry->isProviderConfigured( 'opencode-zen' );
-					} catch ( \Throwable ) {
-						$zen_ok = false;
-					}
-				}
-			} catch ( \Throwable ) {
-				$go_ok  = false;
-				$zen_ok = false;
-			}
-		}
+		$status = $this->fetchProviderStatus();
+		$go_ok  = $status['go'];
+		$zen_ok = $status['zen'];
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'DuoPort Connector', 'duoport-connect-for-opencode' ); ?></h1>
@@ -257,7 +261,6 @@ final class Settings {
 				printf( esc_html__( 'Go: %1$s · Zen: %2$s', 'duoport-connect-for-opencode' ), $go_ok ? esc_html__( 'connected', 'duoport-connect-for-opencode' ) : esc_html__( 'not connected', 'duoport-connect-for-opencode' ), $zen_ok ? esc_html__( 'connected', 'duoport-connect-for-opencode' ) : esc_html__( 'not connected', 'duoport-connect-for-opencode' ) );
 			?>
 			</p>
-			<p><?php esc_html_e( 'Configured does not equal verified: the status above is a lightweight availability check. Explicit one-token verification reports valid, invalid key, or could-not-be-checked without blocking chat.', 'duoport-connect-for-opencode' ); ?></p>
 			<form method="post" action="options.php">
 				<?php settings_fields( 'opencode_connector' ); ?>
 				<table class="form-table"><tr>

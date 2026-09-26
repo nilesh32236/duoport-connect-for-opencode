@@ -16,6 +16,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Classifies safe backend outcomes without retaining response credentials.
+ *
+ * Each verdict has a named factory so callers cannot build a result from a
+ * positional argument bag, and so the state vocabulary has one home.
  */
 final class ConnectionDiagnostics {
 
@@ -24,64 +27,71 @@ final class ConnectionDiagnostics {
 	 *
 	 * Only the error type is inspected; response bodies are never returned.
 	 *
-	 * Fail-open contract: quota exhaustion (401 CreditsError) and rate
-	 * limiting (429) report a configured key; 5xx and transport failures
-	 * report a distinct could-not-be-checked verdict so callers can preserve
-	 * last-known-good state instead of flipping to not-connected.
+	 * Fail-open contract: quota exhaustion (401 CreditsError), rate limiting
+	 * (429), and Zen free-tier quota stops (429 FreeUsageLimitError) report a
+	 * configured key; 5xx and transport failures report a distinct
+	 * could-not-be-checked verdict so callers can preserve last-known-good
+	 * state instead of flipping to not-connected.
 	 *
 	 * @param int                       $status    HTTP status code, or zero for a transport failure.
-	 * @param array<string, mixed>|null $data      Response data used only to identify CreditsError.
+	 * @param array<string, mixed>|null $data      Response data used only to identify the error type.
 	 * @param \Throwable|null           $exception Transport exception, if any.
 	 * @return array<string, mixed>
 	 */
 	public function classify( int $status, ?array $data = null, ?\Throwable $exception = null ): array {
 		if ( null !== $exception || 0 === $status ) {
-			return $this->result( 'uncheckable', false, false, false, 0, 'could_not_be_checked' );
+			return $this->uncheckable( 0 );
 		}
 		if ( $status >= 200 && $status < 300 ) {
-			return $this->result( 'verified', true, true, true, $status, 'ok' );
+			return $this->verified( $status );
 		}
 		if ( 401 === $status ) {
-			$error_type = is_array( $data ) ? (string) ( $data['error']['type'] ?? '' ) : '';
-			if ( 'CreditsError' === $error_type ) {
-				return $this->result( 'no_credits', true, true, false, $status, 'credits_error' );
+			if ( 'CreditsError' === $this->errorType( $data ) ) {
+				return $this->noCredits( $status );
 			}
-			return $this->result( 'invalid_key', false, true, false, $status, 'invalid_key' );
+			return $this->invalidKey( $status );
 		}
 		if ( 429 === $status ) {
-			$error_type = is_array( $data ) ? (string) ( $data['error']['type'] ?? '' ) : '';
-			if ( 'FreeUsageLimitError' === $error_type ) {
-				return $this->result( 'free_tier_limit', true, true, false, $status, 'free_usage_limit' );
+			if ( 'FreeUsageLimitError' === $this->errorType( $data ) ) {
+				return $this->freeTierLimit( $status );
 			}
-			return $this->result( 'rate_limited', true, true, false, $status, 'rate_limited' );
+			return $this->rateLimited( $status );
 		}
 		if ( $status >= 500 && $status < 600 ) {
-			return $this->result( 'uncheckable', false, false, false, $status, 'could_not_be_checked' );
+			return $this->uncheckable( $status );
 		}
-		return $this->result( 'unknown', true, true, false, $status, 'unknown' );
+		return $this->unknown( $status );
 	}
 
 	/**
 	 * Map a detailed diagnosis to an explicit verification state.
 	 *
-	 * Returns one of `valid`, `invalid_key`, or `could-not-be-checked` so
-	 * the settings page can report genuine credential verification,
-	 * distinct from the lightweight availability probe.
-	 *
-	 * @since 0.1.6
+	 * Returns one of `valid`, `invalid_key`, or `could-not-be-checked` so the
+	 * settings page can report genuine credential verification, distinct from
+	 * the lightweight availability probe.
 	 *
 	 * @param array<string, mixed> $diagnosis Detailed result from classify().
-	 * @return string Verification state.
+	 * @return string
 	 */
 	public function verify_state( array $diagnosis ): string {
-		$state = isset( $diagnosis['state'] ) && is_string( $diagnosis['state'] ) ? $diagnosis['state'] : 'unknown';
-		if ( in_array( $state, array( 'verified', 'no_credits', 'rate_limited' ), true ) ) {
+		$state = isset( $diagnosis['state'] ) && is_string( $diagnosis['state'] ) ? $diagnosis['state'] : '';
+		if ( in_array( $state, array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' ), true ) ) {
 			return 'valid';
 		}
 		if ( in_array( $state, array( 'invalid_key', 'not_configured' ), true ) ) {
 			return 'invalid_key';
 		}
 		return 'could-not-be-checked';
+	}
+
+	/**
+	 * Read the credential-blind backend error type.
+	 *
+	 * @param array<string, mixed>|null $data Response data.
+	 * @return string Empty string when the type is absent.
+	 */
+	private function errorType( ?array $data ): string {
+		return is_array( $data ) ? (string) ( $data['error']['type'] ?? '' ) : '';
 	}
 
 	/**
@@ -94,41 +104,112 @@ final class ConnectionDiagnostics {
 	}
 
 	/**
-	 * Build a verified result for legacy boolean cache compatibility.
+	 * Build a verified result.
 	 *
+	 * Persists the probed 2xx status verbatim so 201/204 responses keep their
+	 * status in the cached result. The default 200 is only for the legacy
+	 * boolean-cache path, which has no status to report.
+	 *
+	 * @param int $status HTTP status (defaults to 200 for legacy callers).
 	 * @return array<string, mixed>
 	 */
-	public function verified(): array {
-		return $this->result( 'verified', true, true, true, 200, 'ok' );
+	public function verified( int $status = 200 ): array {
+		return $this->result( 'verified', true, true, true, $status, 'ok' );
 	}
 
 	/**
-	 * Build an unknown result as a safe fallback.
+	 * Build an unknown result for a response that matched no known rule.
 	 *
-	 * Used when no more specific verdict applies. It reports
-	 * not-configured/not-verified, so callers must not treat it as a
-	 * positive result.
+	 * The backend was reached and the key was read, so this is configured and
+	 * verified, but it is not a usable connection. Callers must not treat it
+	 * as a positive result.
 	 *
+	 * @param int $status HTTP status (defaults to 0 when no response exists).
 	 * @return array<string, mixed>
 	 */
-	public function unknown(): array {
-		return $this->result( 'unknown', false, false, false, 0, 'unknown' );
+	public function unknown( int $status = 0 ): array {
+		return $this->result( 'unknown', true, true, false, $status, 'unknown' );
 	}
 
 	/**
-	 * Build a could-not-be-checked result for server, transport, and concurrent-probe failures.
+	 * Build a could-not-be-checked result for server, transport, and
+	 * concurrent-probe failures.
 	 *
 	 * Quota states have their own verdicts and never reach this path: 429 maps
-	 * to `rate_limited` or `free_tier_limit`, and 401 with a credits error
-	 * maps to `no_credits`. Callers preserve last-known-good configured state
-	 * on this verdict instead of flipping to not-connected.
+	 * to rateLimited() or freeTierLimit(), and 401 with a credits error maps
+	 * to noCredits(). Callers preserve last-known-good configured state on
+	 * this verdict instead of flipping to not-connected.
 	 *
-	 * @since 0.1.6
+	 * @param int $status HTTP status, or zero for a transport failure.
+	 * @return array<string, mixed>
+	 */
+	public function uncheckable( int $status = 0 ): array {
+		return $this->result( 'uncheckable', false, false, false, $status, 'could_not_be_checked' );
+	}
+
+	/**
+	 * Build a network-error result.
 	 *
 	 * @return array<string, mixed>
 	 */
-	public function uncheckable(): array {
-		return $this->result( 'uncheckable', false, false, false, 0, 'could_not_be_checked' );
+	public function networkError(): array {
+		return $this->result( 'network_error', false, false, false, 0, 'network_failure' );
+	}
+
+	/**
+	 * Build a no-credits result (valid key, empty balance).
+	 *
+	 * @param int $status HTTP status.
+	 * @return array<string, mixed>
+	 */
+	public function noCredits( int $status ): array {
+		return $this->result( 'no_credits', true, true, false, $status, 'credits_error' );
+	}
+
+	/**
+	 * Build an invalid-key result.
+	 *
+	 * @param int $status HTTP status.
+	 * @return array<string, mixed>
+	 */
+	public function invalidKey( int $status ): array {
+		return $this->result( 'invalid_key', false, true, false, $status, 'invalid_key' );
+	}
+
+	/**
+	 * Build a rate-limited result.
+	 *
+	 * @param int $status HTTP status.
+	 * @return array<string, mixed>
+	 */
+	public function rateLimited( int $status ): array {
+		return $this->result( 'rate_limited', true, true, false, $status, 'rate_limited' );
+	}
+
+	/**
+	 * Build a free-tier usage-limit result.
+	 *
+	 * A Zen free-tier quota stop still proves the key is valid, so this is
+	 * configured and verified but not currently usable.
+	 *
+	 * @param int $status HTTP status.
+	 * @return array<string, mixed>
+	 */
+	public function freeTierLimit( int $status ): array {
+		return $this->result( 'free_tier_limit', true, true, false, $status, 'free_usage_limit' );
+	}
+
+	/**
+	 * Build a server-error result.
+	 *
+	 * classify() no longer produces this state; it is retained so a legacy
+	 * cached value can still be interpreted fail-open by callers.
+	 *
+	 * @param int $status HTTP status.
+	 * @return array<string, mixed>
+	 */
+	public function serverError( int $status ): array {
+		return $this->result( 'server_error', true, true, false, $status, 'server_error' );
 	}
 
 	/**
