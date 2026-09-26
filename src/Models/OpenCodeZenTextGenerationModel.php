@@ -42,6 +42,6 @@ final class OpenCodeZenTextGenerationModel extends AbstractOpenCodeTextGeneratio
 	 * @return array<int, string>
 	 */
 	protected function fallback_model_ids(): array {
-		return array( 'glm-5.2' );
+		return array( \OpenCodeConnector\Metadata\ModelAllowlist::ZEN_TOOL_FALLBACK );
 	}
 }

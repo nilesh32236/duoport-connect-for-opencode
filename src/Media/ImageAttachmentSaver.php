@@ -30,11 +30,14 @@ final class ImageAttachmentSaver {
 	/**
 	 * MIME types accepted for generated images.
 	 *
+	 * Single source of truth lives in ImageMime::ALL; this alias is kept
+	 * for backward compatibility.
+	 *
 	 * @since 0.1.4
 	 *
 	 * @var list<string>
 	 */
-	public const ALLOWED_MIME_TYPES = array( 'image/png', 'image/jpeg', 'image/webp' );
+	public const ALLOWED_MIME_TYPES = ImageMime::ALL;
 
 	/**
 	 * Maximum accepted payload size in bytes (10 MB).
@@ -176,13 +179,8 @@ final class ImageAttachmentSaver {
 			return $valid;
 		}
 
-		$extensions = array(
-			'image/png'  => 'png',
-			'image/jpeg' => 'jpg',
-			'image/webp' => 'webp',
-		);
-		$extension  = $extensions[ strtolower( trim( $mime_type ) ) ] ?? 'png';
-		$base       = sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) );
+		$extension = ImageMime::extensionFor( $mime_type );
+		$base      = sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) );
 		if ( '' === $base ) {
 			$base = 'opencode-image';
 		}

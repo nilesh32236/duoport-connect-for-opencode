@@ -247,6 +247,94 @@ namespace WordPress\AiClient\Providers\Http\Contracts {
 	}
 }
 
+namespace WordPress\AiClient\Providers\Models\Enums {
+	if ( ! class_exists( \WordPress\AiClient\Providers\Models\Enums\CapabilityEnum::class ) ) {
+		/**
+		 * Minimal capability enum stub.
+		 */
+		class CapabilityEnum {
+			/**
+			 * Capability value.
+			 *
+			 * @var string
+			 */
+			private string $value;
+
+			/**
+			 * Constructor.
+			 *
+			 * @param string $value Capability value.
+			 */
+			private function __construct( string $value ) {
+				$this->value = $value;
+			}
+
+			/**
+			 * Text-generation capability.
+			 *
+			 * @return self
+			 */
+			public static function textGeneration(): self {
+				return new self( 'text-generation' );
+			}
+
+			/**
+			 * Image-generation capability.
+			 *
+			 * @return self
+			 */
+			public static function imageGeneration(): self {
+				return new self( 'image-generation' );
+			}
+
+			/**
+			 * Chat-history capability.
+			 *
+			 * @return self
+			 */
+			public static function chatHistory(): self {
+				return new self( 'chat-history' );
+			}
+
+			/**
+			 * Whether this is the text-generation capability.
+			 *
+			 * @return bool
+			 */
+			public function isTextGeneration(): bool {
+				return 'text-generation' === $this->value;
+			}
+
+			/**
+			 * Whether this is the image-generation capability.
+			 *
+			 * @return bool
+			 */
+			public function isImageGeneration(): bool {
+				return 'image-generation' === $this->value;
+			}
+
+			/**
+			 * Whether this is the chat-history capability.
+			 *
+			 * @return bool
+			 */
+			public function isChatHistory(): bool {
+				return in_array( $this->value, array( 'chat-history', 'chat_history' ), true );
+			}
+
+			/**
+			 * Capability value.
+			 *
+			 * @return string
+			 */
+			public function getValue(): string {
+				return $this->value;
+			}
+		}
+	}
+}
+
 namespace WordPress\AiClient\Providers\Http\Traits {
 	if ( ! trait_exists( \WordPress\AiClient\Providers\Http\Traits\WithHttpTransporterTrait::class ) ) {
 		/**

@@ -61,6 +61,17 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * Verified results persist the probed 2xx status; the default stays 200.
+	 */
+	public function test_verified_persists_probed_2xx_status(): void {
+		$diagnostics = new ConnectionDiagnostics();
+
+		self::assertSame( 201, $diagnostics->classify( 201 )['status'] );
+		self::assertSame( 204, $diagnostics->classify( 204 )['status'] );
+		self::assertSame( 200, $diagnostics->verified()['status'] );
+	}
+
+	/**
 	 * Classification never returns response body content.
 	 */
 	public function test_response_data_is_not_returned(): void {

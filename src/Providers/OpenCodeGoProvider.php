@@ -42,7 +42,7 @@ final class OpenCodeGoProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function catalogKey(): string {
-		return 'go';
+		return \OpenCodeConnector\Metadata\Catalog::GO;
 	}
 
 	/**
@@ -81,6 +81,6 @@ final class OpenCodeGoProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function baseUrl(): string {
-		return 'https://opencode.ai/zen/go/v1';
+		return \OpenCodeConnector\Metadata\Catalog::baseUrl( \OpenCodeConnector\Metadata\Catalog::GO );
 	}
 }

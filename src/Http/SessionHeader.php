@@ -146,16 +146,11 @@ final class SessionHeader {
 	 * @return string|null Hex session value, or null when unencodable.
 	 */
 	private static function hash_canonical( array $canonical ): ?string {
+		$encoded = Json::encode( $canonical );
+		if ( null === $encoded ) {
+			return null;
+		}
 		try {
-			if ( function_exists( 'wp_json_encode' ) ) {
-				$encoded = wp_json_encode( $canonical );
-			} else {
-				// No WP context (e.g. unit tests): plain encoding is sufficient for hashing.
-				$encoded = json_encode( $canonical ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
-			}
-			if ( ! is_string( $encoded ) || '' === $encoded ) {
-				return null;
-			}
 			$hash = hash( 'sha256', $encoded );
 			if ( ! is_string( $hash ) || '' === $hash ) {
 				return null;
@@ -188,10 +183,8 @@ final class SessionHeader {
 		if ( null === $session ) {
 			return $headers;
 		}
-		foreach ( $headers as $name => $existing ) {
-			if ( is_string( $name ) && 0 === strcasecmp( $name, self::HEADER_NAME ) ) {
-				return $headers;
-			}
+		if ( Headers::has( $headers, self::HEADER_NAME ) ) {
+			return $headers;
 		}
 		$headers[ self::HEADER_NAME ] = substr( $session, 0, self::VALUE_MAX_LENGTH );
 		return $headers;
@@ -213,16 +206,8 @@ final class SessionHeader {
 			return (string) $content;
 		}
 		if ( is_array( $content ) ) {
-			try {
-				if ( function_exists( 'wp_json_encode' ) ) {
-					$encoded = wp_json_encode( $content );
-				} else {
-					$encoded = json_encode( $content ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
-				}
-				return is_string( $encoded ) ? $encoded : '';
-			} catch ( \Throwable ) {
-				return '';
-			}
+			$encoded = Json::encode( $content );
+			return null !== $encoded ? $encoded : '';
 		}
 		return '';
 	}
