@@ -84,7 +84,7 @@ configured
 verified
 usable
 state: not_configured | verified | invalid_key | no_credits |
-       rate_limited | network_error | server_error |
+       rate_limited | free_tier_limit | network_error | server_error |
        unsupported_model | unsupported_endpoint | unsupported_capability | unknown
 ```
 
