@@ -84,6 +84,8 @@ final class Settings {
 			delete_transient( 'opencode_connector_verify_zen' );
 			delete_transient( 'opencode_connector_verify_go_lock' );
 			delete_transient( 'opencode_connector_verify_zen_lock' );
+			delete_transient( 'opencode_connector_avail_go_last_good' );
+			delete_transient( 'opencode_connector_avail_zen_last_good' );
 			if ( function_exists( 'delete_site_transient' ) ) {
 				delete_site_transient( 'opencode_connector_avail_go' );
 				delete_site_transient( 'opencode_connector_avail_zen' );
@@ -93,6 +95,8 @@ final class Settings {
 				delete_site_transient( 'opencode_connector_verify_zen' );
 				delete_site_transient( 'opencode_connector_verify_go_lock' );
 				delete_site_transient( 'opencode_connector_verify_zen_lock' );
+				delete_site_transient( 'opencode_connector_avail_go_last_good' );
+				delete_site_transient( 'opencode_connector_avail_zen_last_good' );
 			}
 		}
 	}
@@ -117,6 +121,8 @@ final class Settings {
 		delete_transient( 'opencode_connector_verify_zen' );
 		delete_transient( 'opencode_connector_verify_go_lock' );
 		delete_transient( 'opencode_connector_verify_zen_lock' );
+		delete_transient( 'opencode_connector_avail_go_last_good' );
+		delete_transient( 'opencode_connector_avail_zen_last_good' );
 		if ( function_exists( 'delete_site_transient' ) ) {
 			delete_site_transient( 'opencode_connector_avail_go' );
 			delete_site_transient( 'opencode_connector_avail_zen' );
@@ -126,6 +132,8 @@ final class Settings {
 			delete_site_transient( 'opencode_connector_verify_zen' );
 			delete_site_transient( 'opencode_connector_verify_go_lock' );
 			delete_site_transient( 'opencode_connector_verify_zen_lock' );
+			delete_site_transient( 'opencode_connector_avail_go_last_good' );
+			delete_site_transient( 'opencode_connector_avail_zen_last_good' );
 		}
 	}
 

@@ -24,6 +24,11 @@ final class ConnectionDiagnostics {
 	 *
 	 * Only the error type is inspected; response bodies are never returned.
 	 *
+	 * Fail-open contract: quota exhaustion (401 CreditsError) and rate
+	 * limiting (429) report a configured key; 5xx and transport failures
+	 * report a distinct could-not-be-checked verdict so callers can preserve
+	 * last-known-good state instead of flipping to not-connected.
+	 *
 	 * @param int                       $status    HTTP status code, or zero for a transport failure.
 	 * @param array<string, mixed>|null $data      Response data used only to identify CreditsError.
 	 * @param \Throwable|null           $exception Transport exception, if any.
@@ -31,7 +36,7 @@ final class ConnectionDiagnostics {
 	 */
 	public function classify( int $status, ?array $data = null, ?\Throwable $exception = null ): array {
 		if ( null !== $exception || 0 === $status ) {
-			return $this->result( 'network_error', false, false, false, 0, 'network_failure' );
+			return $this->result( 'uncheckable', false, false, false, 0, 'could_not_be_checked' );
 		}
 		if ( $status >= 200 && $status < 300 ) {
 			return $this->result( 'verified', true, true, true, $status, 'ok' );
@@ -51,7 +56,7 @@ final class ConnectionDiagnostics {
 			return $this->result( 'rate_limited', true, true, false, $status, 'rate_limited' );
 		}
 		if ( $status >= 500 && $status < 600 ) {
-			return $this->result( 'server_error', true, true, false, $status, 'server_error' );
+			return $this->result( 'uncheckable', false, false, false, $status, 'could_not_be_checked' );
 		}
 		return $this->result( 'unknown', true, true, false, $status, 'unknown' );
 	}
@@ -98,12 +103,32 @@ final class ConnectionDiagnostics {
 	}
 
 	/**
-	 * Build an unknown result for a concurrent probe.
+	 * Build an unknown result as a safe fallback.
+	 *
+	 * Used when no more specific verdict applies. It reports
+	 * not-configured/not-verified, so callers must not treat it as a
+	 * positive result.
 	 *
 	 * @return array<string, mixed>
 	 */
 	public function unknown(): array {
 		return $this->result( 'unknown', false, false, false, 0, 'unknown' );
+	}
+
+	/**
+	 * Build a could-not-be-checked result for server, transport, and concurrent-probe failures.
+	 *
+	 * Quota states have their own verdicts and never reach this path: 429 maps
+	 * to `rate_limited` or `free_tier_limit`, and 401 with a credits error
+	 * maps to `no_credits`. Callers preserve last-known-good configured state
+	 * on this verdict instead of flipping to not-connected.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function uncheckable(): array {
+		return $this->result( 'uncheckable', false, false, false, 0, 'could_not_be_checked' );
 	}
 
 	/**
