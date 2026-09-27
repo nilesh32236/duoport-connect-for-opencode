@@ -16,6 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Http\GoRequestHeaders;
 use OpenCodeConnector\Http\SessionHeader;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
@@ -57,7 +58,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 */
 	public function isConfigured(): bool {
 		$result = $this->probe();
-		return in_array( $result['state'], array( 'verified', 'no_credits', 'rate_limited' ), true );
+		return in_array( $result['state'], array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' ), true );
 	}
 
 	/**
@@ -324,11 +325,13 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		);
 		// The Go catalog rejects requests without x-opencode-session (400
 		// MissingSessionID), so the probe carries a stable session value
-		// derived from its own payload. Zen ignores the extra header.
-		$probe_headers = SessionHeader::inject_into_headers(
-			array( 'Content-Type' => 'application/json' ),
-			$probe_data
-		);
+		// derived from its own payload. Zen ignores the extra header. The Go
+		// probe additionally carries the plugin User-Agent via the shared Go
+		// header pair; the opencode user agent is never spoofed.
+		$base_headers  = array( 'Content-Type' => 'application/json' );
+		$probe_headers = 'go' === $this->catalog && class_exists( GoRequestHeaders::class )
+			? GoRequestHeaders::for_go( $base_headers, $probe_data )
+			: SessionHeader::inject_into_headers( $base_headers, $probe_data );
 		$req           = new Request(
 			HttpMethodEnum::POST(),
 			$cls::url( 'chat/completions' ),
