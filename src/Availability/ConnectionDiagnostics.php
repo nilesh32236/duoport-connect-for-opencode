@@ -53,6 +53,29 @@ final class ConnectionDiagnostics {
 	}
 
 	/**
+	 * Map a detailed diagnosis to an explicit verification state.
+	 *
+	 * Returns one of `valid`, `invalid_key`, or `could-not-be-checked` so
+	 * the settings page can report genuine credential verification,
+	 * distinct from the lightweight availability probe.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @param array<string, mixed> $diagnosis Detailed result from classify().
+	 * @return string Verification state.
+	 */
+	public function verify_state( array $diagnosis ): string {
+		$state = isset( $diagnosis['state'] ) && is_string( $diagnosis['state'] ) ? $diagnosis['state'] : 'unknown';
+		if ( in_array( $state, array( 'verified', 'no_credits', 'rate_limited' ), true ) ) {
+			return 'valid';
+		}
+		if ( in_array( $state, array( 'invalid_key', 'not_configured' ), true ) ) {
+			return 'invalid_key';
+		}
+		return 'could-not-be-checked';
+	}
+
+	/**
 	 * Build a not-configured result.
 	 *
 	 * @return array<string, mixed>

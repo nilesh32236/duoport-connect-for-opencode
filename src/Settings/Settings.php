@@ -80,11 +80,19 @@ final class Settings {
 			delete_transient( 'opencode_connector_avail_zen' );
 			delete_transient( 'opencode_connector_avail_go_lock' );
 			delete_transient( 'opencode_connector_avail_zen_lock' );
+			delete_transient( 'opencode_connector_verify_go' );
+			delete_transient( 'opencode_connector_verify_zen' );
+			delete_transient( 'opencode_connector_verify_go_lock' );
+			delete_transient( 'opencode_connector_verify_zen_lock' );
 			if ( function_exists( 'delete_site_transient' ) ) {
 				delete_site_transient( 'opencode_connector_avail_go' );
 				delete_site_transient( 'opencode_connector_avail_zen' );
 				delete_site_transient( 'opencode_connector_avail_go_lock' );
 				delete_site_transient( 'opencode_connector_avail_zen_lock' );
+				delete_site_transient( 'opencode_connector_verify_go' );
+				delete_site_transient( 'opencode_connector_verify_zen' );
+				delete_site_transient( 'opencode_connector_verify_go_lock' );
+				delete_site_transient( 'opencode_connector_verify_zen_lock' );
 			}
 		}
 	}
@@ -105,11 +113,19 @@ final class Settings {
 		delete_transient( 'opencode_connector_avail_zen' );
 		delete_transient( 'opencode_connector_avail_go_lock' );
 		delete_transient( 'opencode_connector_avail_zen_lock' );
+		delete_transient( 'opencode_connector_verify_go' );
+		delete_transient( 'opencode_connector_verify_zen' );
+		delete_transient( 'opencode_connector_verify_go_lock' );
+		delete_transient( 'opencode_connector_verify_zen_lock' );
 		if ( function_exists( 'delete_site_transient' ) ) {
 			delete_site_transient( 'opencode_connector_avail_go' );
 			delete_site_transient( 'opencode_connector_avail_zen' );
 			delete_site_transient( 'opencode_connector_avail_go_lock' );
 			delete_site_transient( 'opencode_connector_avail_zen_lock' );
+			delete_site_transient( 'opencode_connector_verify_go' );
+			delete_site_transient( 'opencode_connector_verify_zen' );
+			delete_site_transient( 'opencode_connector_verify_go_lock' );
+			delete_site_transient( 'opencode_connector_verify_zen_lock' );
 		}
 	}
 
@@ -233,6 +249,7 @@ final class Settings {
 				printf( esc_html__( 'Go: %1$s · Zen: %2$s', 'duoport-connect-for-opencode' ), $go_ok ? esc_html__( 'connected', 'duoport-connect-for-opencode' ) : esc_html__( 'not connected', 'duoport-connect-for-opencode' ), $zen_ok ? esc_html__( 'connected', 'duoport-connect-for-opencode' ) : esc_html__( 'not connected', 'duoport-connect-for-opencode' ) );
 			?>
 			</p>
+			<p><?php esc_html_e( 'Configured does not equal verified: the status above is a lightweight availability check. Explicit one-token verification reports valid, invalid key, or could-not-be-checked without blocking chat.', 'duoport-connect-for-opencode' ); ?></p>
 			<form method="post" action="options.php">
 				<?php settings_fields( 'opencode_connector' ); ?>
 				<table class="form-table"><tr>
