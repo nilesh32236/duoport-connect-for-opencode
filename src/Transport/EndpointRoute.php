@@ -46,8 +46,9 @@ final class EndpointRoute {
 			throw new UnsupportedEndpointFamilyException( 'Model is not in the verified registry.' );
 		}
 		$kind = (string) ( $record['endpoint_family'] ?? '' );
-		if ( ! isset( self::PATHS[ $kind ] ) ) {
-			throw new UnsupportedEndpointFamilyException( 'Model endpoint kind is unsupported.' );
+		if ( ModelRegistry::isUnsupportedFamily( $kind ) || ! isset( self::PATHS[ $kind ] ) ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message, not output.
+			throw new UnsupportedEndpointFamilyException( sprintf( 'Endpoint family "%s" is unsupported; chat/completions only.', $kind ) );
 		}
 		return $kind;
 	}
@@ -72,8 +73,9 @@ final class EndpointRoute {
 	 * @throws UnsupportedEndpointFamilyException When the endpoint kind is unsupported.
 	 */
 	public static function pathForEndpointKind( string $kind ): string {
-		if ( ! isset( self::PATHS[ $kind ] ) ) {
-			throw new UnsupportedEndpointFamilyException( 'Endpoint kind is unsupported.' );
+		if ( ModelRegistry::isUnsupportedFamily( $kind ) || ! isset( self::PATHS[ $kind ] ) ) {
+			// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message, not output.
+			throw new UnsupportedEndpointFamilyException( sprintf( 'Endpoint family "%s" is unsupported; chat/completions only.', $kind ) );
 		}
 		return self::PATHS[ $kind ];
 	}

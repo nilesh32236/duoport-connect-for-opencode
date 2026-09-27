@@ -49,6 +49,33 @@ final class ModelRegistry {
 	);
 
 	/**
+	 * Known non-chat endpoint families with no verified transport.
+	 *
+	 * Single source of truth for the endpoint-family deny table; consulted
+	 * by endpointFamily() and by EndpointRoute before any HTTP send so
+	 * future Responses/Messages/SystemOne models fail closed to a clear
+	 * rejection instead of being misrouted to chat/completions.
+	 *
+	 * @var list<string>
+	 */
+	private const UNSUPPORTED_FAMILIES = array(
+		'responses',
+		'messages',
+		'systemone',
+		'provider-specific',
+	);
+
+	/**
+	 * Whether an endpoint family is denied (no verified transport).
+	 *
+	 * @param string $family Endpoint family name.
+	 * @return bool
+	 */
+	public static function isUnsupportedFamily( string $family ): bool {
+		return in_array( $family, self::UNSUPPORTED_FAMILIES, true );
+	}
+
+	/**
 	 * Resolve the reviewed endpoint family for a model.
 	 *
 	 * @param string $id      Model ID.
@@ -56,6 +83,9 @@ final class ModelRegistry {
 	 * @return string
 	 */
 	private static function endpointFamily( string $id, string $catalog ): string {
+		if ( self::isUnsupportedFamily( $id ) ) {
+			return 'unsupported';
+		}
 		if ( 'zen' === $catalog && in_array( $id, self::UNSUPPORTED_ZEN_MODELS, true ) ) {
 			return 'unsupported';
 		}
