@@ -41,11 +41,18 @@ $expect = static function (bool $condition, string $message) use (&$errors): voi
     }
 };
 $expect(($manifest['reviewer_repository'] ?? null) === 'nilesh32236/opencode-ai-reviewer', 'reviewer_repository is not the approved repository');
-$expect(is_string($manifest['release_tag'] ?? null) && preg_match('/^v[0-9]+\.[0-9]+\.[0-9]+$/', $manifest['release_tag']) === 1, 'release_tag must be stable semver');
-$expect(is_string($manifest['release_commit'] ?? null) && preg_match('/^[a-f0-9]{40}$/', $manifest['release_commit']) === 1, 'release_commit must be a full lowercase SHA');
-$expect(is_string($manifest['release_published_at'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $manifest['release_published_at']) === 1, 'release_published_at must be UTC ISO-8601');
-$expect(($manifest['release_url'] ?? null) === 'https://github.com/nilesh32236/opencode-ai-reviewer/releases/tag/' . ($manifest['release_tag'] ?? ''), 'release_url does not match release_tag');
-$expect(is_string($manifest['updated_at'] ?? null) && preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $manifest['updated_at']) === 1, 'updated_at must be UTC ISO-8601');
+// The reviewer action tracks a floating branch, so there is no release tag or
+// commit to validate here. What is validated instead is that the recorded ref
+// is the one the workflows actually use, and that the retired release fields
+// have not crept back in: a manifest that still carried release_commit would
+// imply a pin that no longer exists.
+$expect(is_string($manifest['reviewer_ref'] ?? null) && '' !== $manifest['reviewer_ref'], 'reviewer_ref must be a non-empty string');
+$expect(($manifest['reviewer_ref'] ?? null) === 'main', 'reviewer_ref must be the reviewer main branch');
+$expect(($manifest['reviewer_ref_kind'] ?? null) === 'floating-branch', 'reviewer_ref_kind must be floating-branch');
+$expect(is_string($manifest['reviewer_ref_note'] ?? null) && '' !== trim($manifest['reviewer_ref_note']), 'reviewer_ref_note must explain the floating ref and its trade-off');
+foreach (array('release_tag', 'release_commit', 'release_published_at', 'release_url', 'updated_at') as $retired) {
+    $expect(!array_key_exists($retired, $manifest), "retired field {$retired} must not remain while the reviewer ref is floating");
+}
 
 $cli = $manifest['opencode_cli'] ?? null;
 $expect(is_array($cli), 'opencode_cli must be an object');

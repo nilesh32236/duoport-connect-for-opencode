@@ -80,7 +80,7 @@ jobs:
         run: composer install --ignore-platform-reqs
 
       - name: Fix Issue
-        uses: nilesh32236/opencode-ai-reviewer@103082c963f64cb2cf979ae14b729ec41d40866e # v1.22.0
+        uses: nilesh32236/opencode-ai-reviewer@main
         with:
           mode: fix
           github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -161,7 +161,7 @@ jobs:
         run: composer install --ignore-platform-reqs
 
       - name: AI Code Review
-        uses: nilesh32236/opencode-ai-reviewer@103082c963f64cb2cf979ae14b729ec41d40866e # v1.22.0
+        uses: nilesh32236/opencode-ai-reviewer@main
         with:
           mode: review
           github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -238,7 +238,7 @@ jobs:
         run: composer install --ignore-platform-reqs
 
       - name: AI Fix
-        uses: nilesh32236/opencode-ai-reviewer@103082c963f64cb2cf979ae14b729ec41d40866e # v1.22.0
+        uses: nilesh32236/opencode-ai-reviewer@main
         with:
           mode: fix
           github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}

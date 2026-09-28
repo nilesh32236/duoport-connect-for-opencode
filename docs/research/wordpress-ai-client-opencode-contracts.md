@@ -115,6 +115,16 @@ The current mapping is 401 for `AuthError`, `CreditsError`, monthly/user limit e
 
 At the snapshot, the official release page is [v1.22.0](https://github.com/nilesh32236/opencode-ai-reviewer/releases/tag/v1.22.0). The annotated tag object is `e96e3d74a74f82180d6df5eef404ffd1dee82b95`; the peeled release commit is [`103082c963f64cb2cf979ae14b729ec41d40866e`](https://github.com/nilesh32236/opencode-ai-reviewer/commit/103082c963f64cb2cf979ae14b729ec41d40866e). The action manifest at that tag runs Node 24 with `action/lib/index.js` and a post entrypoint ([`action.yml`](https://github.com/nilesh32236/opencode-ai-reviewer/blob/v1.22.0/action.yml#L483-L486)). Its first-party README documents direct and reusable-workflow usage and requires `github_token`; the released action also exposes `opencode_api_key` and leaves `enable_mcp` disabled by default ([README](https://github.com/nilesh32236/opencode-ai-reviewer/blob/v1.22.0/README.md#quick-start--github-action), [inputs](https://github.com/nilesh32236/opencode-ai-reviewer/blob/v1.22.0/action.yml#L1-L42)).
 
+> **Superseded (repository change, not a correction to this evidence).** This
+> research snapshot correctly argues that an immutable release SHA is the safe
+> reference and that `@main` is mutable. The repository has since chosen
+> `@main` deliberately, accepting that trade-off so reviewer improvements apply
+> without a dependency pull request. The reasoning above still describes the
+> risk accurately; what changed is the decision, recorded in
+> `.github/reviewer-dependency.json` and enforced by
+> `.github/scripts/verify-reviewer-dependency.php`. The release facts in this
+> section remain the evidence they were when written.
+
 ### Pin (recommended)
 
 Use the peeled release commit, with the release version in a comment:

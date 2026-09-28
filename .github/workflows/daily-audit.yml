@@ -123,7 +123,7 @@ jobs:
       # automatically — no manual triggering needed.
       - name: AI Codebase Audit
         id: ai-audit
-        uses: nilesh32236/opencode-ai-reviewer@103082c963f64cb2cf979ae14b729ec41d40866e # v1.22.0
+        uses: nilesh32236/opencode-ai-reviewer@main
         with:
           mode: audit
           github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}

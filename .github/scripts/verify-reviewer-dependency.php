@@ -21,8 +21,7 @@ if (!is_array($manifest)) {
     exit(1);
 }
 
-$tag = (string) ($manifest['release_tag'] ?? '');
-$commit = (string) ($manifest['release_commit'] ?? '');
+$reviewer_ref = (string) ($manifest['reviewer_ref'] ?? '');
 $cli = $manifest['opencode_cli'] ?? array();
 $cli_version = (string) ($cli['version'] ?? '');
 $errors = array();
@@ -37,11 +36,8 @@ if (!is_file($manifest_validator)) {
         $errors[] = 'manifest schema validation failed: ' . implode('; ', $validation_output);
     }
 }
-if (!preg_match('/^v[0-9]+\.[0-9]+\.[0-9]+$/', $tag)) {
-    $errors[] = 'release_tag must be a stable vX.Y.Z tag';
-}
-if (!preg_match('/^[a-f0-9]{40}$/', $commit)) {
-    $errors[] = 'release_commit must be a full 40-character lowercase SHA';
+if ('main' !== $reviewer_ref) {
+    $errors[] = 'reviewer_ref must be the reviewer main branch';
 }
 if ('v1.18.31' !== $cli_version) {
     $errors[] = 'opencode_cli.version must remain the checksum-verified v1.18.31';
@@ -77,24 +73,40 @@ $workflow_files = array_merge(
 );
 $reference_count = 0;
 foreach ($workflow_files as $file) {
-    if ('reviewer-update.yml' === basename($file)) {
-        continue;
-    }
     $source = (string) file_get_contents($file);
-    if (preg_match_all('/uses:\s*nilesh32236\/opencode-ai-reviewer@([^\s#]+)(?:\s+#\s*(\S+))?/', $source, $matches, PREG_SET_ORDER)) {
-        foreach ($matches as $match) {
+    if (preg_match_all('/uses:\s*nilesh32236\/opencode-ai-reviewer@([^\s#]+)/', $source, $matches)) {
+        foreach ($matches[1] as $used_ref) {
             ++$reference_count;
-            if ($commit !== ($match[1] ?? '')) {
-                $errors[] = basename($file) . ' uses reviewer SHA ' . ($match[1] ?? '') . ' instead of manifest SHA';
-            }
-            if ($tag !== ($match[2] ?? '')) {
-                $errors[] = basename($file) . ' reviewer tag comment is missing or stale';
+            if ($reviewer_ref !== $used_ref) {
+                $errors[] = basename($file) . " uses reviewer ref '{$used_ref}' instead of the manifest ref '{$reviewer_ref}'";
             }
         }
+    }
+    // A stale trailing "# vX.Y.Z" comment would claim a version the floating
+    // ref no longer corresponds to, which is exactly the drift this manifest
+    // used to prevent. Reject it so the comment cannot outlive the pin.
+    if (preg_match('/uses:\s*nilesh32236\/opencode-ai-reviewer@\S+\s+#\s*\S/', $source)) {
+        $errors[] = basename($file) . ' reviewer reference carries a stale version comment';
     }
 }
 if (4 !== $reference_count) {
     $errors[] = "expected four reviewer action references, found {$reference_count}";
+}
+
+// The dependency updater and the scripts that only it called are removed.
+// Reject a partial revert: half of this machinery back with no updater to
+// drive it is a confusing state, and the removed helpers are the ones that
+// wrote to the repository.
+foreach (array(
+    '.github/workflows/reviewer-update.yml',
+    '.github/scripts/update-opencode-reviewer.php',
+    '.github/scripts/push-reviewer-branch.sh',
+    '.github/scripts/inspect-reviewer-branch.sh',
+    '.github/scripts/reviewer-pr-guard.sh',
+) as $removed) {
+    if (file_exists($root . '/' . $removed)) {
+        $errors[] = "{$removed} must stay removed while the reviewer ref is floating";
+    }
 }
 
 $review_source = (string) file_get_contents($workflow_dir . '/ai-review.yml');
@@ -141,48 +153,6 @@ if (substr_count($research_source, 'OPENCODE_VERSION: v1.18.31') !== 2) {
 if (!str_contains($setup_source, 'OPENCODE_VERSION="${OPENCODE_VERSION:-v1.18.31}"') || !str_contains($setup_source, 'sha256sum -c')) {
     $errors[] = 'setup-opencode.sh must default to v1.18.31 and verify its archive checksum';
 }
-$updater_source = (string) file_get_contents($workflow_dir . '/reviewer-update.yml');
-$guard_path = $root . '/.github/scripts/reviewer-pr-guard.sh';
-if (!is_file($guard_path) || !is_executable($guard_path)) {
-    $errors[] = 'reviewer-pr-guard.sh must be present and executable';
-} else {
-    $guard_source = (string) file_get_contents($guard_path);
-    if (!str_contains($guard_source, 'head.repo.full_name') || !str_contains($guard_source, '--paginate')) {
-        $errors[] = 'reviewer-pr-guard.sh must paginate exact repository identities';
-    }
-}
-$push_path = $root . '/.github/scripts/push-reviewer-branch.sh';
-if (!is_file($push_path) || !is_executable($push_path)) {
-    $errors[] = 'push-reviewer-branch.sh must be present and executable';
-} else {
-    $push_source = (string) file_get_contents($push_path);
-    foreach (array('--force-with-lease="${REF}:${EXISTING_SHA}"', '--atomic') as $lease_form) {
-        if (!str_contains($push_source, $lease_form)) {
-            $errors[] = 'push-reviewer-branch.sh is missing an explicit existing/empty lease';
-            break;
-        }
-    }
-}
-$inspect_path = $root . '/.github/scripts/inspect-reviewer-branch.sh';
-if (!is_file($inspect_path) || !is_executable($inspect_path)) {
-    $errors[] = 'inspect-reviewer-branch.sh must be present and executable';
-} else {
-    $inspect_source = (string) file_get_contents($inspect_path);
-    foreach (array('git show', 'git grep', 'gh') as $needle) {
-        if (!str_contains($inspect_source, $needle)) {
-            $errors[] = 'inspect-reviewer-branch.sh is missing fail-closed inspection: ' . $needle;
-        }
-    }
-    if (str_contains($inspect_source, '|| true')) {
-        $errors[] = 'inspect-reviewer-branch.sh must not mask inspection errors';
-    }
-}
-foreach (array('releases/latest', 'reviewer-dependency.json', 'pull-requests: write', 'concurrency:', 'GH_PAT', 'Campaign PR guard failed', 'Skip already-current dependency branch', 'proceed=false', 'gh api --paginate', 'per_page=100', 'ensure_pr', 'reviewer-pr-guard.sh', 'push-reviewer-branch.sh', 'inspect-reviewer-branch.sh') as $needle) {
-    if (!str_contains($updater_source, $needle)) {
-        $errors[] = 'reviewer-update.yml is missing required traceability/safety contract: ' . $needle;
-    }
-}
-
 if ($errors) {
     foreach (array_unique($errors) as $error) {
         fwrite(STDERR, $error . "\n");
@@ -190,4 +160,4 @@ if ($errors) {
     exit(1);
 }
 
-echo "Reviewer dependency contract valid: {$tag} @ {$commit}; OpenCode {$cli_version}\n";
+echo "Reviewer dependency contract valid: {$reviewer_ref} (floating); OpenCode {$cli_version}\n";

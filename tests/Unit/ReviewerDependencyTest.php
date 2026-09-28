@@ -26,37 +26,8 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		self::assertSame( 0, $status, implode( "\n", $output ) );
 		$manifest = json_decode( (string) file_get_contents( $root . '/.github/reviewer-dependency.json' ), true );
 		self::assertIsArray( $manifest );
-		self::assertStringContainsString( (string) $manifest['release_tag'], implode( "\n", $output ) );
-	}
-
-	/**
-	 * The updater is idempotent for the current release and rejects unsafe tags.
-	 */
-	public function test_reviewer_updater_is_validated_and_idempotent(): void {
-		$root = dirname( __DIR__, 2 );
-		$manifest = json_decode( (string) file_get_contents( $root . '/.github/reviewer-dependency.json' ), true );
-		self::assertIsArray( $manifest );
-		$tag = (string) $manifest['release_tag'];
-		$commit = (string) $manifest['release_commit'];
-		$published = (string) $manifest['release_published_at'];
-
-		$output = array();
-		$status = 0;
-		exec(
-			'php ' . escapeshellarg( $root . '/.github/scripts/update-opencode-reviewer.php' ) .
-			' --tag ' . escapeshellarg( $tag ) .
-			' --commit ' . escapeshellarg( $commit ) .
-			' --published ' . escapeshellarg( $published ) .
-			' --dry-run 2>&1',
-			$output,
-			$status
-		);
-		self::assertSame( 0, $status, implode( "\n", $output ) );
-		self::assertStringContainsString( '"manifest_changed":false', implode( "\n", $output ) );
-
-		$unused = array();
-		exec( 'php ' . escapeshellarg( $root . '/.github/scripts/update-opencode-reviewer.php' ) . ' --tag main --commit bad --published invalid >/dev/null 2>&1', $unused, $unsafe_status );
-		self::assertNotSame( 0, $unsafe_status );
+		self::assertSame( 'main', (string) $manifest['reviewer_ref'] );
+		self::assertStringContainsString( (string) $manifest['reviewer_ref'], implode( "\n", $output ) );
 	}
 
 	/**
@@ -70,27 +41,8 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		self::assertStringContainsString( 'd4e332f46b227448582c0d9fc75f6f826dfe95c9f751bc2011fc4d937a042be6', $source );
 		self::assertStringContainsString( 'sha256sum -c', $source );
 
-		$updater = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/workflows/reviewer-update.yml' );
-		self::assertStringContainsString( 'Skip already-current dependency branch', $updater );
-		self::assertStringContainsString( 'GH_PAT', $updater );
-		self::assertStringContainsString( 'GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}', $updater );
-		self::assertStringContainsString( 'proceed=false', $updater );
-		self::assertStringContainsString( 'ensure_pr', $updater );
-		self::assertStringContainsString( 'gh api --paginate', $updater );
-		self::assertStringContainsString( 'per_page=100', $updater );
-		self::assertStringContainsString( 'push-reviewer-branch.sh', $updater );
 		$ci = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/workflows/ci.yml' );
 		self::assertSame( 2, substr_count( $ci, "'.github/workflows/*.yaml'" ) );
-		$guard_source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/scripts/reviewer-pr-guard.sh' );
-		self::assertStringContainsString( 'head.repo.full_name', $guard_source );
-		self::assertStringContainsString( 'expected=', $guard_source );
-		$inspect = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/scripts/inspect-reviewer-branch.sh' );
-		self::assertStringContainsString( 'git show', $inspect );
-		self::assertStringContainsString( 'git grep', $inspect );
-		self::assertStringNotContainsString( '|| true', $inspect );
-		$push = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/scripts/push-reviewer-branch.sh' );
-		self::assertStringContainsString( '--force-with-lease="${REF}:${EXISTING_SHA}"', $push );
-		self::assertStringContainsString( '--atomic', $push );
 	}
 
 	/**
@@ -228,75 +180,112 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * A synthetic next release updates the temp root and is idempotent afterward.
+	 * A workflow that re-pins the reviewer to a SHA must fail verification.
+	 *
+	 * The manifest records a floating ref, so a SHA-pinned reference is drift:
+	 * it would run a different revision than the manifest describes while
+	 * still passing a casual read of the workflow.
 	 */
-	public function test_updater_handles_a_next_release_and_second_run(): void {
+	public function test_verifier_rejects_a_reintroduced_sha_pin(): void {
 		$root = $this->copy_automation_fixture();
 		try {
-			file_put_contents( $root . '/.github/workflows/extra.yaml', "name: Extra\\njobs:\\n  review:\\n    steps:\\n      - uses: nilesh32236/opencode-ai-reviewer@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\n" );
-			$command = 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/update-opencode-reviewer.php' ) . ' --tag v99.0.0 --commit ' . escapeshellarg( str_repeat( 'b', 40 ) ) . ' --published 2026-10-01T00:00:00Z';
+			$workflow = $root . '/.github/workflows/ai-review.yml';
+			file_put_contents( $workflow, preg_replace(
+				'#nilesh32236/opencode-ai-reviewer@main#',
+				'nilesh32236/opencode-ai-reviewer@' . str_repeat( 'c', 40 ),
+				(string) file_get_contents( $workflow ),
+				1
+			) );
 			$output = array();
 			$status = 0;
-			exec( $command . ' 2>&1', $output, $status );
-			self::assertSame( 0, $status, implode( "\n", $output ) );
-			self::assertStringContainsString( '"manifest_changed":true', implode( "\n", $output ) );
-			$manifest = json_decode( (string) file_get_contents( $root . '/.github/reviewer-dependency.json' ), true );
-			self::assertSame( 'v99.0.0', $manifest['release_tag'] );
-			self::assertStringContainsString( 'opencode-ai-reviewer@' . str_repeat( 'b', 40 ) . ' # v99.0.0', (string) file_get_contents( $root . '/.github/workflows/extra.yaml' ) );
-			$output = array();
-			exec( $command . ' 2>&1', $output, $status );
-			self::assertSame( 0, $status, implode( "\n", $output ) );
-			self::assertStringContainsString( '"manifest_changed":false', implode( "\n", $output ) );
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status );
+			self::assertStringContainsString( 'instead of the manifest ref', implode( "\n", $output ) );
 		} finally {
 			$this->remove_fixture( $root );
 		}
 	}
 
 	/**
-	 * The campaign guard fails closed and does not trust a fork with the automation name.
+	 * A stale "# vX.Y.Z" comment must fail verification.
+	 *
+	 * With a floating ref the comment claims a version that the ref no longer
+	 * corresponds to, which is precisely the drift the manifest existed to
+	 * prevent. Leaving one behind is how a reader would come to believe the
+	 * dependency is pinned when it is not.
 	 */
-	public function test_campaign_guard_is_identity_aware_and_fails_closed(): void {
-		$temp = sys_get_temp_dir() . '/duoport-guard-' . bin2hex( random_bytes( 5 ) );
-		mkdir( $temp );
+	public function test_verifier_rejects_a_stale_version_comment(): void {
+		$root = $this->copy_automation_fixture();
 		try {
-			$fake = $temp . '/gh';
-			$log = $temp . '/args';
-			file_put_contents( $fake, "#!/usr/bin/env bash\nprintf '%s\\n' \"\$@\" > \"\${GH_LOG}\"\nprintf 'automation/opencode-ai-reviewer\\tnilesh32236/duoport-connect-for-opencode\\n'\nfor i in \$(seq 1 35); do printf 'filler-%02d\\tattacker/other\\n' \"\$i\"; done\nprintf 'automation/opencode-ai-reviewer\\tattacker/other\\ncampaign\\tnilesh32236/duoport-connect-for-opencode\\n'\n" );
-			chmod( $fake, 0777 );
-			$guard = dirname( __DIR__, 2 ) . '/.github/scripts/reviewer-pr-guard.sh';
+			$workflow = $root . '/.github/workflows/ai-review.yml';
+			file_put_contents( $workflow, str_replace(
+				'nilesh32236/opencode-ai-reviewer@main',
+				'nilesh32236/opencode-ai-reviewer@main # v1.22.0',
+				(string) file_get_contents( $workflow )
+			) );
 			$output = array();
 			$status = 0;
-			exec( 'GH_LOG=' . escapeshellarg( $log ) . ' GH_BIN=' . escapeshellarg( $fake ) . ' ' . escapeshellarg( $guard ) . ' nilesh32236/duoport-connect-for-opencode nilesh32236/duoport-connect-for-opencode 2>&1', $output, $status );
-			self::assertSame( 0, $status, implode( "\n", $output ) );
-			self::assertCount( 37, $output );
-			self::assertContains( 'automation/opencode-ai-reviewer', $output );
-			self::assertContains( 'campaign', $output );
-			$args = (string) file_get_contents( $log );
-			self::assertStringContainsString( 'api', $args );
-			self::assertStringContainsString( '--paginate', $args );
-			self::assertStringContainsString( 'per_page=100', $args );
-
-			file_put_contents( $fake, "#!/usr/bin/env bash\nexit 42\n" );
-			chmod( $fake, 0777 );
-			$unused = array();
-			$failure_status = 0;
-			exec( 'GH_BIN=' . escapeshellarg( $fake ) . ' ' . escapeshellarg( $guard ) . ' nilesh32236/duoport-connect-for-opencode nilesh32236/duoport-connect-for-opencode >/dev/null 2>&1', $unused, $failure_status );
-			self::assertSame( 1, $failure_status );
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status );
+			self::assertStringContainsString( 'stale version comment', implode( "\n", $output ) );
 		} finally {
-			$this->remove_fixture( $temp );
+			$this->remove_fixture( $root );
 		}
 	}
 
 	/**
-	 * Run the executable workflow shell contracts as part of PHPUnit.
+	 * The removed updater must not come back with no driver.
+	 *
+	 * Its helper scripts wrote to the repository. Half of that machinery
+	 * restored, with no workflow to call it, is the confusing state this
+	 * check exists to prevent.
 	 */
-	public function test_workflow_shell_contracts(): void {
-		$root = dirname( __DIR__, 2 );
-		foreach ( array( 'reviewer-push-contract.sh', 'reviewer-branch-inspection-contract.sh' ) as $script ) {
+	public function test_verifier_rejects_resurrected_updater_machinery(): void {
+		foreach ( array(
+			'.github/workflows/reviewer-update.yml',
+			'.github/scripts/update-opencode-reviewer.php',
+			'.github/scripts/push-reviewer-branch.sh',
+			'.github/scripts/inspect-reviewer-branch.sh',
+			'.github/scripts/reviewer-pr-guard.sh',
+		) as $removed ) {
+			$root = $this->copy_automation_fixture();
+			try {
+				$path = $root . '/' . $removed;
+				if ( str_ends_with( $removed, '.php' ) ) {
+					file_put_contents( $path, "<?php\n" );
+				} else {
+					file_put_contents( $path, "#!/usr/bin/env bash\n" );
+					chmod( $path, 0777 );
+				}
+				$output = array();
+				$status = 0;
+				exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+				self::assertNotSame( 0, $status, $removed . ' was resurrected without failing verification' );
+				self::assertStringContainsString( 'must stay removed', implode( "\n", $output ) );
+			} finally {
+				$this->remove_fixture( $root );
+			}
+		}
+	}
+
+	/**
+	 * A manifest that still carries the retired release fields must fail.
+	 */
+	public function test_manifest_validator_rejects_retired_release_fields(): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$manifest_path = $root . '/.github/reviewer-dependency.json';
+			$manifest = json_decode( (string) file_get_contents( $manifest_path ), true );
+			self::assertIsArray( $manifest );
+			$manifest['release_commit'] = str_repeat( 'd', 40 );
+			file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) );
 			$output = array();
 			$status = 0;
-			exec( 'bash ' . escapeshellarg( $root . '/tests/Unit/' . $script ) . ' 2>&1', $output, $status );
-			self::assertSame( 0, $status, implode( "\n", $output ) );
+			exec( 'php ' . escapeshellarg( $root . '/.github/scripts/validate-reviewer-manifest.php' ) . ' --file ' . escapeshellarg( $manifest_path ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status );
+			self::assertStringContainsString( 'retired field release_commit', implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
 		}
 	}
 
@@ -315,12 +304,6 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 			copy( $file, $temp_root . '/.github/scripts/' . basename( $file ) );
 		}
 		copy( $source_root . '/.github/scripts/setup-opencode.sh', $temp_root . '/.github/scripts/setup-opencode.sh' );
-		copy( $source_root . '/.github/scripts/reviewer-pr-guard.sh', $temp_root . '/.github/scripts/reviewer-pr-guard.sh' );
-		chmod( $temp_root . '/.github/scripts/reviewer-pr-guard.sh', 0777 );
-		copy( $source_root . '/.github/scripts/push-reviewer-branch.sh', $temp_root . '/.github/scripts/push-reviewer-branch.sh' );
-		chmod( $temp_root . '/.github/scripts/push-reviewer-branch.sh', 0777 );
-		copy( $source_root . '/.github/scripts/inspect-reviewer-branch.sh', $temp_root . '/.github/scripts/inspect-reviewer-branch.sh' );
-		chmod( $temp_root . '/.github/scripts/inspect-reviewer-branch.sh', 0777 );
 		foreach ( glob( $source_root . '/.github/workflows/*.yml' ) ?: array() as $file ) {
 			copy( $file, $temp_root . '/.github/workflows/' . basename( $file ) );
 		}
