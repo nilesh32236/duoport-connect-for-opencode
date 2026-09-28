@@ -183,15 +183,6 @@ assert_rejected_for "${FIXTURE_DIR}/traversal.zip" "${FIXTURE_DIR}/work-traversa
 # A symlink entry must be rejected. zip -r without -y dereferences symlinks
 # and writes the TARGET'S CONTENTS into the archive, so a committed symlink
 # would copy its target into a public release.
-# The symlink guard is enforced in verify_zip only when zipinfo is available,
-# mirroring the script's documented degradation. Without zipinfo the archive
-# would pass every guard, so skip the assertion rather than fail the contract
-# for a missing optional tool.
-if ! command -v zipinfo >/dev/null 2>&1; then
-  echo "release ZIP contract passed (symlink entry check skipped: zipinfo unavailable)"
-  exit 0
-fi
-
 make_fixture symlink
 mkdir -p "${FIXTURE_DIR}/symlink/${PLUGIN_SLUG}/src"
 printf 'SENTINEL_TARGET_CONTENT\n' > "${FIXTURE_DIR}/symlink-target.txt"
@@ -229,9 +220,11 @@ fi
 # Credential-shaped filenames must never ship. The gate is a filename check
 # only; it must not reject an ordinary plugin file.
 for credential in .env .env.production .envrc .npmrc .netrc .htpasswd \
-                  credentials credentials.json credentials.php \
+                  .git-credentials credentials credentials.json credentials.php \
+                  secrets secrets.json secrets.txt wp-config.php \
                   server.pem private.key store.p12 cert.pfx my.jks app.keystore \
-                  id_rsa id_rsa.pub id_ed25519; do
+                  id_rsa id_rsa.pub id_ed25519 \
+                  .ENV Server.PEM CREDENTIALS.JSON ID_RSA; do
   safe="$(printf '%s' "$credential" | tr -c 'A-Za-z0-9' '_')"
   make_fixture "cred-$safe"
   : > "${FIXTURE_DIR}/cred-$safe/${PLUGIN_SLUG}/${credential}"

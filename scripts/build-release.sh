@@ -46,10 +46,13 @@ verify_zip() {
     [ -n "$entry" ] || continue
     base="${entry##*/}"
     base="${base%/}"
+    # Lowercase so the gate is case-insensitive: a .PEM or .Env is the same
+    # risk as .pem or .env.
+    base="${base,,}"
     case "$base" in
-      .env | .env.* | .envrc | .npmrc | .netrc | .htpasswd )
+      .env | .env.* | .envrc | .npmrc | .netrc | .htpasswd | .git-credentials )
         credential_hits="${credential_hits}${entry}"$'\n' ;;
-      credentials | credentials.* )
+      credentials | credentials.* | secrets | secrets.* | wp-config.php )
         credential_hits="${credential_hits}${entry}"$'\n' ;;
       *.pem | *.key | *.p12 | *.pfx | *.jks | *.keystore )
         credential_hits="${credential_hits}${entry}"$'\n' ;;
@@ -63,33 +66,6 @@ verify_zip() {
     return 1
   fi
 
-  # Reject symlink entries. A published plugin needs none, and a stored
-  # symlink is how a ZIP-based install escapes the plugin directory or
-  # re-points a file at content from outside the archive. zipinfo marks
-  # them with a leading "l" in the permissions column; when zipinfo is
-  # unavailable this degrades to the staged-tree check in build_release.
-  #
-  # zipinfo output is captured first and matched in shell. Piping zipinfo into
-  # `grep -q` is the issue #44 failure class again: grep exits at the first
-  # match, zipinfo takes SIGPIPE, and `set -o pipefail` reports 141, which this
-  # `if` reads as "no symlink". Whether the race resolves in grep's favour
-  # depends on how much output zipinfo still has buffered, so the guard
-  # rejected a symlink only intermittently.
-  if command -v zipinfo >/dev/null 2>&1; then
-    local zipinfo_out zipinfo_line symlink_entry
-    symlink_entry=''
-    zipinfo_out="$(zipinfo "$zip_path" 2>/dev/null || true)"
-    while IFS= read -r zipinfo_line; do
-      case "$zipinfo_line" in
-        l*) symlink_entry="$zipinfo_line"; break ;;
-      esac
-    done <<<"$zipinfo_out"
-    if [ -n "$symlink_entry" ]; then
-      echo "ERROR: ZIP contains a symlink entry" >&2
-      printf '  %s\n' "$symlink_entry" >&2
-      return 1
-    fi
-  fi
 
   for required in "${REQUIRED_ENTRIES[@]}"; do
     grep -Fxq -- "$required" "$zip_list" || {
@@ -141,6 +117,20 @@ verify_zip() {
   # The marker patterns tolerate CRLF: a checkout with core.autocrlf can leave
   # the separator as "=======\r", which an end-anchored pattern would miss.
   # -I skips binary payloads, where a marker match is not merge debris.
+  # Symlink detection uses the extracted tree, so it has no external
+  # dependency and cannot silently no-op. `find -type l` sees the link itself
+  # whenever the archive stored one; if a producer dereferenced it instead, the
+  # entry is a regular file and the staging check is what prevents the
+  # contents from being read in the first place.
+  local extracted_links
+  extracted_links="$(find "$extracted" -type l -print 2>/dev/null)"
+  if [ -n "$extracted_links" ]; then
+    echo "ERROR: ZIP contains a symlink entry" >&2
+    printf '%s\n' "$extracted_links" | sed "s|^${extracted}/|  |" >&2
+    rm -rf "$extracted"
+    return 1
+  fi
+
   local marker_status=0 marker_found=0
   grep -rIq -e '^<<<<<<< ' -e '^>>>>>>> ' -e '^=======[[:space:]]*$' "$extracted" 2>/dev/null || marker_status=$?
   if [ "$marker_status" -eq 0 ]; then

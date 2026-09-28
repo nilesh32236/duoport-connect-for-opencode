@@ -128,10 +128,12 @@ What ships is decided by `scripts/build-release.sh`, not by the working tree.
 - a `*.jsonl` agent artifact, matched case-insensitively at any depth;
 - a path-traversal (`..`) or absolute entry;
 - a symlink entry;
-- a credential-shaped filename: `.env`, `.env.*`, `.envrc`, `credentials`,
-  `credentials.*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`,
-  `*.keystore`, `id_rsa`/`id_dsa`/`id_ecdsa`/`id_ed25519` with any suffix,
-  `.npmrc`, `.netrc`, `.htpasswd`;
+- a credential-shaped filename, matched case-insensitively on the basename:
+  `.env`, `.env.*`, `.envrc`, `.git-credentials`, `credentials`,
+  `credentials.*`, `secrets`, `secrets.*`, `wp-config.php`, `*.pem`,
+  `*.key`, `*.p12`, `*.pfx`, `*.jks`, `*.keystore`,
+  `id_rsa`/`id_dsa`/`id_ecdsa`/`id_ed25519` with any suffix, `.npmrc`,
+  `.netrc`, `.htpasswd`;
 - an unresolved `<<<<<<<`, `>>>>>>>`, or `=======` conflict marker;
 - a missing required entry.
 
@@ -155,8 +157,10 @@ rejects symlinks outright with `find -type l`, before `zip` runs, and
 built by any other route is refused too. A published plugin has no legitimate
 use for a symlink.
 
-The archive symlink check uses `zipinfo` and degrades to skipped when
-Info-ZIP is unavailable; the staging check has no such dependency.
+Both symlink checks are dependency-free. The archive check uses
+`find -type l` on the extracted tree rather than `zipinfo`, so it cannot
+silently degrade to a no-op on a host without Info-ZIP, and the test suite
+can assert it unconditionally instead of skipping.
 
 Packaging is verified in CI on every change to `build-release.sh` or
 `.distignore`, not only at release time. That job builds and
