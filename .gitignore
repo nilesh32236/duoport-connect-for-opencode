@@ -1,5 +1,6 @@
 /vendor/
 *.zip
+*.jsonl
 .phpunit.result.cache
 .omo/
 .opencode/

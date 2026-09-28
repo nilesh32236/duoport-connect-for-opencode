@@ -22,6 +22,13 @@ verify_zip() {
   unzip -Z1 "$zip_path" > "$zip_list"
   sed -n '1,40p' "$zip_list"
 
+  # Reject path-traversal entries before unzip writes anything, so a
+  # malicious or malformed archive cannot escape the extraction directory.
+  if grep -Eq '(^|/)\.\.(/|$)|^/' "$zip_list"; then
+    echo "ERROR: ZIP contains a path-traversal or absolute entry" >&2
+    return 1
+  fi
+
   for required in "${REQUIRED_ENTRIES[@]}"; do
     grep -Fxq -- "$required" "$zip_list" || {
       echo "ERROR: $required missing in ZIP" >&2
@@ -31,6 +38,59 @@ verify_zip() {
 
   if grep -Eq '(^|/)(vendor|tests|\.firecrawl)(/|$)' "$zip_list"; then
     echo "ERROR: vendor/, tests/, or .firecrawl/ must not ship in the ZIP" >&2
+    return 1
+  fi
+
+  # Agent/review tooling output is development-only. It can carry merged
+  # conflict markers or prompt content, and nothing at runtime reads it, so
+  # a stray *.jsonl must fail the build even if .distignore is bypassed.
+  # ZIP listing entries for directories end in "/", so a bare "\.jsonl$" would
+  # miss a directory named like an artifact. Allow an optional trailing slash.
+  if grep -Eqi '\.jsonl/?$' "$zip_list"; then
+    echo "ERROR: *.jsonl agent artifacts must not ship in the ZIP" >&2
+    return 1
+  fi
+
+  # Belt-and-braces: no shipped file may carry unresolved conflict markers,
+  # which would mean a botched merge reached the distributable. All three
+  # markers are matched, because a resolved-looking conflict can leave only
+  # the separator behind.
+  #
+  # Extract to a file first instead of piping `unzip -p` into grep. Under
+  # `set -o pipefail`, grep -q closes the pipe as soon as it matches, so
+  # unzip takes SIGPIPE and the script exits 141 for any ZIP larger than the
+  # pipe buffer. That is the same failure class as issue #44, and it would
+  # fail the build for the wrong reason.
+  local extracted="${work_dir}/extracted"
+  rm -rf "$extracted"
+  mkdir -p "$extracted"
+  if ! unzip -q -o "$zip_path" -d "$extracted"; then
+    echo "ERROR: ZIP could not be extracted for content verification" >&2
+    rm -rf "$extracted"
+    return 1
+  fi
+  # Always clean up the extraction, including on the rejection path, so a
+  # rejected build does not leave a multi-megabyte tree behind.
+  #
+  # grep exits 0 on a match, 1 on no match, and 2 on an I/O error. Treating 2
+  # as "no match" would let an unreadable file pass silently, so the status is
+  # captured explicitly and anything other than a clean 1 is a rejection.
+  #
+  # The marker patterns tolerate CRLF: a checkout with core.autocrlf can leave
+  # the separator as "=======\r", which an end-anchored pattern would miss.
+  # -I skips binary payloads, where a marker match is not merge debris.
+  local marker_status=0 marker_found=0
+  grep -rIq -e '^<<<<<<< ' -e '^>>>>>>> ' -e '^=======[[:space:]]*$' "$extracted" 2>/dev/null || marker_status=$?
+  if [ "$marker_status" -eq 0 ]; then
+    marker_found=1
+  elif [ "$marker_status" -ne 1 ]; then
+    echo "ERROR: could not scan the archive contents (grep exit ${marker_status})" >&2
+    rm -rf "$extracted"
+    return 1
+  fi
+  rm -rf "$extracted"
+  if [ "$marker_found" -ne 0 ]; then
+    echo "ERROR: a shipped file contains an unresolved conflict marker" >&2
     return 1
   fi
 }
