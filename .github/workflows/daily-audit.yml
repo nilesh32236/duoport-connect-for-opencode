@@ -58,7 +58,9 @@ jobs:
       - name: Report verification failures as issue
         if: failure() && steps.verify.outputs.status == 'failed'
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          # The reviewer repository is public, so the default token is enough.
+          # The PAT is reserved for the reviewer's own write operations.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ISSUE_TITLE="[Audit] Daily verification failed — $(date -u '+%Y-%m-%d')"
           PHP_LINT_VAL="${{ env.PHP_LINT == 'failed' && '❌' || '✅' }}"

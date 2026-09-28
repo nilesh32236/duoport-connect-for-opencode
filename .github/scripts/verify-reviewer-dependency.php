@@ -74,15 +74,26 @@ $workflow_files = array_merge(
 $reference_count = 0;
 $workflow_sources = array();
 foreach ($workflow_files as $file) {
-    $workflow_sources[$file] = (string) file_get_contents($file);
+    $contents = file_get_contents($file);
+    if (false === $contents) {
+        $errors[] = basename($file) . ' could not be read; refusing to verify against an empty source';
+        continue;
+    }
+    $workflow_sources[$file] = $contents;
 }
 foreach ($workflow_files as $file) {
+    // A file that could not be read is already recorded as an error. Skip it
+    // rather than scanning an absent source, which would both miscount the
+    // references and fatal on a null subject instead of failing cleanly.
+    if (!isset($workflow_sources[$file])) {
+        continue;
+    }
     // Only real action lines count. A commented-out reference, of the kind
     // added when documenting a previous approach, is documentation rather than
     // configuration; counting it would inflate the expected-reference total
     // and fail CI on an explanatory line.
     $lines = array();
-    foreach (explode("\n", (string) file_get_contents($file)) as $line) {
+    foreach (explode("\n", $workflow_sources[$file]) as $line) {
         if ('' !== ltrim($line) && 0 === strpos(ltrim($line), '#')) {
             continue;
         }
@@ -117,6 +128,9 @@ if (4 !== $reference_count) {
 $readback_marker = '      - name: Record the reviewer main at run start';
 $readback_bodies = array();
 foreach ($workflow_files as $file) {
+    if (!isset($workflow_sources[$file])) {
+        continue;
+    }
     $text = $workflow_sources[$file];
     $offset = 0;
     while (false !== ($position = strpos($text, $readback_marker, $offset))) {
@@ -136,14 +150,14 @@ if (4 !== count($readback_bodies)) {
         if ($body !== $first) {
             $errors[] = 'reviewer revision read-back copy ' . ($index + 2) . ' has drifted from the first';
         }
-
+    }
     // The read-back only reads a public repository, so it must use the default
     // token. The PAT carries broader scope and is reserved for the reviewer's
     // own write operations; a uniform copy using it would otherwise expose a
-    // wider credential for no gain.
+    // wider credential for no gain. This checks the whole set once: every
+    // copy is byte-identical to the first by this point.
     if (str_contains($first, 'secrets.GH_PAT') || !str_contains($first, 'GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}')) {
         $errors[] = 'reviewer revision read-back must use the default GITHUB_TOKEN, not the PAT';
-    }
     }
 }
 
