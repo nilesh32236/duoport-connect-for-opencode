@@ -74,17 +74,23 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Server and transport failures are safe and unusable.
+	 * Server and transport failures are uncheckable, never invalid-key.
 	 */
-	public function test_server_and_transport_failures_are_unusable(): void {
+	public function test_server_and_transport_failures_are_uncheckable(): void {
 		$diagnostics = new ConnectionDiagnostics();
 		$server      = $diagnostics->classify( 503 );
 		$network     = $diagnostics->classify( 0, null, new \RuntimeException( 'transport failed' ) );
 
-		self::assertSame( 'server_error', $server['state'] );
+		self::assertSame( 'uncheckable', $server['state'] );
+		self::assertSame( 'could_not_be_checked', $server['code'] );
 		self::assertFalse( $server['usable'] );
-		self::assertSame( 'network_error', $network['state'] );
+		self::assertSame( 503, $server['status'] );
+		self::assertSame( 'uncheckable', $network['state'] );
+		self::assertSame( 'could_not_be_checked', $network['code'] );
 		self::assertFalse( $network['usable'] );
+		// Distinct from invalid-key: the backend was never identified.
+		self::assertFalse( $server['verified'] );
+		self::assertFalse( $network['verified'] );
 	}
 
 	/**

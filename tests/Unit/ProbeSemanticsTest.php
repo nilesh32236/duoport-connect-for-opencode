@@ -4,8 +4,8 @@
  *
  * Locks in the probe contract: 2xx true, 401 plus CreditsError true (valid
  * key, empty balance), 429 true (throttled: must not lock out valid users),
- * other 4xx/5xx plus transport exceptions false (fail-open to not-connected,
- * never fatal).
+ * other 4xx false, 5xx plus transport exceptions fail open on
+ * last-known-good (uncheckable verdict, never fatal).
  *
  * @package OpenCodeConnector
  * @since 0.1.4
@@ -86,7 +86,7 @@ namespace OpenCodeConnector\Tests\Unit {
 	final class ProbeSemanticsTest extends MonkeyTestCase {
 
 		/**
-		 * Probe matrix: 2xx/CreditsError/429 true, everything else false.
+		 * Probe matrix without last-known-good: 2xx/CreditsError/429 true, everything else false.
 		 *
 		 * @since 0.1.4
 		 *
@@ -174,6 +174,136 @@ namespace OpenCodeConnector\Tests\Unit {
 			$bad->setHttpTransporter( new FakeProbeTransporter( new Response( 500, null ) ) );
 			$bad->setRequestAuthentication( new FakeProbeAuthentication() );
 			self::assertFalse( $bad->isConfigured(), 'Zen 500 is not connected.' );
+		}
+
+		/**
+		 * Fail-open: 5xx and transport failures preserve last-known-good state.
+		 *
+		 * @since 0.1.6
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_uncheckable_preserves_last_known_good(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ): mixed {
+					return 'opencode_connector_avail_go_last_good' === $key ? 1 : false;
+				}
+			);
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->alias(
+				static function ( int $min = 0, int $max = 0 ): int {
+					unset( $min, $max );
+					return 0;
+				}
+			);
+
+			$server = new OpenCodeProviderAvailability( 'go' );
+			$server->setHttpTransporter( new FakeProbeTransporter( new Response( 500, null ) ) );
+			$server->setRequestAuthentication( new FakeProbeAuthentication() );
+			self::assertTrue( $server->isConfigured(), '500 with last-known-good stays connected.' );
+			self::assertSame( 'could_not_be_checked', $server->diagnose()['code'] );
+
+			$transport = new OpenCodeProviderAvailability( 'go' );
+			$transport->setHttpTransporter( new FakeProbeTransporter( new \RuntimeException( 'network down' ) ) );
+			$transport->setRequestAuthentication( new FakeProbeAuthentication() );
+			self::assertTrue( $transport->isConfigured(), 'Transport failure with last-known-good stays connected.' );
+
+			// Unkeyed installs still report not configured even with a stale flag.
+			$unkeyed = new OpenCodeProviderAvailability( 'go' );
+			self::assertFalse( $unkeyed->isConfigured(), 'Without authentication the provider is not configured.' );
+		}
+
+		/**
+		 * A could-not-be-checked verdict is cached briefly but never cached as
+		 * not-connected, so a persistent outage costs one probe per window.
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_uncheckable_is_cached_briefly_without_clearing_last_good(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			$store = array();
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( &$store ) {
+					return $store[ $key ] ?? false;
+				}
+			);
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ) use ( &$store ): bool {
+					$store[ $key ] = $value;
+					return true;
+				}
+			);
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			$availability->setHttpTransporter( new FakeProbeTransporter( new Response( 500, null ) ) );
+			$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+
+			// Public entry point: diagnose() runs the same probe path.
+			$availability->diagnose();
+
+			self::assertArrayHasKey( 'opencode_connector_avail_go', $store, 'Uncheckable verdict is cached.' );
+			self::assertSame( 'uncheckable', $store['opencode_connector_avail_go']['state'] );
+			self::assertArrayNotHasKey(
+				'opencode_connector_avail_go_last_good',
+				$store,
+				'Uncheckable never writes last-known-good.'
+			);
+		}
+
+		/**
+		 * A Zen free-tier quota stop proves the key is valid and refreshes
+		 * last-known-good instead of being treated as a definitive failure.
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_free_tier_limit_stays_connected_and_sets_last_good(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			$store = array();
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( &$store ) {
+					return $store[ $key ] ?? false;
+				}
+			);
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ) use ( &$store ): bool {
+					$store[ $key ] = $value;
+					return true;
+				}
+			);
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$availability = new OpenCodeProviderAvailability( 'zen' );
+			$availability->setHttpTransporter(
+				new FakeProbeTransporter(
+					new Response( 429, array( 'error' => array( 'type' => 'FreeUsageLimitError' ) ) )
+				)
+			);
+			$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+
+			self::assertTrue( $availability->isConfigured(), 'Free-tier limit keeps a valid key connected.' );
+			self::assertSame( 1, $store['opencode_connector_avail_zen_last_good'] ?? null, 'Free-tier limit refreshes last-known-good.' );
 		}
 
 		/**

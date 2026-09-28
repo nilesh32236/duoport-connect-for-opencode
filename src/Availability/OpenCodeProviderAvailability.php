@@ -52,13 +52,30 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Whether the provider is configured, preserving the legacy boolean contract.
 	 *
+	 * Fail-open: quota exhaustion, rate limiting, and previously cached
+	 * server errors read as configured; could-not-be-checked verdicts (5xx,
+	 * transport failures, concurrent probes) preserve last-known-good state
+	 * instead of flipping valid keys to not-connected. Unkeyed installs
+	 * still read as not configured.
+	 *
 	 * @since 0.1.0
 	 *
 	 * @return bool
 	 */
 	public function isConfigured(): bool {
 		$result = $this->probe();
-		return in_array( $result['state'], array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' ), true );
+		$state  = isset( $result['state'] ) && is_string( $result['state'] ) ? $result['state'] : '';
+		// Definitive, keyed outcomes stay configured. `free_tier_limit` is a
+		// Zen free-tier quota stop, which is still a valid key.
+		if ( in_array( $state, array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' ), true ) ) {
+			return true;
+		}
+		// Could-not-be-checked outcomes fall back to last-known-good instead of
+		// flipping a valid key to not-connected during an outage.
+		if ( in_array( $state, array( 'uncheckable', 'network_error' ), true ) ) {
+			return $this->readLastGood();
+		}
+		return false;
 	}
 
 	/**
@@ -277,7 +294,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 */
 	private function probe(): array {
 		$tkey   = 'opencode_connector_avail_' . $this->catalog;
-		$cached = get_transient( $tkey );
+		$cached = $this->getCached( $tkey );
 		if ( is_array( $cached ) && isset( $cached['state'] ) ) {
 			$this->last_result = $cached;
 			return $cached;
@@ -290,8 +307,10 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 
 		// Stampede protection: short lock so concurrent requests share one probe.
 		$lock_key = $tkey . '_lock';
-		if ( false !== get_transient( $lock_key ) ) {
-			$this->last_result = ( new ConnectionDiagnostics() )->unknown();
+		if ( false !== $this->getCached( $lock_key ) ) {
+			// Concurrent probe: surface could-not-be-checked so isConfigured()
+			// can fail open on last-known-good instead of flipping to false.
+			$this->last_result = ( new ConnectionDiagnostics() )->uncheckable();
 			return $this->last_result;
 		}
 
@@ -300,11 +319,12 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			$this->getRequestAuthentication();
 		} catch ( \Throwable $exception ) {
 			$this->last_result = $diagnostics->notConfigured();
+			$this->writeLastGood( false );
 			return $this->last_result;
 		}
 
 		// Set lock before network I/O (10s).
-		set_transient( $lock_key, 1, 10 );
+		$this->setCached( $lock_key, 1, 10 );
 
 		$cls = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
 		// Probe models are chosen to discriminate AUTHENTICATION, not model
@@ -341,15 +361,115 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		try {
 			$req               = $this->getRequestAuthentication()->authenticateRequest( $req );
 			$res               = $this->getHttpTransporter()->send( $req );
-			$this->last_result = $diagnostics->classify( $res->getStatusCode(), $res->getData() );
+			$data              = $res->getData();
+			$this->last_result = $diagnostics->classify( $res->getStatusCode(), is_array( $data ) ? $data : null );
 		} catch ( \Throwable $exception ) {
 			$this->last_result = $diagnostics->classify( 0, null, $exception );
 		}
+		$this->deleteCached( $lock_key );
+		$state = isset( $this->last_result['state'] ) && is_string( $this->last_result['state'] ) ? $this->last_result['state'] : '';
+		// Could-not-be-checked (5xx, transport failure, concurrent probe):
+		// never write the failure to last-known-good. The verdict is cached
+		// briefly so a persistent outage costs one probe per window instead
+		// of one per call, while isConfigured() keeps failing open.
+		if ( in_array( $state, array( 'uncheckable', 'network_error', 'server_error' ), true ) ) {
+			$second = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
+			$this->setCached( $tkey, $this->last_result, $second );
+			return $this->last_result;
+		}
+		// Definitive keyed outcomes refresh last-known-good. A Zen free-tier
+		// quota stop proves the key is valid, so it counts as a good result.
+		if ( in_array( $state, array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' ), true ) ) {
+			$this->writeLastGood( true );
+		} else {
+			$this->writeLastGood( false );
+		}
 		// Stagger expiry ±60s to avoid synchronized stampedes.
-		$ttl = 5 * MINUTE_IN_SECONDS + wp_rand( -60, 60 );
-		delete_transient( $lock_key );
-		set_transient( $tkey, $this->last_result, max( 60, $ttl ) );
+		$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
+		$jitter = function_exists( 'wp_rand' ) ? wp_rand( -60, 60 ) : 0;
+		$ttl    = 5 * $minute + (int) $jitter;
+		$this->setCached( $tkey, $this->last_result, max( 60, $ttl ) );
 		return $this->last_result;
+	}
+
+	/**
+	 * Read the last-known-good configured flag for this catalog.
+	 *
+	 * Transient-only and credential-blind: stores only whether a keyed probe
+	 * previously succeeded, never any option value.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @return bool
+	 */
+	private function readLastGood(): bool {
+		$value = $this->getCached( 'opencode_connector_avail_' . $this->catalog . '_last_good' );
+		return ! empty( $value );
+	}
+
+	/**
+	 * Record or clear the last-known-good configured flag for this catalog.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @param bool $good Whether a keyed probe just succeeded.
+	 * @return void
+	 */
+	private function writeLastGood( bool $good ): void {
+		$key = 'opencode_connector_avail_' . $this->catalog . '_last_good';
+		if ( ! $good ) {
+			$this->deleteCached( $key );
+			return;
+		}
+		$day = defined( 'DAY_IN_SECONDS' ) ? (int) DAY_IN_SECONDS : 86400;
+		$this->setCached( $key, 1, 30 * $day );
+	}
+
+	/**
+	 * Guarded transient read with a cache-miss fallback.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @param string $key Transient key.
+	 * @return mixed
+	 */
+	private function getCached( string $key ): mixed {
+		if ( ! function_exists( 'get_transient' ) ) {
+			return false;
+		}
+		return get_transient( $key );
+	}
+
+	/**
+	 * Guarded transient write.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @param string $key   Transient key.
+	 * @param mixed  $value Value.
+	 * @param int    $ttl   Time to live in seconds.
+	 * @return bool
+	 */
+	private function setCached( string $key, mixed $value, int $ttl ): bool {
+		if ( ! function_exists( 'set_transient' ) ) {
+			return false;
+		}
+		return (bool) set_transient( $key, $value, $ttl );
+	}
+
+	/**
+	 * Guarded transient delete.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @param string $key Transient key.
+	 * @return bool
+	 */
+	private function deleteCached( string $key ): bool {
+		if ( ! function_exists( 'delete_transient' ) ) {
+			return false;
+		}
+		return (bool) delete_transient( $key );
 	}
 
 	/**

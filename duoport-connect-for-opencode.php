@@ -179,6 +179,8 @@ $opencode_connector_bust = static function (): void {
 	delete_transient( 'opencode_connector_verify_zen' );
 	delete_transient( 'opencode_connector_verify_go_lock' );
 	delete_transient( 'opencode_connector_verify_zen_lock' );
+	delete_transient( 'opencode_connector_avail_go_last_good' );
+	delete_transient( 'opencode_connector_avail_zen_last_good' );
 	if ( function_exists( 'delete_site_transient' ) ) {
 		delete_site_transient( 'opencode_connector_avail_go' );
 		delete_site_transient( 'opencode_connector_avail_zen' );
@@ -188,6 +190,8 @@ $opencode_connector_bust = static function (): void {
 		delete_site_transient( 'opencode_connector_verify_zen' );
 		delete_site_transient( 'opencode_connector_verify_go_lock' );
 		delete_site_transient( 'opencode_connector_verify_zen_lock' );
+		delete_site_transient( 'opencode_connector_avail_go_last_good' );
+		delete_site_transient( 'opencode_connector_avail_zen_last_good' );
 	}
 };
 foreach ( array( 'connectors_ai_opencode_go_api_key', 'connectors_ai_opencode_zen_api_key' ) as $opencode_connector_setting ) {
