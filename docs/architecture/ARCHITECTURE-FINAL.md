@@ -12,9 +12,9 @@ The plugin remains a small WordPress provider adapter. WordPress owns connector 
 
 PR #47 merged deterministically at the exact reviewed head. The dependency manifest now records:
 
-- OpenCode AI Reviewer v1.22.0, peeled commit `103082c963f64cb2cf979ae14b729ec41d40866e`, publication date, and release URL.
+- OpenCode AI Reviewer as a floating `main` reference, with the accepted trade-off recorded in the manifest rather than a release identity.
 - OpenCode CLI v1.18.31 with separate Linux x64 and arm64 SHA-256 values bound to the installer.
-- PAT-backed updater events, fixed repository concurrency, same-repository campaign-PR guarding, current-branch PR recovery, and lease-safe update pushes.
+- A removed release updater, replaced by verifier-enforced consistency between the manifest ref and every workflow reference.
 - Active repository ruleset 23935160 requiring exact-head PHP 8.2/8.3 checks and ruleset 23935219 requiring a pull request.
 
 The updater never auto-merges. It opens or refreshes one traceable dependency PR and the active rulesets are the merge gate.

@@ -58,7 +58,9 @@ jobs:
       - name: Report verification failures as issue
         if: failure() && steps.verify.outputs.status == 'failed'
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          # The reviewer repository is public, so the default token is enough.
+          # The PAT is reserved for the reviewer's own write operations.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ISSUE_TITLE="[Audit] Daily verification failed — $(date -u '+%Y-%m-%d')"
           PHP_LINT_VAL="${{ env.PHP_LINT == 'failed' && '❌' || '✅' }}"
@@ -121,9 +123,39 @@ jobs:
       # Creates one GitHub issue per finding labeled audit+autofix-trigger.
       # The label fires ai-review.yml fix-issue, which opens an autofix/ PR
       # automatically — no manual triggering needed.
+      # The reviewer reference floats, so record where main pointed when this
+      # run started. This is NOT the commit that necessarily executed: GitHub
+      # resolves @main when the action step runs, so a push landing in between
+      # would make the two differ. The recorded SHA bounds that window rather
+      # than eliminating it; the run log's action-resolution line is
+      # authoritative, and the jobs API redacts the resolved ref, so there is
+      # no reliable in-run API read-back to claim instead.
+      #
+      # The point is traceability, not a guarantee: without this the run page
+      # says nothing about which reviewer code was in play.
+      - name: Record the reviewer main at run start
+        env:
+          # The reviewer repository is public, so the default token is enough.
+          # The PAT is reserved for the reviewer's own write operations.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SHA=$(gh api repos/nilesh32236/opencode-ai-reviewer/commits/main --jq .sha)
+          [[ "$SHA" =~ ^[a-f0-9]{40}$ ]]
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          {
+            echo "### OpenCode AI Reviewer revision"
+            echo
+            echo "Reviewer \`main\` at the start of this run (the step resolves @main at execution time, so a commit landing in between is possible):"
+            echo
+            echo "\`$SHA\`"
+            echo
+            echo "https://github.com/nilesh32236/opencode-ai-reviewer/commit/$SHA"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: AI Codebase Audit
         id: ai-audit
-        uses: nilesh32236/opencode-ai-reviewer@103082c963f64cb2cf979ae14b729ec41d40866e # v1.22.0
+        uses: nilesh32236/opencode-ai-reviewer@main
         with:
           mode: audit
           github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}

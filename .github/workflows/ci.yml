@@ -17,6 +17,7 @@ on:
       - 'tests/Unit/*.sh'
       - 'scripts/build-release.sh'
       - '.distignore'
+      - 'docs/architecture/DEPENDENCY-GRAPH.json'
       - '.github/reviewer-dependency.json'
   pull_request:
     branches: ["main", "master"]
@@ -33,6 +34,7 @@ on:
       - 'tests/Unit/*.sh'
       - 'scripts/build-release.sh'
       - '.distignore'
+      - 'docs/architecture/DEPENDENCY-GRAPH.json'
       - '.github/reviewer-dependency.json'
 
 permissions:
@@ -74,10 +76,8 @@ jobs:
       - name: Unit tests
         run: vendor/bin/phpunit
 
-      - name: Reviewer branch contracts
+      - name: Repository shell contracts
         run: |
-          bash tests/Unit/reviewer-push-contract.sh
-          bash tests/Unit/reviewer-branch-inspection-contract.sh
           bash tests/Unit/catalog-drift-contract.sh
           bash tests/Unit/model-radar-contract.sh
 
