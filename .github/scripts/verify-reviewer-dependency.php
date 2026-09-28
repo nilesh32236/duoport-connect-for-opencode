@@ -170,6 +170,13 @@ if (4 !== count($readback_bodies)) {
 // This is checked for every expression, not only the known-unsafe ones: a new
 // `uses:` or input reference is exactly as risky as head.ref, and the rule is
 // simple enough to apply without a judgement call each time.
+// Scope: this guards `run:` blocks only, block and scalar alike. That is the
+// boundary that matters, because a run: body is the one place GitHub
+// substitutes text into a shell script. A `with:` value is handed to an action
+// as an input and is never shell-evaluated, so the same expression there is
+// the ordinary, intended way to pass a branch name to actions/checkout; flagging
+// it would be a false positive that teaches readers to ignore the rule.
+//
 // Only expressions whose value is chosen by whoever opened the pull request
 // are dangerous. github.repository, github.run_id, vars.*, env.*, needs.*,
 // steps.*, secrets.* and matrix.* are fixed by the repository or the workflow

@@ -17,6 +17,7 @@ on:
       - 'tests/Unit/*.sh'
       - 'scripts/build-release.sh'
       - '.distignore'
+      - 'docs/architecture/DEPENDENCY-GRAPH.json'
       - '.github/reviewer-dependency.json'
   pull_request:
     branches: ["main", "master"]
@@ -33,6 +34,7 @@ on:
       - 'tests/Unit/*.sh'
       - 'scripts/build-release.sh'
       - '.distignore'
+      - 'docs/architecture/DEPENDENCY-GRAPH.json'
       - '.github/reviewer-dependency.json'
 
 permissions:

@@ -355,6 +355,47 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * The manifest ref invariant is enforced, not merely documented.
+	 *
+	 * A manifest that claims a different ref would leave every workflow
+	 * reference "wrong" by the verifier's own rule, so the failure is easy to
+	 * miss. Reject the ref directly so the invariant is tested on its own.
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider( 'invalid_refs' )]
+	public function test_verifier_rejects_a_manifest_ref_that_is_not_main( string $ref ): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$manifest_path = $root . '/.github/reviewer-dependency.json';
+			$manifest = json_decode( (string) file_get_contents( $manifest_path ), true );
+			self::assertIsArray( $manifest );
+			$manifest['reviewer_ref'] = $ref;
+			file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) );
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status, 'ref ' . $ref . ' was accepted' );
+			self::assertStringContainsString( 'reviewer_ref must be the reviewer main branch', implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
+	 * Refs the manifest must not accept.
+	 *
+	 * @return array<string, array{string}>
+	 */
+	public static function invalid_refs(): array {
+		return array(
+			'sha'      => array( str_repeat( 'a', 40 ) ),
+			'tag'      => array( 'v1.22.1' ),
+			'branch'   => array( 'develop' ),
+			'empty'    => array( '' ),
+			'injected' => array( 'main; rm -rf /' ),
+		);
+	}
+
+	/**
 	 * A scalar run: keeps its body on the same line and must be checked too.
 	 *
 	 * The block form alone left `run: echo "${{ ...head.ref }}"` undetected,
