@@ -245,6 +245,66 @@ foreach ($workflow_files as $file) {
     }
 }
 
+// The manifest records the checks the merge ruleset requires, but comparing
+// the manifest to two hardcoded strings proves nothing about the repository:
+// renaming the CI job exited 0 while ruleset 23935160 still required the old
+// name, silently disarming the gate. Read the real job names from ci.yml and
+// require the manifest to match them.
+$ci_path = $workflow_dir . '/ci.yml';
+$ci_source = $workflow_sources[$ci_path] ?? '';
+$ci_checks = array();
+if ('' === $ci_source) {
+    $errors[] = 'ci.yml could not be read; the merge gate cannot be verified';
+} else {
+    if (preg_match_all('/^\s+name:\s*(.+?)\s*$/m', $ci_source, $name_matches)) {
+        foreach ($name_matches[1] as $job_name) {
+            // A matrix job's real check name is "name (PHP 8.2)"; record the
+            // declared name and let the matrix expand it.
+            $ci_checks[] = $job_name;
+        }
+    }
+    // "PHPCS + PHPUnit (PHP ${{ matrix.php }})" expands to
+    // "... (PHP 8.2)" and "... (PHP 8.3)". Compare the part before the first
+    // "(" so a matrix job satisfies a required check, and then require that
+    // the matrix actually contains that PHP version: a job that only ran 8.4
+    // would otherwise satisfy a rule set demanding 8.2 and 8.3.
+    // Read the matrix list itself, not every quoted version in the file. A
+    // whole-file scan picked up the release-package job's php-version and
+    // reported 8.2 present even after 8.2 was dropped from the matrix.
+    $matrix_versions = array();
+    if (preg_match('/php:\s*\[([^\]]*)\]/', $ci_source, $matrix_block)
+        && preg_match_all('/"(\d+\.\d+)"/', $matrix_block[1], $matrix_matches)) {
+        $matrix_versions = $matrix_matches[1];
+    }
+    foreach ($expected_checks as $required_check) {
+        $matched = false;
+        foreach ($ci_checks as $job_name) {
+            if ($job_name === $required_check) {
+                $matched = true;
+                break;
+            }
+            if (!str_contains($job_name, 'matrix.php')) {
+                continue;
+            }
+            $prefix = substr($job_name, 0, (int) strpos($job_name, '('));
+            $required_prefix = substr($required_check, 0, (int) strpos($required_check, '('));
+            if ($prefix !== $required_prefix) {
+                continue;
+            }
+            // The check name is "PHPCS + PHPUnit (PHP 8.2)": take the version
+            // that closes the name, not the whole parenthesised label.
+            if (preg_match('/([0-9]+\.[0-9]+)\)\s*$/', $required_check, $version_match)
+                && in_array($version_match[1], $matrix_versions, true)) {
+                $matched = true;
+                break;
+            }
+        }
+        if (!$matched) {
+            $errors[] = "merge gate requires '{$required_check}' but no ci.yml job provides it";
+        }
+    }
+}
+
 // The dependency graph is documentation, so it drifts silently unless checked.
 $graph_path = $root . '/docs/architecture/DEPENDENCY-GRAPH.json';
 if (!is_file($graph_path)) {
@@ -296,6 +356,20 @@ foreach (array(
     }
 }
 
+// Drop whole-line YAML comments. A value that only appears in a comment is
+// not configuration, so it must not satisfy a count.
+function comment_stripped_lines(string $source): string {
+    $kept = array();
+    foreach (explode("\n", $source) as $line) {
+        $trimmed = ltrim($line);
+        if ('' !== $trimmed && '#' === $trimmed[0]) {
+            continue;
+        }
+        $kept[] = $line;
+    }
+    return implode("\n", $kept);
+}
+
 // Reuse the sources read above rather than reading each file again.
 $review_source = $workflow_sources[$workflow_dir . '/ai-review.yml'] ?? '';
 $audit_source = $workflow_sources[$workflow_dir . '/daily-audit.yml'] ?? '';
@@ -307,10 +381,14 @@ $reviewer_counts = array(
 );
 foreach (array('ai-review.yml' => $review_source, 'daily-audit.yml' => $audit_source) as $name => $source) {
     $expected = $reviewer_counts[$name];
-    if (substr_count($source, 'opencode_version: v1.18.31') !== $expected) {
+    // Count real YAML keys, not raw bytes. A commented-out
+    // `# require_opencode_checksum: true` satisfies a plain substr_count while
+    // the actual action runs unverified, which is the failure this guards.
+    $active = comment_stripped_lines($source);
+    if (substr_count($active, 'opencode_version: v1.18.31') !== $expected) {
         $errors[] = $name . " must pin opencode_version on all {$expected} reviewer action(s)";
     }
-    if (substr_count($source, 'require_opencode_checksum: true') !== $expected) {
+    if (substr_count($active, 'require_opencode_checksum: true') !== $expected) {
         $errors[] = $name . " must require the OpenCode CLI checksum on all {$expected} reviewer action(s)";
     }
 }

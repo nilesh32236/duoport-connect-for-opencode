@@ -355,6 +355,91 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * The merge gate is tied to the real CI job, not to two hardcoded strings.
+	 *
+	 * Comparing the manifest against hardcoded names proved nothing about the
+	 * repository: renaming the ci.yml job or dropping 8.2 from the matrix
+	 * exited 0 while ruleset 23935160 still required those checks, silently
+	 * disarming the gate.
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider( 'merge_gate_drift' )]
+	public function test_verifier_rejects_merge_gate_drift( array $ci_edit, int $expected_status ): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$ci = $root . '/.github/workflows/ci.yml';
+			$source = (string) file_get_contents( $ci );
+			$updated = str_replace( $ci_edit['from'], $ci_edit['to'], $source );
+			self::assertNotSame( $source, $updated, 'fixture no longer contains the text this case edits' );
+			file_put_contents( $ci, $updated );
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertSame( $expected_status, $status, $ci_edit['label'] . ': ' . implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
+	 * Merge-gate drift cases, each with the status it must produce.
+	 *
+	 * @return array<string, array{array{label:string,from:string,to:string},int}>
+	 */
+	public static function merge_gate_drift(): array {
+		return array(
+			'renamed job'  => array(
+				array(
+					'label' => 'renaming the required job',
+					'from'  => 'name: PHPCS + PHPUnit (PHP ${{ matrix.php }})',
+					'to'    => 'name: Renamed Job (PHP ${{ matrix.php }})',
+				),
+				1,
+			),
+			'dropped 8.2'  => array(
+				array(
+					'label' => 'dropping 8.2 from the matrix',
+					'from'  => 'php: ["8.2", "8.3"]',
+					'to'    => 'php: ["8.3"]',
+				),
+				1,
+			),
+			'added 8.4'    => array(
+				array(
+					'label' => 'extending the matrix',
+					'from'  => 'php: ["8.2", "8.3"]',
+					'to'    => 'php: ["8.2", "8.3", "8.4"]',
+				),
+				0,
+			),
+		);
+	}
+
+	/**
+	 * A commented-out setting must not satisfy a required-count check.
+	 */
+	public function test_verifier_rejects_a_commented_out_checksum_requirement(): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$workflow = $root . '/.github/workflows/ai-review.yml';
+			$source = (string) file_get_contents( $workflow );
+			$updated = str_replace(
+				"          require_opencode_checksum: true\n",
+				"          # require_opencode_checksum: true\n",
+				$source
+			);
+			self::assertNotSame( $source, $updated );
+			file_put_contents( $workflow, $updated );
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status );
+			self::assertStringContainsString( 'must require the OpenCode CLI checksum', implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
 	 * The manifest ref invariant is enforced, not merely documented.
 	 *
 	 * A manifest that claims a different ref would leave every workflow
