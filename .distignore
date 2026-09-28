@@ -30,6 +30,7 @@ README.md
 CONTRIBUTING.md
 opencode.json
 *.zip
+/*.jsonl
 /.omo/
 AUDIT/
 .phpunit.result.cache

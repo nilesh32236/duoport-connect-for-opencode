@@ -33,6 +33,21 @@ verify_zip() {
     echo "ERROR: vendor/, tests/, or .firecrawl/ must not ship in the ZIP" >&2
     return 1
   fi
+
+  # Agent/review tooling output is development-only. It can carry merged
+  # conflict markers or prompt content, and nothing at runtime reads it, so
+  # a stray *.jsonl must fail the build even if .distignore is bypassed.
+  if grep -Eq '\.jsonl$' "$zip_list"; then
+    echo "ERROR: *.jsonl agent artifacts must not ship in the ZIP" >&2
+    return 1
+  fi
+
+  # Belt-and-braces: no shipped text file may carry unresolved conflict
+  # markers, which would mean a botched merge reached the distributable.
+  if unzip -p "$zip_path" | grep -aq '^<<<<<<< '; then
+    echo "ERROR: shipped file contains an unresolved conflict marker" >&2
+    return 1
+  fi
 }
 
 build_release() {

@@ -53,4 +53,27 @@ if verify_zip "${FIXTURE_DIR}/forbidden-roots.zip" "${FIXTURE_DIR}/work-forbidde
   exit 1
 fi
 
+# An agent review artifact must never reach the distributable. This regressed
+# once when a review .jsonl was committed to the plugin root.
+make_fixture jsonl
+printf '%s\n' '{"type":"executive_summary","riskLevel":"low"}' \
+  > "${FIXTURE_DIR}/jsonl/${PLUGIN_SLUG}/review-output.jsonl"
+rm -f "${FIXTURE_DIR}/jsonl.zip"
+( cd "${FIXTURE_DIR}/jsonl" && zip -qr jsonl.zip "$PLUGIN_SLUG" )
+if verify_zip "${FIXTURE_DIR}/jsonl.zip" "${FIXTURE_DIR}/work-jsonl" >/dev/null 2>&1; then
+  echo "agent .jsonl artifact was accepted" >&2
+  exit 1
+fi
+
+# A file carrying unresolved conflict markers must fail the build too.
+make_fixture conflict-markers
+printf '%s\n' '<<<<<<< HEAD' 'x' '=======' 'y' '>>>>>>> other' \
+  > "${FIXTURE_DIR}/conflict-markers/${PLUGIN_SLUG}/readme.txt"
+rm -f "${FIXTURE_DIR}/conflict-markers.zip"
+( cd "${FIXTURE_DIR}/conflict-markers" && zip -qr conflict-markers.zip "$PLUGIN_SLUG" )
+if verify_zip "${FIXTURE_DIR}/conflict-markers.zip" "${FIXTURE_DIR}/work-conflict-markers" >/dev/null 2>&1; then
+  echo "file with conflict markers was accepted" >&2
+  exit 1
+fi
+
 echo "release ZIP contract passed"
