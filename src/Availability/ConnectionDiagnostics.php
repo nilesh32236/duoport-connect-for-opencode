@@ -44,6 +44,10 @@ final class ConnectionDiagnostics {
 			return $this->result( 'invalid_key', false, true, false, $status, 'invalid_key' );
 		}
 		if ( 429 === $status ) {
+			$error_type = is_array( $data ) ? (string) ( $data['error']['type'] ?? '' ) : '';
+			if ( 'FreeUsageLimitError' === $error_type ) {
+				return $this->result( 'free_tier_limit', true, true, false, $status, 'free_usage_limit' );
+			}
 			return $this->result( 'rate_limited', true, true, false, $status, 'rate_limited' );
 		}
 		if ( $status >= 500 && $status < 600 ) {

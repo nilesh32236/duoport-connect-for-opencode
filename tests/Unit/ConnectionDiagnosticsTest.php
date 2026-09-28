@@ -30,6 +30,33 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * Free-tier usage-limit 429s are distinct from generic rate limiting.
+	 */
+	public function test_free_tier_limit_is_distinct_from_rate_limit(): void {
+		$diagnostics = new ConnectionDiagnostics();
+
+		$free = $diagnostics->classify( 429, array( 'error' => array( 'type' => 'FreeUsageLimitError' ) ) );
+
+		self::assertSame( 'free_tier_limit', $free['state'] );
+		self::assertSame( 'free_usage_limit', $free['code'] );
+		self::assertTrue( $free['configured'] );
+		self::assertTrue( $free['verified'] );
+		self::assertFalse( $free['usable'] );
+
+		$plain = $diagnostics->classify( 429 );
+
+		self::assertSame( 'rate_limited', $plain['state'] );
+		self::assertTrue( $plain['configured'] );
+		self::assertFalse( $plain['usable'] );
+
+		$other = $diagnostics->classify( 429, array( 'error' => array( 'type' => 'RateLimitError' ) ) );
+
+		self::assertSame( 'rate_limited', $other['state'] );
+		self::assertTrue( $other['configured'] );
+		self::assertFalse( $other['usable'] );
+	}
+
+	/**
 	 * Authorization and credit outcomes remain distinct.
 	 */
 	public function test_auth_and_credit_outcomes_are_distinct(): void {

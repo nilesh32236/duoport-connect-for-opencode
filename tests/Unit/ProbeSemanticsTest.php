@@ -115,6 +115,7 @@ namespace OpenCodeConnector\Tests\Unit {
 				'2xx is connected'                 => array( 200, null, null, true ),
 				'201 is connected'                 => array( 201, null, null, true ),
 				'429 throttled stays connected'    => array( 429, null, null, true ),
+				'429 FreeUsageLimitError stays connected' => array( 429, array( 'error' => array( 'type' => 'FreeUsageLimitError' ) ), null, true ),
 				'401 CreditsError stays connected' => array( 401, array( 'error' => array( 'type' => 'CreditsError' ) ), null, true ),
 				'401 other type is not connected'  => array( 401, array( 'error' => array( 'type' => 'InvalidApiKey' ) ), null, false ),
 				'401 empty body is not connected'  => array( 401, null, null, false ),
