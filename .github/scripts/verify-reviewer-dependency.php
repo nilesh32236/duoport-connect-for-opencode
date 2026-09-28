@@ -161,6 +161,73 @@ if (4 !== count($readback_bodies)) {
     }
 }
 
+// No run: block may interpolate a GitHub expression directly. Values taken
+// from a pull request are chosen by whoever opened it, so
+// `echo "ref=${{ github.event.pull_request.head.ref }}"` inside a shell script
+// executes whatever a branch name contains. They must arrive through env: and
+// be referenced as quoted shell variables.
+//
+// This is checked for every expression, not only the known-unsafe ones: a new
+// `uses:` or input reference is exactly as risky as head.ref, and the rule is
+// simple enough to apply without a judgement call each time.
+// Only expressions whose value is chosen by whoever opened the pull request
+// are dangerous. github.repository, github.run_id, vars.*, env.*, needs.*,
+// steps.*, secrets.* and matrix.* are fixed by the repository or the workflow
+// file, so a blanket ban would flag a hundred safe uses and train everyone to
+// ignore the rule. The list below is the free-text attacker can choose, and it
+// is the one that turns a pull request into shell.
+$unsafe_expressions = array(
+    'github.head_ref',
+    'github.event.pull_request.head.ref',
+    'github.event.pull_request.head.label',
+    'github.event.pull_request.title',
+    'github.event.pull_request.body',
+    'github.event.issue.title',
+    'github.event.issue.body',
+    'github.event.comment.body',
+    'github.event.review.body',
+    'github.event.review_comment.body',
+    'github.event.head_commit.message',
+    'github.event.discussion.title',
+    'github.event.discussion.body',
+    'github.event.workflow_run.display_title',
+    'github.event.workflow_run.head_branch',
+);
+$unsafe_pattern = '/\$\{\{\s*(' . implode('|', array_map(static fn($e) => preg_quote($e, '/'), $unsafe_expressions)) . ')\s*\}\}/';
+foreach ($workflow_files as $file) {
+    if (!isset($workflow_sources[$file])) {
+        continue;
+    }
+    $lines = explode("\n", $workflow_sources[$file]);
+    $in_run = false;
+    $run_indent = 0;
+    foreach ($lines as $index => $line) {
+        $trimmed = ltrim($line);
+        $indent = strlen($line) - strlen($trimmed);
+        // Detect a run: block by its literal prefix rather than a regex. An
+        // earlier regex for this silently failed to match, so the guard never
+        // fired; string comparison cannot be escaped by accident.
+        if (0 === strpos($trimmed, 'run:')) {
+            $rest = ltrim(substr($trimmed, 4));
+            if ('' !== $rest && ('|' === $rest[0] || '>' === $rest[0])) {
+                $in_run = true;
+                $run_indent = $indent;
+                continue;
+            }
+        }
+        if (!$in_run) {
+            continue;
+        }
+        if ('' !== trim($line) && $indent <= $run_indent) {
+            $in_run = false;
+            continue;
+        }
+        if (preg_match($unsafe_pattern, $line, $hit)) {
+            $errors[] = basename($file) . ':' . ($index + 1) . ' interpolates ' . $hit[1] . ' inside a run: block; pass it through env: and quote the variable';
+        }
+    }
+}
+
 // The dependency graph is documentation, so it drifts silently unless checked.
 $graph_path = $root . '/docs/architecture/DEPENDENCY-GRAPH.json';
 if (!is_file($graph_path)) {
