@@ -62,11 +62,23 @@ verify_zip() {
   fi
   # Always clean up the extraction, including on the rejection path, so a
   # rejected build does not leave a multi-megabyte tree behind.
-  # grep exits 0 when it finds a marker, 1 when it does not, so the flag is
-  # 0 for "clean" and 1 for "marker present"; only a present marker rejects.
-  local marker_found=0
-  if grep -rIq -e '^<<<<<<< ' -e '^>>>>>>> ' -e '^=======$' "$extracted" 2>/dev/null; then
+  #
+  # grep exits 0 on a match, 1 on no match, and 2 on an I/O error. Treating 2
+  # as "no match" would let an unreadable file pass silently, so the status is
+  # captured explicitly and anything other than a clean 1 is a rejection.
+  #
+  # The marker patterns tolerate CRLF: a checkout with core.autocrlf can leave
+  # the separator as "=======\r", which an end-anchored pattern would miss.
+  # -I skips binary payloads, where a marker match is not merge debris.
+  local marker_status=0 marker_found=0
+  marker_status=0
+  grep -rIq -e '^<<<<<<< ' -e '^>>>>>>> ' -e '^=======[[:space:]]*$' "$extracted" 2>/dev/null || marker_status=$?
+  if [ "$marker_status" -eq 0 ]; then
     marker_found=1
+  elif [ "$marker_status" -ne 1 ]; then
+    echo "ERROR: could not scan the archive contents (grep exit ${marker_status})" >&2
+    rm -rf "$extracted"
+    return 1
   fi
   rm -rf "$extracted"
   if [ "$marker_found" -ne 0 ]; then

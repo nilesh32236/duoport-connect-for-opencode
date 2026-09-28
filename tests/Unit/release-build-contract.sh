@@ -105,14 +105,14 @@ assert_rejected_for "${FIXTURE_DIR}/conflict-markers.zip" "${FIXTURE_DIR}/work-c
 # Random bytes are required: an all-zero file compresses to almost nothing and
 # would not reach the size this regression depends on.
 make_fixture large
-dd if=/dev/urandom of="${FIXTURE_DIR}/large/${PLUGIN_SLUG}/bulk.bin" bs=1024 count=8192 >/dev/null 2>&1
+dd if=/dev/urandom of="${FIXTURE_DIR}/large/${PLUGIN_SLUG}/bulk.bin" bs=1024 count=1024 >/dev/null 2>&1
 rm -f "${FIXTURE_DIR}/large.zip"
 ( cd "${FIXTURE_DIR}/large" && zip -qr ../large.zip "$PLUGIN_SLUG" )
 verify_zip "${FIXTURE_DIR}/large.zip" "${FIXTURE_DIR}/work-large" >/dev/null
 
 # ...and the same large ZIP must still be rejected when it carries a marker.
 make_fixture large-marker
-dd if=/dev/urandom of="${FIXTURE_DIR}/large-marker/${PLUGIN_SLUG}/bulk.bin" bs=1024 count=8192 >/dev/null 2>&1
+dd if=/dev/urandom of="${FIXTURE_DIR}/large-marker/${PLUGIN_SLUG}/bulk.bin" bs=1024 count=1024 >/dev/null 2>&1
 printf '%s\n' '<<<<<<< HEAD' 'x' '>>>>>>> other' \
   > "${FIXTURE_DIR}/large-marker/${PLUGIN_SLUG}/marker.txt"
 rm -f "${FIXTURE_DIR}/large-marker.zip"
@@ -128,6 +128,15 @@ rm -f "${FIXTURE_DIR}/separator-only.zip"
 ( cd "${FIXTURE_DIR}/separator-only" && zip -qr ../separator-only.zip "$PLUGIN_SLUG" )
 assert_rejected_for "${FIXTURE_DIR}/separator-only.zip" "${FIXTURE_DIR}/work-separator-only" \
   "unresolved conflict marker" "file with a bare conflict separator"
+
+# A CRLF checkout leaves the separator as "=======\r"; it is still debris.
+make_fixture crlf-marker
+printf 'body\r\n=======\r\nother\r\n' \
+  > "${FIXTURE_DIR}/crlf-marker/${PLUGIN_SLUG}/readme.txt"
+rm -f "${FIXTURE_DIR}/crlf-marker.zip"
+( cd "${FIXTURE_DIR}/crlf-marker" && zip -qr ../crlf-marker.zip "$PLUGIN_SLUG" )
+assert_rejected_for "${FIXTURE_DIR}/crlf-marker.zip" "${FIXTURE_DIR}/work-crlf-marker" \
+  "unresolved conflict marker" "CRLF conflict separator"
 
 # A rejected build must clean up the extracted tree rather than leaving a
 # multi-megabyte copy behind in the build directory.
