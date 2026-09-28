@@ -42,7 +42,7 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function catalogKey(): string {
-		return 'zen';
+		return \OpenCodeConnector\Metadata\Catalog::ZEN;
 	}
 
 	/**
@@ -81,6 +81,6 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function baseUrl(): string {
-		return 'https://opencode.ai/zen/v1';
+		return \OpenCodeConnector\Metadata\Catalog::baseUrl( \OpenCodeConnector\Metadata\Catalog::ZEN );
 	}
 }

@@ -171,28 +171,39 @@ add_action(
 // provider using this key." Separate settings keep every validation against
 // the real submitted key.
 $opencode_connector_bust = static function (): void {
-	delete_transient( 'opencode_connector_avail_go' );
-	delete_transient( 'opencode_connector_avail_zen' );
-	delete_transient( 'opencode_connector_avail_go_lock' );
-	delete_transient( 'opencode_connector_avail_zen_lock' );
-	delete_transient( 'opencode_connector_verify_go' );
-	delete_transient( 'opencode_connector_verify_zen' );
-	delete_transient( 'opencode_connector_verify_go_lock' );
-	delete_transient( 'opencode_connector_verify_zen_lock' );
-	delete_transient( 'opencode_connector_avail_go_last_good' );
-	delete_transient( 'opencode_connector_avail_zen_last_good' );
-	if ( function_exists( 'delete_site_transient' ) ) {
-		delete_site_transient( 'opencode_connector_avail_go' );
-		delete_site_transient( 'opencode_connector_avail_zen' );
-		delete_site_transient( 'opencode_connector_avail_go_lock' );
-		delete_site_transient( 'opencode_connector_avail_zen_lock' );
-		delete_site_transient( 'opencode_connector_verify_go' );
-		delete_site_transient( 'opencode_connector_verify_zen' );
-		delete_site_transient( 'opencode_connector_verify_go_lock' );
-		delete_site_transient( 'opencode_connector_verify_zen_lock' );
-		delete_site_transient( 'opencode_connector_avail_go_last_good' );
-		delete_site_transient( 'opencode_connector_avail_zen_last_good' );
+	// Single source of truth: Metadata\Catalog::allTransientKeys() (a
+	// dependency-free class safe to load without SDK traits). Fallback
+	// literals below run only when the class cannot autoload.
+	if ( class_exists( Metadata\Catalog::class ) && method_exists( Metadata\Catalog::class, 'allTransientKeys' ) ) {
+		foreach ( Metadata\Catalog::allTransientKeys() as $opencode_connector_key ) {
+			delete_transient( $opencode_connector_key );
+			if ( function_exists( 'delete_site_transient' ) ) {
+				delete_site_transient( $opencode_connector_key );
+			}
+		}
+		unset( $opencode_connector_key );
+		return;
 	}
+	foreach (
+		array(
+			'opencode_connector_avail_go',
+			'opencode_connector_avail_zen',
+			'opencode_connector_avail_go_lock',
+			'opencode_connector_avail_zen_lock',
+			'opencode_connector_avail_go_last_good',
+			'opencode_connector_avail_zen_last_good',
+			'opencode_connector_verify_go',
+			'opencode_connector_verify_zen',
+			'opencode_connector_verify_go_lock',
+			'opencode_connector_verify_zen_lock',
+		) as $opencode_connector_key
+	) {
+		delete_transient( $opencode_connector_key );
+		if ( function_exists( 'delete_site_transient' ) ) {
+			delete_site_transient( $opencode_connector_key );
+		}
+	}
+	unset( $opencode_connector_key );
 };
 foreach ( array( 'connectors_ai_opencode_go_api_key', 'connectors_ai_opencode_zen_api_key' ) as $opencode_connector_setting ) {
 	add_action( 'update_option_' . $opencode_connector_setting, $opencode_connector_bust );

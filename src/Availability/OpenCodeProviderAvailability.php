@@ -18,6 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use OpenCodeConnector\Http\GoRequestHeaders;
 use OpenCodeConnector\Http\SessionHeader;
+use OpenCodeConnector\Metadata\Catalog;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
 use WordPress\AiClient\Providers\Contracts\ProviderAvailabilityInterface;
@@ -39,15 +40,37 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	use WithRequestAuthenticationTrait;
 
 	/**
+	 * Probe model used to discriminate authentication state.
+	 *
+	 * A paid model is probed deliberately: a valid but empty-balance key
+	 * answers 401 CreditsError (configured) versus other 401s for a bad key.
+	 * Probing a free model instead would fail closed whenever that model is
+	 * transiently unavailable upstream. The same model backs the opt-in
+	 * verification probe.
+	 *
+	 * @since 0.1.6
+	 */
+	const PROBE_MODEL = 'deepseek-v4-flash';
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 0.1.0
 	 *
-	 * @param string $catalog Catalog slug.
+	 * @param string                     $catalog     Catalog slug.
+	 * @param ConnectionDiagnostics|null $diagnostics Optional diagnostics double for tests.
 	 */
-	public function __construct( private readonly string $catalog ) {
+	public function __construct( private readonly string $catalog, ?ConnectionDiagnostics $diagnostics = null ) {
 		// Catalog is go or zen.
+		$this->diagnostics_override = $diagnostics;
 	}
+
+	/**
+	 * Optional diagnostics collaborator (test seam; defaults to canonical).
+	 *
+	 * @var ConnectionDiagnostics|null
+	 */
+	private ?ConnectionDiagnostics $diagnostics_override = null;
 
 	/**
 	 * Whether the provider is configured, preserving the legacy boolean contract.
@@ -72,7 +95,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 		// Could-not-be-checked outcomes fall back to last-known-good instead of
 		// flipping a valid key to not-connected during an outage.
-		if ( in_array( $state, array( 'uncheckable', 'network_error' ), true ) ) {
+		if ( in_array( $state, array( 'uncheckable', 'network_error', 'server_error' ), true ) ) {
 			return $this->readLastGood();
 		}
 		return false;
@@ -93,7 +116,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return array<string, mixed>
 	 */
 	public function getLastResult(): array {
-		return $this->last_result ?? ( new ConnectionDiagnostics() )->unknown();
+		return $this->last_result ?? $this->diagnostics()->unknown();
 	}
 
 	/**
@@ -111,8 +134,8 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return array<string, mixed>
 	 */
 	public function verify(): array {
-		$diagnostics = class_exists( ConnectionDiagnostics::class ) ? new ConnectionDiagnostics() : null;
-		$tkey        = 'opencode_connector_verify_' . $this->catalog;
+		$diagnostics = class_exists( ConnectionDiagnostics::class ) ? $this->diagnostics() : null;
+		$tkey        = Catalog::VERIFY_PREFIX . $this->catalog;
 		$lock_key    = $tkey . '_lock';
 
 		if ( function_exists( 'get_transient' ) ) {
@@ -165,7 +188,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		} elseif ( $surface_ok ) {
 			try {
 				$probe_data   = array(
-					'model'      => 'deepseek-v4-flash',
+					'model'      => self::PROBE_MODEL,
 					'messages'   => array(
 						array(
 							'role'    => 'user',
@@ -293,15 +316,14 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return array<string, mixed>
 	 */
 	private function probe(): array {
-		$tkey   = 'opencode_connector_avail_' . $this->catalog;
+		$tkey   = Catalog::AVAIL_PREFIX . $this->catalog;
 		$cached = $this->getCached( $tkey );
 		if ( is_array( $cached ) && isset( $cached['state'] ) ) {
 			$this->last_result = $cached;
 			return $cached;
 		}
 		if ( false !== $cached && is_bool( $cached ) ) {
-			$diagnostics       = new ConnectionDiagnostics();
-			$this->last_result = $cached ? $diagnostics->verified() : $diagnostics->notConfigured();
+			$this->last_result = $cached ? $this->diagnostics()->verified() : $this->diagnostics()->notConfigured();
 			return $this->last_result;
 		}
 
@@ -310,11 +332,11 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		if ( false !== $this->getCached( $lock_key ) ) {
 			// Concurrent probe: surface could-not-be-checked so isConfigured()
 			// can fail open on last-known-good instead of flipping to false.
-			$this->last_result = ( new ConnectionDiagnostics() )->uncheckable();
+			$this->last_result = $this->diagnostics()->uncheckable();
 			return $this->last_result;
 		}
 
-		$diagnostics = new ConnectionDiagnostics();
+		$diagnostics = $this->diagnostics();
 		try {
 			$this->getRequestAuthentication();
 		} catch ( \Throwable $exception ) {
@@ -332,7 +354,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		// empty-balance key (configured) versus other 401s for a bad key.
 		// Probing a free model instead would fail closed whenever that model
 		// is transiently unavailable upstream (observed live).
-		$probe_model = 'deepseek-v4-flash';
+		$probe_model = self::PROBE_MODEL;
 		$probe_data  = array(
 			'model'      => $probe_model,
 			'messages'   => array(
@@ -403,7 +425,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return bool
 	 */
 	private function readLastGood(): bool {
-		$value = $this->getCached( 'opencode_connector_avail_' . $this->catalog . '_last_good' );
+		$value = $this->getCached( Catalog::AVAIL_PREFIX . $this->catalog . Catalog::LAST_GOOD_SUFFIX );
 		return ! empty( $value );
 	}
 
@@ -416,7 +438,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return void
 	 */
 	private function writeLastGood( bool $good ): void {
-		$key = 'opencode_connector_avail_' . $this->catalog . '_last_good';
+		$key = Catalog::AVAIL_PREFIX . $this->catalog . Catalog::LAST_GOOD_SUFFIX;
 		if ( ! $good ) {
 			$this->deleteCached( $key );
 			return;
@@ -470,6 +492,17 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			return false;
 		}
 		return (bool) delete_transient( $key );
+	}
+
+	/**
+	 * Diagnostics collaborator (canonical instance unless overridden).
+	 *
+	 * @since 0.1.6
+	 *
+	 * @return ConnectionDiagnostics
+	 */
+	private function diagnostics(): ConnectionDiagnostics {
+		return $this->diagnostics_override ?? new ConnectionDiagnostics();
 	}
 
 	/**

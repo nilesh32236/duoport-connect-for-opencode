@@ -104,6 +104,21 @@ state: not_configured | verified | invalid_key | no_credits |
 
 A could-not-be-checked outcome (5xx, transport failure, concurrent probe) is reported as `uncheckable` with `configured=false` and `verified=false`. It is never cached as the connection result and never clears the transient-only last-known-good flag; it is cached for one short window only so a persistent outage costs one probe per window instead of one probe per call. Quota outcomes are never `uncheckable`: 429 maps to `rate_limited` or `free_tier_limit`, and 401 with a credits error maps to `no_credits`. Only a proven invalid or missing key reports not configured.
 
+### Transient key ownership
+
+Every transient this plugin writes is owned by `Metadata\Catalog`:
+`allTransientKeys()` returns the availability result, its stampede lock, the
+last-known-good flag, and the opt-in verification verdict with its lock, for
+both catalogs. The settings bust hooks, the key-rotation hook, and
+`uninstall.php` all derive their delete list from it.
+
+This matters because those three call sites previously repeated the same
+literals, so adding one cached verdict (the last-known-good flag and the
+verification verdict each did) silently left stale state behind after a key
+change unless three files were edited in lockstep. A new cached family must be
+added to `Catalog` and nowhere else; `CatalogKeysTest` pins the full key
+surface so the set cannot shrink by accident.
+
 ## Extension-point rules
 
 - Add an interface only when there are multiple implementations, a real test seam, or a verified future transport family.

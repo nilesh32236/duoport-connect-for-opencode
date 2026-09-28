@@ -20,13 +20,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class CatalogWatch {
 
 	/**
-	 * Safe catalog keys.
-	 *
-	 * @var list<string>
-	 */
-	private const CATALOGS = array( 'go', 'zen' );
-
-	/**
 	 * Compare a discovery snapshot with the reviewed catalog registry.
 	 *
 	 * Discovery is evidence only: every output row is non-promotable until a
@@ -37,7 +30,7 @@ final class CatalogWatch {
 	 * @return list<array<string, mixed>>
 	 */
 	public function compare( string $catalog, array $discovered ): array {
-		if ( ! in_array( $catalog, self::CATALOGS, true ) ) {
+		if ( ! Catalog::isValid( $catalog ) ) {
 			return array();
 		}
 
@@ -46,6 +39,38 @@ final class CatalogWatch {
 			$baseline[ 'id:' . $record['id'] ] = $record;
 		}
 
+		$validated     = $this->validateDiscoveryRows( $discovered );
+		$current       = $validated['current'];
+		$has_malformed = $validated['has_malformed'];
+		$saw_valid     = $validated['saw_valid'];
+		if ( $has_malformed && array() === $current ) {
+			return array( $this->result( '', 'input_invalid', array( 'input_invalid' ), false ) );
+		}
+		if ( count( $discovered ) > 0 && ! $saw_valid ) {
+			return array( $this->result( '', 'input_invalid', array( 'input_invalid' ), false ) );
+		}
+
+		$results = $this->diffAgainstBaseline( $baseline, $current, $has_malformed );
+		$results = $this->appendRetirements( $results, $baseline, $current, $has_malformed );
+
+		usort(
+			$results,
+			static function ( array $left, array $right ): int {
+				return strcmp( $left['id'], $right['id'] );
+			}
+		);
+		return $results;
+	}
+
+	/**
+	 * Validate raw discovery rows into a deduplicated snapshot map.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @param array<int, mixed> $discovered Raw discovery rows.
+	 * @return array{current: array<string, array<string, mixed>>, has_malformed: bool, saw_valid: bool}
+	 */
+	private function validateDiscoveryRows( array $discovered ): array {
 		$current       = array();
 		$invalid_ids   = array();
 		$saw_valid     = false;
@@ -84,13 +109,24 @@ final class CatalogWatch {
 				'snapshot' => $this->normalize( $row ),
 			);
 		}
-		if ( $has_malformed && array() === $current ) {
-			return array( $this->result( '', 'input_invalid', array( 'input_invalid' ), false ) );
-		}
-		if ( count( $discovered ) > 0 && ! $saw_valid ) {
-			return array( $this->result( '', 'input_invalid', array( 'input_invalid' ), false ) );
-		}
+		return array(
+			'current'       => $current,
+			'has_malformed' => $has_malformed,
+			'saw_valid'     => $saw_valid,
+		);
+	}
 
+	/**
+	 * Diff validated discovery snapshots against the reviewed baseline.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @param array<string, array<string, mixed>> $baseline Baseline records keyed by `id:<id>`.
+	 * @param array<string, array<string, mixed>> $current Validated snapshots keyed by `id:<id>`.
+	 * @param bool                                $has_malformed Whether malformed rows were seen.
+	 * @return list<array<string, mixed>>
+	 */
+	private function diffAgainstBaseline( array $baseline, array $current, bool $has_malformed ): array {
 		$results = array();
 		foreach ( $current as $entry ) {
 			$id       = $entry['id'];
@@ -135,28 +171,39 @@ final class CatalogWatch {
 			}
 			$results[] = $this->result( $id, $status, $states, isset( $baseline[ $key ] ) );
 		}
+		return $results;
+	}
 
-		if ( ! $has_malformed ) {
-			foreach ( $baseline as $entry ) {
-				$key = 'id:' . $entry['id'];
-				if ( isset( $current[ $key ] ) ) {
-					continue;
-				}
-				$results[] = $this->result(
-					$entry['id'],
-					'retired',
-					array( 'retired', 'verification_required' ),
-					true
-				);
-			}
+	/**
+	 * Append retirement rows for baseline IDs missing from discovery.
+	 *
+	 * Retirements are suppressed when any malformed input was seen so a
+	 * corrupt snapshot can never retire the reviewed registry.
+	 *
+	 * @since 0.1.6
+	 *
+	 * @param list<array<string, mixed>>          $results Existing results.
+	 * @param array<string, array<string, mixed>> $baseline Baseline records keyed by `id:<id>`.
+	 * @param array<string, array<string, mixed>> $current Validated snapshots keyed by `id:<id>`.
+	 * @param bool                                $has_malformed Whether malformed rows were seen.
+	 * @return list<array<string, mixed>>
+	 */
+	private function appendRetirements( array $results, array $baseline, array $current, bool $has_malformed ): array {
+		if ( $has_malformed ) {
+			return $results;
 		}
-
-		usort(
-			$results,
-			static function ( array $left, array $right ): int {
-				return strcmp( $left['id'], $right['id'] );
+		foreach ( $baseline as $entry ) {
+			$key = 'id:' . $entry['id'];
+			if ( isset( $current[ $key ] ) ) {
+				continue;
 			}
-		);
+			$results[] = $this->result(
+				$entry['id'],
+				'retired',
+				array( 'retired', 'verification_required' ),
+				true
+			);
+		}
 		return $results;
 	}
 

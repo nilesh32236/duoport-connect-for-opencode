@@ -97,10 +97,8 @@ final class ClientUserAgent {
 	 */
 	public static function inject_into_headers( array $headers ): array {
 		try {
-			foreach ( $headers as $name => $existing ) {
-				if ( is_string( $name ) && 0 === strcasecmp( $name, self::HEADER_NAME ) ) {
-					return $headers;
-				}
+			if ( Headers::has( $headers, self::HEADER_NAME ) ) {
+				return $headers;
 			}
 			$headers[ self::HEADER_NAME ] = self::value();
 			return $headers;
