@@ -241,31 +241,77 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	 * check exists to prevent.
 	 */
 	public function test_verifier_rejects_resurrected_updater_machinery(): void {
-		foreach ( array(
+		$removed = array(
 			'.github/workflows/reviewer-update.yml',
 			'.github/scripts/update-opencode-reviewer.php',
 			'.github/scripts/push-reviewer-branch.sh',
 			'.github/scripts/inspect-reviewer-branch.sh',
 			'.github/scripts/reviewer-pr-guard.sh',
-		) as $removed ) {
-			$root = $this->copy_automation_fixture();
-			try {
-				$path = $root . '/' . $removed;
-				if ( str_ends_with( $removed, '.php' ) ) {
-					file_put_contents( $path, "<?php\n" );
-				} else {
-					file_put_contents( $path, "#!/usr/bin/env bash\n" );
-					chmod( $path, 0777 );
+		);
+
+		// One fixture, one verifier run. Restoring all five at once still proves
+		// each is named in the failure, and avoids copying the automation tree
+		// and spawning a verifier five times over.
+		$root = $this->copy_automation_fixture();
+		try {
+			foreach ( $removed as $path ) {
+				$full = $root . '/' . $path;
+				if ( ! is_dir( dirname( $full ) ) ) {
+					mkdir( dirname( $full ), 0777, true );
 				}
-				$output = array();
-				$status = 0;
-				exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
-				self::assertNotSame( 0, $status, $removed . ' was resurrected without failing verification' );
-				self::assertStringContainsString( 'must stay removed', implode( "\n", $output ) );
-			} finally {
-				$this->remove_fixture( $root );
+				file_put_contents( $full, str_ends_with( $path, '.php' ) ? "<?php\n" : "#!/usr/bin/env bash\n" );
+				chmod( $full, 0777 );
 			}
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			$text = implode( "\n", $output );
+			self::assertNotSame( 0, $status, 'restored updater machinery did not fail verification' );
+			foreach ( $removed as $path ) {
+				self::assertStringContainsString( $path . ' must stay removed', $text );
+			}
+		} finally {
+			$this->remove_fixture( $root );
 		}
+	}
+
+	/**
+	 * A floating ref is only defensible if the revision in use is observable.
+	 *
+	 * Every job that runs the reviewer records the resolved commit for that
+	 * run. Without it, "the reference floats" means the run log cannot say what
+	 * actually executed, which is the property the old pin provided.
+	 */
+	public function test_every_reviewer_job_records_the_revision_in_use(): void {
+		$root = dirname( __DIR__, 2 );
+		foreach ( array( 'ai-review.yml' => 3, 'daily-audit.yml' => 1 ) as $name => $expected ) {
+			$source = (string) file_get_contents( $root . '/.github/workflows/' . $name );
+			$references = substr_count( $source, 'uses: nilesh32236/opencode-ai-reviewer@main' );
+			self::assertSame( $expected, $references, $name . ' reviewer reference count' );
+			self::assertSame(
+				$expected,
+				substr_count( $source, 'Record the reviewer revision in use' ),
+				$name . ' must record the resolved reviewer revision once per reviewer action'
+			);
+		}
+
+		// The read-back must be a real resolution, not a placeholder, and it
+		// must fail closed rather than record an empty value.
+		$review = (string) file_get_contents( $root . '/.github/workflows/ai-review.yml' );
+		self::assertStringContainsString( 'commits/main --jq .sha', $review );
+		self::assertStringContainsString( '^[a-f0-9]{40}$', $review );
+		self::assertStringContainsString( '$GITHUB_STEP_SUMMARY', $review );
+
+		// Scope the fail-closed assertion to the read-back step itself. Other
+		// steps legitimately mask errors on best-effort label and PR edits,
+		// so a whole-file check would either pass vacuously or force those
+		// unrelated calls to change.
+		$review_position = strpos( $review, '      - name: Record the reviewer revision in use' );
+		self::assertNotFalse( $review_position );
+		$step_end = strpos( $review, '      - name:', $review_position + 10 );
+		$step = substr( $review, $review_position, false === $step_end ? null : $step_end - $review_position );
+		self::assertStringContainsString( 'set -euo pipefail', $step );
+		self::assertStringNotContainsString( '|| true', $step, 'the read-back must not mask a failed resolution' );
 	}
 
 	/**
