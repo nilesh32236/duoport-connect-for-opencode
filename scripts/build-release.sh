@@ -37,7 +37,7 @@ verify_zip() {
   # Agent/review tooling output is development-only. It can carry merged
   # conflict markers or prompt content, and nothing at runtime reads it, so
   # a stray *.jsonl must fail the build even if .distignore is bypassed.
-  if grep -Eq '\.jsonl$' "$zip_list"; then
+  if grep -Eqi '\.jsonl$' "$zip_list"; then
     echo "ERROR: *.jsonl agent artifacts must not ship in the ZIP" >&2
     return 1
   fi
@@ -55,15 +55,24 @@ verify_zip() {
   local extracted="${work_dir}/extracted"
   rm -rf "$extracted"
   mkdir -p "$extracted"
-  if ! unzip -q -o "$zip_path" -d "$extracted" 2>/dev/null; then
+  if ! unzip -q -o "$zip_path" -d "$extracted"; then
     echo "ERROR: ZIP could not be extracted for content verification" >&2
+    rm -rf "$extracted"
     return 1
   fi
+  # Always clean up the extraction, including on the rejection path, so a
+  # rejected build does not leave a multi-megabyte tree behind.
+  # grep exits 0 when it finds a marker, 1 when it does not, so the flag is
+  # 0 for "clean" and 1 for "marker present"; only a present marker rejects.
+  local marker_found=0
   if grep -rIq -e '^<<<<<<< ' -e '^>>>>>>> ' -e '^=======$' "$extracted" 2>/dev/null; then
+    marker_found=1
+  fi
+  rm -rf "$extracted"
+  if [ "$marker_found" -ne 0 ]; then
     echo "ERROR: a shipped file contains an unresolved conflict marker" >&2
     return 1
   fi
-  rm -rf "$extracted"
 }
 
 build_release() {

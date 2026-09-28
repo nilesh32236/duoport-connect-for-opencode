@@ -27,7 +27,7 @@ bin/
 scripts/
 AGENTS.md
 *.zip
-/*.jsonl
+*.jsonl
 /.omo/
 AUDIT/
 .phpunit.result.cache
