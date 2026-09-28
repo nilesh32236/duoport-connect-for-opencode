@@ -29,6 +29,44 @@ verify_zip() {
     return 1
   fi
 
+  # Reject credential-shaped entries. A published plugin must contain none:
+  # anything added to the tree for local testing would otherwise ship, and a
+  # release ZIP is the worst possible place for a key.
+  #
+  # Matching is done on the basename with shell patterns rather than one
+  # unanchored regex. A regex either under-rejects (missing `.env/`
+  # directories, `.envrc`, `credentials.php`) or over-rejects (an unanchored
+  # `id_rsa` alternative also matches a path like `Utils/GridRsaHelper.php`).
+  # Basename patterns are exact in both directions.
+  #
+  # This is a filename gate only. It never opens, reads, or logs contents.
+  local entry base credential_hits
+  credential_hits=''
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    base="${entry##*/}"
+    base="${base%/}"
+    # Lowercase so the gate is case-insensitive: a .PEM or .Env is the same
+    # risk as .pem or .env.
+    base="${base,,}"
+    case "$base" in
+      .env | .env.* | .envrc | .npmrc | .netrc | .htpasswd | .git-credentials )
+        credential_hits="${credential_hits}${entry}"$'\n' ;;
+      credentials | credentials.* | secrets | secrets.* | wp-config.php )
+        credential_hits="${credential_hits}${entry}"$'\n' ;;
+      *.pem | *.key | *.p12 | *.pfx | *.jks | *.keystore )
+        credential_hits="${credential_hits}${entry}"$'\n' ;;
+      id_rsa | id_rsa.* | id_dsa | id_dsa.* | id_ecdsa | id_ecdsa.* | id_ed25519 | id_ed25519.* )
+        credential_hits="${credential_hits}${entry}"$'\n' ;;
+    esac
+  done < "$zip_list"
+  if [ -n "$credential_hits" ]; then
+    echo "ERROR: ZIP contains a credential-shaped file:" >&2
+    printf '%s' "$credential_hits" | sed 's/^/  /' >&2
+    return 1
+  fi
+
+
   for required in "${REQUIRED_ENTRIES[@]}"; do
     grep -Fxq -- "$required" "$zip_list" || {
       echo "ERROR: $required missing in ZIP" >&2
@@ -79,6 +117,20 @@ verify_zip() {
   # The marker patterns tolerate CRLF: a checkout with core.autocrlf can leave
   # the separator as "=======\r", which an end-anchored pattern would miss.
   # -I skips binary payloads, where a marker match is not merge debris.
+  # Symlink detection uses the extracted tree, so it has no external
+  # dependency and cannot silently no-op. `find -type l` sees the link itself
+  # whenever the archive stored one; if a producer dereferenced it instead, the
+  # entry is a regular file and the staging check is what prevents the
+  # contents from being read in the first place.
+  local extracted_links
+  extracted_links="$(find "$extracted" -type l -print 2>/dev/null)"
+  if [ -n "$extracted_links" ]; then
+    echo "ERROR: ZIP contains a symlink entry" >&2
+    printf '%s\n' "$extracted_links" | sed "s|^${extracted}/|  |" >&2
+    rm -rf "$extracted"
+    return 1
+  fi
+
   local marker_status=0 marker_found=0
   grep -rIq -e '^<<<<<<< ' -e '^>>>>>>> ' -e '^=======[[:space:]]*$' "$extracted" 2>/dev/null || marker_status=$?
   if [ "$marker_status" -eq 0 ]; then
@@ -126,9 +178,25 @@ build_release() {
     --exclude="scripts/" \
     "${root_dir}/" "${BUILD_DIR}/${PLUGIN_SLUG}/"
 
+  # Reject symlinks in the staged tree BEFORE zipping.
+  #
+  # `rsync -a` preserves symlinks, and `zip -r` (without -y) dereferences
+  # them: it writes the *contents of the link target* into the archive. A
+  # symlink committed anywhere in the plugin tree would therefore silently
+  # copy its target into a public WordPress.org release. A published plugin
+  # has no legitimate use for symlinks, so refuse to build one.
+  local staged_symlinks
+  staged_symlinks="$(find "${BUILD_DIR}/${PLUGIN_SLUG}" -type l -print 2>/dev/null)"
+  if [ -n "$staged_symlinks" ]; then
+    echo "ERROR: staged release tree contains symlinks, which zip would dereference:" >&2
+    printf '%s\n' "$staged_symlinks" | sed 's/^/  /' >&2
+    rm -rf "$BUILD_DIR"
+    return 1
+  fi
+
   echo "==> Creating release ZIP: ${zip_name}..."
   rm -f "$zip_path"
-  ( cd "$BUILD_DIR" && zip -qr "$zip_path" "$PLUGIN_SLUG" )
+  ( cd "$BUILD_DIR" && zip -qry "$zip_path" "$PLUGIN_SLUG" )
   test -f "$zip_path" || { echo "ERROR: ZIP not created at $zip_path" >&2; return 1; }
 
   echo "==> Verifying ZIP contents..."
