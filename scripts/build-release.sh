@@ -42,12 +42,26 @@ verify_zip() {
     return 1
   fi
 
-  # Belt-and-braces: no shipped text file may carry unresolved conflict
-  # markers, which would mean a botched merge reached the distributable.
-  if unzip -p "$zip_path" | grep -aq '^<<<<<<< '; then
-    echo "ERROR: shipped file contains an unresolved conflict marker" >&2
+  # Belt-and-braces: no shipped file may carry unresolved conflict markers,
+  # which would mean a botched merge reached the distributable.
+  #
+  # Extract to a file first instead of piping `unzip -p` into grep. Under
+  # `set -o pipefail`, grep -q closes the pipe as soon as it matches, so
+  # unzip takes SIGPIPE and the script exits 141 for any ZIP larger than the
+  # pipe buffer. That is the same failure class as issue #44, and it would
+  # fail the build for the wrong reason.
+  local extracted="${work_dir}/extracted"
+  rm -rf "$extracted"
+  mkdir -p "$extracted"
+  if ! unzip -q -o "$zip_path" -d "$extracted" 2>/dev/null; then
+    echo "ERROR: ZIP could not be extracted for content verification" >&2
     return 1
   fi
+  if grep -rIq -e '^<<<<<<< ' -e '^>>>>>>> ' "$extracted" 2>/dev/null; then
+    echo "ERROR: a shipped file contains an unresolved conflict marker" >&2
+    return 1
+  fi
+  rm -rf "$extracted"
 }
 
 build_release() {
