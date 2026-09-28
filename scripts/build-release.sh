@@ -37,7 +37,9 @@ verify_zip() {
   # Agent/review tooling output is development-only. It can carry merged
   # conflict markers or prompt content, and nothing at runtime reads it, so
   # a stray *.jsonl must fail the build even if .distignore is bypassed.
-  if grep -Eqi '\.jsonl$' "$zip_list"; then
+  # ZIP listing entries for directories end in "/", so a bare "\.jsonl$" would
+  # miss a directory named like an artifact. Allow an optional trailing slash.
+  if grep -Eqi '\.jsonl/?$' "$zip_list"; then
     echo "ERROR: *.jsonl agent artifacts must not ship in the ZIP" >&2
     return 1
   fi

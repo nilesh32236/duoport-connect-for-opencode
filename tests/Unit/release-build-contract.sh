@@ -90,6 +90,16 @@ rm -f "${FIXTURE_DIR}/jsonl-variants.zip"
 assert_rejected_for "${FIXTURE_DIR}/jsonl-variants.zip" "${FIXTURE_DIR}/work-jsonl-variants" \
   "must not ship in the ZIP" "nested or uppercase .jsonl artifact"
 
+# A *directory* named like an artifact must be rejected too: ZIP listing
+# entries end in "/", so a "\.jsonl$" pattern alone would miss it.
+make_fixture jsonl-dir
+mkdir -p "${FIXTURE_DIR}/jsonl-dir/${PLUGIN_SLUG}/src/review.jsonl"
+: > "${FIXTURE_DIR}/jsonl-dir/${PLUGIN_SLUG}/src/review.jsonl/inner.txt"
+rm -f "${FIXTURE_DIR}/jsonl-dir.zip"
+( cd "${FIXTURE_DIR}/jsonl-dir" && zip -qr ../jsonl-dir.zip "$PLUGIN_SLUG" )
+assert_rejected_for "${FIXTURE_DIR}/jsonl-dir.zip" "${FIXTURE_DIR}/work-jsonl-dir" \
+  "must not ship in the ZIP" "directory named like a .jsonl artifact"
+
 # A file carrying unresolved conflict markers must fail the build too.
 make_fixture conflict-markers
 printf '%s\n' '<<<<<<< HEAD' 'x' '=======' 'y' '>>>>>>> other' \
@@ -102,17 +112,19 @@ assert_rejected_for "${FIXTURE_DIR}/conflict-markers.zip" "${FIXTURE_DIR}/work-c
 # A large ZIP must still verify. Piping unzip into `grep -q` takes SIGPIPE
 # under `set -o pipefail` once the payload exceeds the pipe buffer, which is
 # the issue #44 failure class; this fixture keeps the scan pipe-free.
-# Random bytes are required: an all-zero file compresses to almost nothing and
-# would not reach the size this regression depends on.
+# The payload must be *text* and incompressible. grep -I skips binary files, so
+# a random-byte blob would never be scanned and the fixture would not exercise
+# the path it claims to guard. Incompressible ASCII avoids that and still
+# exceeds the 64 KiB pipe buffer the regression depends on.
 make_fixture large
-dd if=/dev/urandom of="${FIXTURE_DIR}/large/${PLUGIN_SLUG}/bulk.bin" bs=1024 count=1024 >/dev/null 2>&1
+head -c 1048576 /dev/urandom | base64 > "${FIXTURE_DIR}/large/${PLUGIN_SLUG}/bulk.txt"
 rm -f "${FIXTURE_DIR}/large.zip"
 ( cd "${FIXTURE_DIR}/large" && zip -qr ../large.zip "$PLUGIN_SLUG" )
 verify_zip "${FIXTURE_DIR}/large.zip" "${FIXTURE_DIR}/work-large" >/dev/null
 
 # ...and the same large ZIP must still be rejected when it carries a marker.
 make_fixture large-marker
-dd if=/dev/urandom of="${FIXTURE_DIR}/large-marker/${PLUGIN_SLUG}/bulk.bin" bs=1024 count=1024 >/dev/null 2>&1
+head -c 1048576 /dev/urandom | base64 > "${FIXTURE_DIR}/large-marker/${PLUGIN_SLUG}/bulk.txt"
 printf '%s\n' '<<<<<<< HEAD' 'x' '>>>>>>> other' \
   > "${FIXTURE_DIR}/large-marker/${PLUGIN_SLUG}/marker.txt"
 rm -f "${FIXTURE_DIR}/large-marker.zip"
