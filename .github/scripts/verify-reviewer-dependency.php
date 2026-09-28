@@ -105,6 +105,71 @@ if (4 !== $reference_count) {
     $errors[] = "expected four reviewer action references, found {$reference_count}";
 }
 
+// The revision read-back is repeated once per reviewer job, because a job
+// cannot share steps with another job. Duplication is only safe while the
+// copies stay identical, so compare them rather than trusting a future edit to
+// update all four. The steps are extracted and compared by their body, ignoring
+// the job they sit in.
+$readback_marker = '      - name: Record the reviewer main at run start';
+$readback_bodies = array();
+foreach ($workflow_files as $file) {
+    $text = (string) file_get_contents($file);
+    $offset = 0;
+    while (false !== ($position = strpos($text, $readback_marker, $offset))) {
+        // Double quotes: PHP single quotes do not expand \n, which would make
+        // this search a literal backslash-n and stop at the wrong step.
+        $next = strpos($text, "\n      - name:", $position + 10);
+        $body = substr($text, $position, false === $next ? null : $next - $position);
+        $readback_bodies[] = $body;
+        $offset = false === $next ? strlen($text) : $next;
+    }
+}
+if (4 !== count($readback_bodies)) {
+    $errors[] = 'expected four reviewer revision read-back steps, found ' . count($readback_bodies);
+} else {
+    $first = $readback_bodies[0];
+    foreach (array_slice($readback_bodies, 1) as $index => $body) {
+        if ($body !== $first) {
+            $errors[] = 'reviewer revision read-back copy ' . ($index + 2) . ' has drifted from the first';
+        }
+    }
+}
+
+// The dependency graph is documentation, so it drifts silently unless checked.
+$graph_path = $root . '/docs/architecture/DEPENDENCY-GRAPH.json';
+if (!is_file($graph_path)) {
+    $errors[] = 'docs/architecture/DEPENDENCY-GRAPH.json is missing';
+} else {
+    $graph = json_decode((string) file_get_contents($graph_path), true);
+    if (!is_array($graph)) {
+        $errors[] = 'DEPENDENCY-GRAPH.json is not valid JSON';
+    } else {
+        $graph_ids = array();
+        foreach ((array) ($graph['nodes'] ?? array()) as $node) {
+            if (is_array($node) && isset($node['id'])) {
+                $graph_ids[(string) $node['id']] = true;
+            }
+        }
+        foreach ((array) ($graph['edges'] ?? array()) as $edge) {
+            if (!is_array($edge)) {
+                continue;
+            }
+            foreach (array('from', 'to') as $end) {
+                $target = (string) ($edge[$end] ?? '');
+                if ('' !== $target && !isset($graph_ids[$target])) {
+                    $errors[] = "DEPENDENCY-GRAPH.json edge {$end} '{$target}' has no matching node";
+                }
+            }
+        }
+        $graph_text = (string) file_get_contents($graph_path);
+        foreach (array('reviewer-update.yml', 'update-opencode-reviewer.php', 'reviewer-pr-guard.sh') as $removed) {
+            if (str_contains($graph_text, $removed)) {
+                $errors[] = "DEPENDENCY-GRAPH.json still references the removed {$removed}";
+            }
+        }
+    }
+}
+
 // The dependency updater and the scripts that only it called are removed.
 // Reject a partial revert: half of this machinery back with no updater to
 // drive it is a confusing state, and the removed helpers are the ones that

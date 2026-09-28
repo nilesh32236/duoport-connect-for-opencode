@@ -128,9 +128,9 @@
       "label": "nilesh32236/opencode-ai-reviewer"
     },
     {
-      "id": "reviewer-updater",
+      "id": "reviewer-revision-readback",
       "kind": "automation",
-      "file": ".github/workflows/reviewer-update.yml"
+      "label": "records reviewer main at run start"
     },
     {
       "id": "opencode-cli",
@@ -281,16 +281,6 @@
       "kind": "workflow uses"
     },
     {
-      "from": "github",
-      "to": "reviewer-updater",
-      "kind": "stable release detection"
-    },
-    {
-      "from": "reviewer-updater",
-      "to": "reviewer-action",
-      "kind": "proposes SHA/tag update PR"
-    },
-    {
       "from": "reviewer-action",
       "to": "opencode-cli",
       "kind": "downloads/verifies"
@@ -324,6 +314,11 @@
       "from": "model-radar",
       "to": "github",
       "kind": "one aggregated issue"
+    },
+    {
+      "from": "reviewer-revision-readback",
+      "to": "reviewer-action",
+      "kind": "run traceability"
     }
   ],
   "forbidden_edges": [

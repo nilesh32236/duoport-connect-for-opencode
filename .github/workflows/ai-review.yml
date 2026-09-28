@@ -79,11 +79,17 @@ jobs:
       - name: Install dependencies
         run: composer install --ignore-platform-reqs
 
-      # The reviewer reference floats, so record which revision actually ran.
-      # Without this the run log cannot say what executed, and the only trace
-      # is the action's own log lines. Emitted as a step summary so it is
-      # visible on the run page without opening logs.
-      - name: Record the reviewer revision in use
+      # The reviewer reference floats, so record where main pointed when this
+      # run started. This is NOT the commit that necessarily executed: GitHub
+      # resolves @main when the action step runs, so a push landing in between
+      # would make the two differ. The recorded SHA bounds that window rather
+      # than eliminating it; the run log's action-resolution line is
+      # authoritative, and the jobs API redacts the resolved ref, so there is
+      # no reliable in-run API read-back to claim instead.
+      #
+      # The point is traceability, not a guarantee: without this the run page
+      # says nothing about which reviewer code was in play.
+      - name: Record the reviewer main at run start
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
@@ -94,7 +100,7 @@ jobs:
           {
             echo "### OpenCode AI Reviewer revision"
             echo
-            echo "The reviewer action tracks \`main\`, so this run used:"
+            echo "Reviewer \`main\` at the start of this run (the step resolves @main at execution time, so a commit landing in between is possible):"
             echo
             echo "\`$SHA\`"
             echo
@@ -182,11 +188,17 @@ jobs:
       - name: Install dependencies
         run: composer install --ignore-platform-reqs
 
-      # The reviewer reference floats, so record which revision actually ran.
-      # Without this the run log cannot say what executed, and the only trace
-      # is the action's own log lines. Emitted as a step summary so it is
-      # visible on the run page without opening logs.
-      - name: Record the reviewer revision in use
+      # The reviewer reference floats, so record where main pointed when this
+      # run started. This is NOT the commit that necessarily executed: GitHub
+      # resolves @main when the action step runs, so a push landing in between
+      # would make the two differ. The recorded SHA bounds that window rather
+      # than eliminating it; the run log's action-resolution line is
+      # authoritative, and the jobs API redacts the resolved ref, so there is
+      # no reliable in-run API read-back to claim instead.
+      #
+      # The point is traceability, not a guarantee: without this the run page
+      # says nothing about which reviewer code was in play.
+      - name: Record the reviewer main at run start
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
@@ -197,7 +209,7 @@ jobs:
           {
             echo "### OpenCode AI Reviewer revision"
             echo
-            echo "The reviewer action tracks \`main\`, so this run used:"
+            echo "Reviewer \`main\` at the start of this run (the step resolves @main at execution time, so a commit landing in between is possible):"
             echo
             echo "\`$SHA\`"
             echo
@@ -281,11 +293,17 @@ jobs:
       - name: Install dependencies
         run: composer install --ignore-platform-reqs
 
-      # The reviewer reference floats, so record which revision actually ran.
-      # Without this the run log cannot say what executed, and the only trace
-      # is the action's own log lines. Emitted as a step summary so it is
-      # visible on the run page without opening logs.
-      - name: Record the reviewer revision in use
+      # The reviewer reference floats, so record where main pointed when this
+      # run started. This is NOT the commit that necessarily executed: GitHub
+      # resolves @main when the action step runs, so a push landing in between
+      # would make the two differ. The recorded SHA bounds that window rather
+      # than eliminating it; the run log's action-resolution line is
+      # authoritative, and the jobs API redacts the resolved ref, so there is
+      # no reliable in-run API read-back to claim instead.
+      #
+      # The point is traceability, not a guarantee: without this the run page
+      # says nothing about which reviewer code was in play.
+      - name: Record the reviewer main at run start
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
@@ -296,7 +314,7 @@ jobs:
           {
             echo "### OpenCode AI Reviewer revision"
             echo
-            echo "The reviewer action tracks \`main\`, so this run used:"
+            echo "Reviewer \`main\` at the start of this run (the step resolves @main at execution time, so a commit landing in between is possible):"
             echo
             echo "\`$SHA\`"
             echo

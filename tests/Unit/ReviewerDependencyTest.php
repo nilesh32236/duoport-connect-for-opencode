@@ -234,6 +234,74 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * The four read-back copies must stay identical.
+	 *
+	 * The step is repeated per job because jobs cannot share steps. Duplication
+	 * is only safe while a future edit updates all four, so the verifier
+	 * compares them; this test covers the fourth copy, which the verifier
+	 * already exercises.
+	 */
+	public function test_verifier_rejects_a_drifted_read_back_copy(): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$workflow = $root . '/.github/workflows/ai-review.yml';
+			$source = (string) file_get_contents( $workflow );
+			$position = strpos( $source, '      - name: Record the reviewer main at run start' );
+			self::assertNotFalse( $position );
+			$second = strpos( $source, '      - name: Record the reviewer main at run start', $position + 10 );
+			self::assertNotFalse( $second );
+			$source = substr( $source, 0, $second ) . str_replace( 'set -euo pipefail', 'set -uo pipefail', substr( $source, $second ) );
+			file_put_contents( $workflow, $source );
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status );
+			self::assertStringContainsString( 'has drifted from the first', implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
+	 * The dependency graph must not reference the removed updater, and every
+	 * edge must resolve to a declared node.
+	 */
+	public function test_verifier_rejects_dependency_graph_drift(): void {
+		$graph_relative = 'docs/architecture/DEPENDENCY-GRAPH.json';
+
+		foreach ( array( 'removed-updater-node', 'dangling-edge' ) as $case ) {
+			$root = $this->copy_automation_fixture();
+			try {
+				if ( ! is_dir( $root . '/docs/architecture' ) ) {
+					mkdir( $root . '/docs/architecture', 0777, true );
+				}
+				$graph = json_decode( (string) file_get_contents( dirname( __DIR__, 2 ) . '/' . $graph_relative ), true );
+				self::assertIsArray( $graph );
+				if ( 'removed-updater-node' === $case ) {
+					$graph['nodes'][] = array(
+						'id'    => 'reviewer-updater',
+						'kind'  => 'automation',
+						'file'  => '.github/workflows/reviewer-update.yml',
+					);
+				} else {
+					$graph['edges'][] = array(
+						'from' => 'github',
+						'to'   => 'ghost-node',
+						'kind' => 'bogus',
+					);
+				}
+				file_put_contents( $root . '/' . $graph_relative, json_encode( $graph, JSON_PRETTY_PRINT ) );
+				$output = array();
+				$status = 0;
+				exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+				self::assertNotSame( 0, $status, $case . ' did not fail verification' );
+			} finally {
+				$this->remove_fixture( $root );
+			}
+		}
+	}
+
+	/**
 	 * A commented-out reference is documentation, not configuration.
 	 *
 	 * Documenting a superseded pin in a comment is normal practice. Counting
@@ -330,8 +398,8 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 			self::assertSame( $expected, $references, $name . ' reviewer reference count' );
 			self::assertSame(
 				$expected,
-				substr_count( $source, 'Record the reviewer revision in use' ),
-				$name . ' must record the resolved reviewer revision once per reviewer action'
+				substr_count( $source, 'Record the reviewer main at run start' ),
+				$name . ' must record the reviewer main revision once per reviewer action'
 			);
 		}
 
@@ -342,11 +410,17 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		self::assertStringContainsString( '^[a-f0-9]{40}$', $review );
 		self::assertStringContainsString( '$GITHUB_STEP_SUMMARY', $review );
 
+		// The step records main as of run start, which is not necessarily the
+		// commit the action step resolves. The step must say so; an earlier
+		// revision claimed to record the exact revision in use, which the
+		// jobs API cannot confirm because it redacts the resolved ref.
+		self::assertStringContainsString( 'at the start of this run', $step_marker_source = $review );
+
 		// Scope the fail-closed assertion to the read-back step itself. Other
 		// steps legitimately mask errors on best-effort label and PR edits,
 		// so a whole-file check would either pass vacuously or force those
 		// unrelated calls to change.
-		$review_position = strpos( $review, '      - name: Record the reviewer revision in use' );
+		$review_position = strpos( $review, '      - name: Record the reviewer main at run start' );
 		self::assertNotFalse( $review_position );
 		$step_end = strpos( $review, '      - name:', $review_position + 10 );
 		$step = substr( $review, $review_position, false === $step_end ? null : $step_end - $review_position );
@@ -393,6 +467,8 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		foreach ( glob( $source_root . '/.github/workflows/*.yml' ) ?: array() as $file ) {
 			copy( $file, $temp_root . '/.github/workflows/' . basename( $file ) );
 		}
+		mkdir( $temp_root . '/docs/architecture', 0777, true );
+		copy( $source_root . '/docs/architecture/DEPENDENCY-GRAPH.json', $temp_root . '/docs/architecture/DEPENDENCY-GRAPH.json' );
 		return $temp_root;
 	}
 
