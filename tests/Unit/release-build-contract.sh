@@ -77,7 +77,7 @@ printf '%s\n' '{"type":"executive_summary","riskLevel":"low"}' \
 rm -f "${FIXTURE_DIR}/jsonl.zip"
 ( cd "${FIXTURE_DIR}/jsonl" && zip -qr ../jsonl.zip "$PLUGIN_SLUG" )
 assert_rejected_for "${FIXTURE_DIR}/jsonl.zip" "${FIXTURE_DIR}/work-jsonl" \
-  "must not ship in the ZIP" "agent .jsonl artifact"
+  "*.jsonl agent artifacts" "agent .jsonl artifact"
 
 # Case and depth must not matter: an uppercase or nested review artifact is
 # just as unwanted as one at the plugin root.
@@ -88,7 +88,7 @@ printf '%s\n' '{}' > "${FIXTURE_DIR}/jsonl-variants/${PLUGIN_SLUG}/src/review.js
 rm -f "${FIXTURE_DIR}/jsonl-variants.zip"
 ( cd "${FIXTURE_DIR}/jsonl-variants" && zip -qr ../jsonl-variants.zip "$PLUGIN_SLUG" )
 assert_rejected_for "${FIXTURE_DIR}/jsonl-variants.zip" "${FIXTURE_DIR}/work-jsonl-variants" \
-  "must not ship in the ZIP" "nested or uppercase .jsonl artifact"
+  "*.jsonl agent artifacts" "nested or uppercase .jsonl artifact"
 
 # A *directory* named like an artifact must be rejected too: ZIP listing
 # entries end in "/", so a "\.jsonl$" pattern alone would miss it.
@@ -98,7 +98,7 @@ mkdir -p "${FIXTURE_DIR}/jsonl-dir/${PLUGIN_SLUG}/src/review.jsonl"
 rm -f "${FIXTURE_DIR}/jsonl-dir.zip"
 ( cd "${FIXTURE_DIR}/jsonl-dir" && zip -qr ../jsonl-dir.zip "$PLUGIN_SLUG" )
 assert_rejected_for "${FIXTURE_DIR}/jsonl-dir.zip" "${FIXTURE_DIR}/work-jsonl-dir" \
-  "must not ship in the ZIP" "directory named like a .jsonl artifact"
+  "*.jsonl agent artifacts" "directory named like a .jsonl artifact"
 
 # A file carrying unresolved conflict markers must fail the build too.
 make_fixture conflict-markers
@@ -117,14 +117,14 @@ assert_rejected_for "${FIXTURE_DIR}/conflict-markers.zip" "${FIXTURE_DIR}/work-c
 # the path it claims to guard. Incompressible ASCII avoids that and still
 # exceeds the 64 KiB pipe buffer the regression depends on.
 make_fixture large
-head -c 1048576 /dev/urandom | base64 > "${FIXTURE_DIR}/large/${PLUGIN_SLUG}/bulk.txt"
+head -c 262144 /dev/urandom | base64 > "${FIXTURE_DIR}/large/${PLUGIN_SLUG}/bulk.txt"
 rm -f "${FIXTURE_DIR}/large.zip"
 ( cd "${FIXTURE_DIR}/large" && zip -qr ../large.zip "$PLUGIN_SLUG" )
 verify_zip "${FIXTURE_DIR}/large.zip" "${FIXTURE_DIR}/work-large" >/dev/null
 
 # ...and the same large ZIP must still be rejected when it carries a marker.
 make_fixture large-marker
-head -c 1048576 /dev/urandom | base64 > "${FIXTURE_DIR}/large-marker/${PLUGIN_SLUG}/bulk.txt"
+head -c 262144 /dev/urandom | base64 > "${FIXTURE_DIR}/large-marker/${PLUGIN_SLUG}/bulk.txt"
 printf '%s\n' '<<<<<<< HEAD' 'x' '>>>>>>> other' \
   > "${FIXTURE_DIR}/large-marker/${PLUGIN_SLUG}/marker.txt"
 rm -f "${FIXTURE_DIR}/large-marker.zip"
@@ -152,9 +152,30 @@ assert_rejected_for "${FIXTURE_DIR}/crlf-marker.zip" "${FIXTURE_DIR}/work-crlf-m
 
 # A rejected build must clean up the extracted tree rather than leaving a
 # multi-megabyte copy behind in the build directory.
-if [ -d "${FIXTURE_DIR}/work-conflict-markers/extracted" ]; then
-  echo "rejected build left its extracted tree behind" >&2
-  exit 1
-fi
+for work_dir in work-conflict-markers work-large-marker work-separator-only \
+               work-crlf-marker work-large; do
+  if [ -d "${FIXTURE_DIR}/${work_dir}/extracted" ]; then
+    echo "build left an extracted tree behind in ${work_dir}" >&2
+    exit 1
+  fi
+done
+
+# A path-traversal entry must be rejected before anything is written. zip
+# refuses to create such an entry, so it is injected into an otherwise
+# ordinary archive with Python's zipfile.
+make_fixture traversal
+printf 'pwned\n' > "${FIXTURE_DIR}/escape.txt"
+rm -f "${FIXTURE_DIR}/traversal.zip"
+python3 - "$FIXTURE_DIR" "${PLUGIN_SLUG}" <<'PYTRAV'
+import sys, zipfile, pathlib
+fixture, slug = sys.argv[1], sys.argv[2]
+with zipfile.ZipFile(pathlib.Path(fixture) / 'traversal.zip', 'w') as zf:
+    for name in (f'{slug}/readme.txt', f'{slug}/uninstall.php', f'{slug}/src/autoload.php'):
+        zf.writestr(name, '')
+    zf.writestr(f'{slug}/assets/images/opencode.svg', '')
+    zf.writestr(f'{slug}/../../../escape.txt', 'pwned')
+PYTRAV
+assert_rejected_for "${FIXTURE_DIR}/traversal.zip" "${FIXTURE_DIR}/work-traversal" \
+  "path-traversal" "archive with a path-traversal entry"
 
 echo "release ZIP contract passed"

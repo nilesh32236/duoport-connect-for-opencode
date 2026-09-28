@@ -22,6 +22,13 @@ verify_zip() {
   unzip -Z1 "$zip_path" > "$zip_list"
   sed -n '1,40p' "$zip_list"
 
+  # Reject path-traversal entries before unzip writes anything, so a
+  # malicious or malformed archive cannot escape the extraction directory.
+  if grep -Eq '(^|/)\.\.(/|$)|^/' "$zip_list"; then
+    echo "ERROR: ZIP contains a path-traversal or absolute entry" >&2
+    return 1
+  fi
+
   for required in "${REQUIRED_ENTRIES[@]}"; do
     grep -Fxq -- "$required" "$zip_list" || {
       echo "ERROR: $required missing in ZIP" >&2
@@ -73,7 +80,6 @@ verify_zip() {
   # the separator as "=======\r", which an end-anchored pattern would miss.
   # -I skips binary payloads, where a marker match is not merge debris.
   local marker_status=0 marker_found=0
-  marker_status=0
   grep -rIq -e '^<<<<<<< ' -e '^>>>>>>> ' -e '^=======[[:space:]]*$' "$extracted" 2>/dev/null || marker_status=$?
   if [ "$marker_status" -eq 0 ]; then
     marker_found=1
