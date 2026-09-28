@@ -415,6 +415,40 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * A decoy line must not stand in for a real reviewer action's settings.
+	 *
+	 * Counting per file meant deleting the checksum requirement from one action
+	 * and adding an identical line anywhere else kept the total correct while
+	 * that action ran unverified. The requirement is counted inside each
+	 * action's own with: block, so a decoy elsewhere cannot cover for it.
+	 */
+	public function test_verifier_rejects_a_decoy_checksum_requirement(): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$review = $root . '/.github/workflows/ai-review.yml';
+			$audit = $root . '/.github/workflows/daily-audit.yml';
+			$real = "          require_opencode_checksum: true\n";
+
+			// Remove the real requirement from the first reviewer action and put
+			// an identical line into a different workflow entirely.
+			$source = (string) file_get_contents( $review );
+			$position = strpos( $source, $real );
+			self::assertNotFalse( $position );
+			file_put_contents( $review, substr( $source, 0, $position ) . substr( $source, $position + strlen( $real ) ) );
+			$audit_source = (string) file_get_contents( $audit );
+			file_put_contents( $audit, str_replace( '          enable_mcp: false', '          require_opencode_checksum: true' . "\n          enable_mcp: false", $audit_source ) );
+
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status, 'a decoy in another workflow covered for a removed requirement' );
+			self::assertStringContainsString( 'missing require_opencode_checksum', implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
 	 * A commented-out setting must not satisfy a required-count check.
 	 */
 	public function test_verifier_rejects_a_commented_out_checksum_requirement(): void {
@@ -422,18 +456,19 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		try {
 			$workflow = $root . '/.github/workflows/ai-review.yml';
 			$source = (string) file_get_contents( $workflow );
-			$updated = str_replace(
-				"          require_opencode_checksum: true\n",
-				"          # require_opencode_checksum: true\n",
-				$source
-			);
+			// Replace only the first: replacing all three would test a
+			// different condition than "one action lost its requirement".
+			$needle = "          require_opencode_checksum: true\n";
+			$at = strpos( $source, $needle );
+			self::assertNotFalse( $at );
+			$updated = substr( $source, 0, $at ) . "          # require_opencode_checksum: true\n" . substr( $source, $at + strlen( $needle ) );
 			self::assertNotSame( $source, $updated );
 			file_put_contents( $workflow, $updated );
 			$output = array();
 			$status = 0;
 			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
 			self::assertNotSame( 0, $status );
-			self::assertStringContainsString( 'must require the OpenCode CLI checksum', implode( "\n", $output ) );
+			self::assertStringContainsString( 'missing require_opencode_checksum', implode( "\n", $output ) );
 		} finally {
 			$this->remove_fixture( $root );
 		}

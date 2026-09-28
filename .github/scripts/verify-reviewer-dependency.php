@@ -356,6 +356,55 @@ foreach (array(
     }
 }
 
+// Return the `with:` body of every reviewer action step in a workflow.
+//
+// A step begins at an "- uses:" line; its body runs to the next line at the
+// same indent that starts a new step. Scoping the checksum and version
+// requirements to this block is what stops a decoy line elsewhere in the file
+// from standing in for a real one.
+function reviewer_action_blocks(string $source): array {
+    // Work on comment-stripped lines. A commented-out
+    // "uses: nilesh32236/opencode-ai-reviewer@..." is documentation, not an
+    // action, and counting it would report a real action as missing settings.
+    $lines = explode("\n", comment_stripped_lines($source));
+    $blocks = array();
+    $count = count($lines);
+    for ($i = 0; $i < $count; ++$i) {
+        if (false === strpos($lines[$i], 'uses: nilesh32236/opencode-ai-reviewer@')) {
+            continue;
+        }
+        // The `uses:` key sits at the same indent as its sibling `with:` and
+        // other keys, and one indent deeper than the step's own "- " marker.
+        // The block ends at the next line that is either a new step or a
+        // sibling key of the step itself.
+        $uses_indent = strlen($lines[$i]) - strlen(ltrim($lines[$i]));
+        $body = array();
+        for ($j = $i + 1; $j < $count; ++$j) {
+            $line = $lines[$j];
+            $trimmed = ltrim($line);
+            if ('' === $trimmed) {
+                $body[] = $line;
+                continue;
+            }
+            $indent = strlen($line) - strlen($trimmed);
+            if ($indent > $uses_indent) {
+                $body[] = $line;
+                continue;
+            }
+            // `with:`, `if:` and `name:` are siblings of `uses:` at the same
+            // indent, and the one that matters here is `with:`. Include them;
+            // a new step ("- name:") and anything less indented end the block.
+            if ($indent === $uses_indent && '-' !== $trimmed[0]) {
+                $body[] = $line;
+                continue;
+            }
+            break;
+        }
+        $blocks[] = implode("\n", $body);
+    }
+    return $blocks;
+}
+
 // Drop whole-line YAML comments. A value that only appears in a comment is
 // not configuration, so it must not satisfy a count.
 function comment_stripped_lines(string $source): string {
@@ -381,15 +430,27 @@ $reviewer_counts = array(
 );
 foreach (array('ai-review.yml' => $review_source, 'daily-audit.yml' => $audit_source) as $name => $source) {
     $expected = $reviewer_counts[$name];
-    // Count real YAML keys, not raw bytes. A commented-out
-    // `# require_opencode_checksum: true` satisfies a plain substr_count while
-    // the actual action runs unverified, which is the failure this guards.
-    $active = comment_stripped_lines($source);
-    if (substr_count($active, 'opencode_version: v1.18.31') !== $expected) {
-        $errors[] = $name . " must pin opencode_version on all {$expected} reviewer action(s)";
+    // Count inside each reviewer action's own `with:` block, not per file.
+    // A per-file count can be satisfied by a decoy: deleting the requirement
+    // from one action and adding an identical line elsewhere keeps the total
+    // right while that action runs unverified. Comments are stripped too, so a
+    // commented-out setting cannot stand in for a real one.
+    $missing_version = 0;
+    $missing_checksum = 0;
+    foreach (reviewer_action_blocks($source) as $block) {
+        $active = comment_stripped_lines($block);
+        if (!str_contains($active, 'opencode_version: v1.18.31')) {
+            ++$missing_version;
+        }
+        if (!str_contains($active, 'require_opencode_checksum: true')) {
+            ++$missing_checksum;
+        }
     }
-    if (substr_count($active, 'require_opencode_checksum: true') !== $expected) {
-        $errors[] = $name . " must require the OpenCode CLI checksum on all {$expected} reviewer action(s)";
+    if ($missing_version > 0) {
+        $errors[] = $name . " is missing opencode_version: v1.18.31 in {$missing_version} of {$expected} reviewer action(s)";
+    }
+    if ($missing_checksum > 0) {
+        $errors[] = $name . " is missing require_opencode_checksum: true in {$missing_checksum} of {$expected} reviewer action(s)";
     }
 }
 foreach (array('linux-x64', 'linux-arm64') as $arch) {
