@@ -355,6 +355,32 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * A scalar run: keeps its body on the same line and must be checked too.
+	 *
+	 * The block form alone left `run: echo "${{ ...head.ref }}"` undetected,
+	 * which is the same injection through a shorter door.
+	 */
+	public function test_verifier_rejects_unsafe_interpolation_in_a_scalar_run(): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$workflow = $root . '/.github/workflows/ai-review.yml';
+			$source = (string) file_get_contents( $workflow );
+			$anchor_pos = strpos( $source, '      - name: Fix Issue' );
+			self::assertNotFalse( $anchor_pos );
+			file_put_contents( $workflow, substr( $source, 0, $anchor_pos )
+				. "      - name: Scalar\n        run: echo \"\${{ github.event.pull_request.head.ref }}\"\n\n"
+				. substr( $source, $anchor_pos ) );
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status, 'a scalar run: interpolation was accepted' );
+			self::assertStringContainsString( 'scalar run:', implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
 	 * Expressions whose value a pull request author chooses.
 	 *
 	 * @return array<string, array{string}>

@@ -214,6 +214,16 @@ foreach ($workflow_files as $file) {
                 $run_indent = $indent;
                 continue;
             }
+            // A scalar run: keeps its body on the same line, so entering block
+            // mode would miss it. Check the body directly. An earlier version
+            // only handled the block form and silently accepted
+            // `run: echo "${{ github.event.pull_request.head.ref }}"`.
+            if ('' !== $rest) {
+                if (preg_match($unsafe_pattern, $rest, $scalar_hit)) {
+                    $errors[] = basename($file) . ':' . ($index + 1) . ' interpolates ' . $scalar_hit[1] . ' inside a scalar run:; pass it through env: and quote the variable';
+                }
+                continue;
+            }
         }
         if (!$in_run) {
             continue;
