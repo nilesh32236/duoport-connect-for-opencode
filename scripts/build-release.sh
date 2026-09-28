@@ -43,7 +43,9 @@ verify_zip() {
   fi
 
   # Belt-and-braces: no shipped file may carry unresolved conflict markers,
-  # which would mean a botched merge reached the distributable.
+  # which would mean a botched merge reached the distributable. All three
+  # markers are matched, because a resolved-looking conflict can leave only
+  # the separator behind.
   #
   # Extract to a file first instead of piping `unzip -p` into grep. Under
   # `set -o pipefail`, grep -q closes the pipe as soon as it matches, so
@@ -57,7 +59,7 @@ verify_zip() {
     echo "ERROR: ZIP could not be extracted for content verification" >&2
     return 1
   fi
-  if grep -rIq -e '^<<<<<<< ' -e '^>>>>>>> ' "$extracted" 2>/dev/null; then
+  if grep -rIq -e '^<<<<<<< ' -e '^>>>>>>> ' -e '^=======$' "$extracted" 2>/dev/null; then
     echo "ERROR: a shipped file contains an unresolved conflict marker" >&2
     return 1
   fi

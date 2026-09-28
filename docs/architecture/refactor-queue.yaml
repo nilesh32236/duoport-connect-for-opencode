@@ -1,10 +1,44 @@
 schema_version: 1
 repository: nilesh32236/duoport-connect-for-opencode
-source_commit: 8bd45a4fe1da7b7f7d1af706d123e92ee52ff060
-last_audited: 2026-09-25
+source_commit: 7a3d96320c99a5fe44bc6c37c9bf371f6a1e7325
+last_audited: 2026-09-28
 rule: exactly_one_active_item
 active_item: none
 items:
+  - id: AUDIT-042
+    status: completed
+    title: Resolve the maintainability audit and the four follow-up hardening issues
+    github_issue: 103
+    github_pr: 104
+    owner: campaign-lead
+    priority: high
+    difficulty: medium
+    depends_on: [RELEASE-003]
+    evidence: >-
+      PR #104 merged at exact head b99648a0be71c100831d4292c196d7d57744274f
+      (squash 7a3d96320c99a5fe44bc6c37c9bf371f6a1e7325). The audit itself
+      (0 critical, 15 important, 8 minor) was closed with the same PR after the
+      branch was rebased onto the four behavior PRs merged in the same cycle
+      (#107/#111 verify probe, #105/#112 fail-open availability, #106/#109
+      endpoint-family deny table, #108/#110 free-tier limit). Merged main passes
+      175 PHPUnit tests / 794 assertions, WPCS, PHPCompatibilityWP 8.2-, all five
+      shell contract tests, and a clean release ZIP.
+    scope:
+      - Centralize catalog slugs, base URLs, and transient keys in a dependency-free Catalog value object.
+      - Replace the positional result() bag in ConnectionDiagnostics with named per-verdict factories.
+      - Split oversized methods in the metadata directory, CatalogWatch, ModelRadar, CapabilityAwareFallback, and providers.
+      - Preserve the availability, verification, and endpoint behavior merged after the branch was cut.
+    acceptance:
+      - vendor/bin/phpcs and vendor/bin/phpunit pass on the exact merged head.
+      - No connector credential option reads or writes, no setting_name aliasing, versions stay at 0.1.6.
+      - Every transient the plugin writes is owned by Catalog so bust and uninstall paths cannot drift.
+    status_note: >-
+      Completed after exact-head merge. The audit branch predated four behavior
+      PRs, so it was rebased rather than merged as-is; the rebase resolution is
+      the substance of this item. Catalog::allAvailabilityKeys() originally
+      covered only the result and its lock, which would have dropped the
+      last-known-good and verification keys from every bust and uninstall path;
+      Catalog now owns all ten transients and CatalogKeysTest pins the surface.
   - id: RELEASE-003
     status: completed
     title: Publish 0.1.6 with verified WordPress.org listing screenshots

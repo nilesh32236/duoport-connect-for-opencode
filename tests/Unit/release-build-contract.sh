@@ -26,7 +26,7 @@ verify_zip "${FIXTURE_DIR}/good.zip" "${FIXTURE_DIR}/work-good" >/dev/null
 make_fixture missing
 mv "${FIXTURE_DIR}/missing/${PLUGIN_SLUG}/readme.txt" "${FIXTURE_DIR}/missing/${PLUGIN_SLUG}/readme.txt.bak"
 rm -f "${FIXTURE_DIR}/missing.zip"
-( cd "${FIXTURE_DIR}/missing" && zip -qr missing.zip "$PLUGIN_SLUG" )
+( cd "${FIXTURE_DIR}/missing" && zip -qr ../missing.zip "$PLUGIN_SLUG" )
 if verify_zip "${FIXTURE_DIR}/missing.zip" "${FIXTURE_DIR}/work-missing" >/dev/null 2>&1; then
   echo "missing required file was accepted" >&2
   exit 1
@@ -96,6 +96,17 @@ rm -f "${FIXTURE_DIR}/large-marker.zip"
 ( cd "${FIXTURE_DIR}/large-marker" && zip -qr ../large-marker.zip "$PLUGIN_SLUG" )
 if verify_zip "${FIXTURE_DIR}/large-marker.zip" "${FIXTURE_DIR}/work-large-marker" >/dev/null 2>&1; then
   echo "large ZIP with a conflict marker was accepted" >&2
+  exit 1
+fi
+
+# A leftover separator on its own is still merge debris and must be rejected.
+make_fixture separator-only
+printf '%s\n' 'body' '=======' 'other' \
+  > "${FIXTURE_DIR}/separator-only/${PLUGIN_SLUG}/readme.txt"
+rm -f "${FIXTURE_DIR}/separator-only.zip"
+( cd "${FIXTURE_DIR}/separator-only" && zip -qr ../separator-only.zip "$PLUGIN_SLUG" )
+if verify_zip "${FIXTURE_DIR}/separator-only.zip" "${FIXTURE_DIR}/work-separator-only" >/dev/null 2>&1; then
+  echo "file with a bare conflict separator was accepted" >&2
   exit 1
 fi
 
