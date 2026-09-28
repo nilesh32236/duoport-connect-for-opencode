@@ -128,15 +128,28 @@ What ships is decided by `scripts/build-release.sh`, not by the working tree.
 - a `*.jsonl` agent artifact, matched case-insensitively at any depth;
 - a path-traversal (`..`) or absolute entry;
 - a symlink entry;
+- a credential-shaped filename (`.env*`, `*.pem`, `*.key`, `id_rsa*`,
+  `*.p12`, `.npmrc`, `.netrc`, `credentials.json`, `.htpasswd`);
 - an unresolved `<<<<<<<`, `>>>>>>>`, or `=======` conflict marker;
 - a missing required entry.
 
-Symlinks are rejected at two points. Staging rejects them before archiving,
-because `rsync -a` preserves a symlink and `zip -r` then *dereferences* it,
-writing the target's contents into the archive — a symlink anywhere in the
-tree would copy its target into a public release. `verify_zip()` rejects
-symlink entries a second time, so an archive built by any other route is
-still refused. A published plugin has no legitimate use for a symlink.
+The credential gate is a filename check only. It never opens or logs file
+contents, and it exists because a release ZIP is the worst possible place for
+a key: anything added to the tree for local testing would otherwise ship.
+
+Symlinks are rejected at two points, and the archiving mode is part of the
+defence. Plain `zip -r` *dereferences* a symlink and writes the target's
+contents into the archive, so a symlink anywhere in the tree would copy its
+target into a public release. The build therefore uses `zip -y`, which stores
+the link instead of following it, so a symlink that slips past the staging
+check is captured by the archive check rather than read. Staging still
+rejects symlinks outright with `find -type l`, before `zip` runs, and
+`verify_zip()` rejects symlink entries in the finished archive, so an archive
+built by any other route is refused too. A published plugin has no legitimate
+use for a symlink.
+
+The archive symlink check uses `zipinfo` and degrades to skipped when
+Info-ZIP is unavailable; the staging check has no such dependency.
 
 Packaging is verified in CI on every change to `build-release.sh`,
 `.distignore`, or `.gitignore`, not only at release time. That job builds and

@@ -34,7 +34,9 @@ assert_rejected_for() {
     echo "$label was accepted" >&2
     exit 1
   fi
-  if ! printf '%s' "$output" | grep -qF -- "$expected"; then
+  # Here-string, not a pipe: `printf ... | grep -q` is the same SIGPIPE shape
+  # that made the symlink guard flaky.
+  if ! grep -qF -- "$expected" <<<"$output"; then
     echo "$label was rejected for the wrong reason; expected: $expected" >&2
     printf '%s\n' "$output" | sed -n '1,5p' >&2
     exit 1
@@ -181,6 +183,15 @@ assert_rejected_for "${FIXTURE_DIR}/traversal.zip" "${FIXTURE_DIR}/work-traversa
 # A symlink entry must be rejected. zip -r without -y dereferences symlinks
 # and writes the TARGET'S CONTENTS into the archive, so a committed symlink
 # would copy its target into a public release.
+# The symlink guard is enforced in verify_zip only when zipinfo is available,
+# mirroring the script's documented degradation. Without zipinfo the archive
+# would pass every guard, so skip the assertion rather than fail the contract
+# for a missing optional tool.
+if ! command -v zipinfo >/dev/null 2>&1; then
+  echo "release ZIP contract passed (symlink entry check skipped: zipinfo unavailable)"
+  exit 0
+fi
+
 make_fixture symlink
 mkdir -p "${FIXTURE_DIR}/symlink/${PLUGIN_SLUG}/src"
 printf 'SENTINEL_TARGET_CONTENT\n' > "${FIXTURE_DIR}/symlink-target.txt"
@@ -190,6 +201,21 @@ rm -f "${FIXTURE_DIR}/symlink.zip"
 assert_rejected_for "${FIXTURE_DIR}/symlink.zip" "${FIXTURE_DIR}/work-symlink" \
   "symlink entry" "archive with a stored symlink"
 
+# Many entries plus a symlink. zipinfo buffers far more output here, so the
+# old `zipinfo | grep -q` form reliably lost the race: grep exited at the
+# first match, zipinfo took SIGPIPE, and `set -o pipefail` turned that into
+# "no symlink". The guard rejected a symlink only intermittently, which made
+# the contract flaky rather than reliably wrong. This fixture is
+# deterministic: the old form fails it every time.
+make_fixture symlink-bulk
+mkdir -p "${FIXTURE_DIR}/symlink-bulk/${PLUGIN_SLUG}/src"
+for i in $(seq 1 400); do printf 'padding entry %s\n' "$i" > "${FIXTURE_DIR}/symlink-bulk/${PLUGIN_SLUG}/src/entry-$i.txt"; done
+ln -s "${FIXTURE_DIR}/symlink-target.txt" "${FIXTURE_DIR}/symlink-bulk/${PLUGIN_SLUG}/src/leak.txt"
+rm -f "${FIXTURE_DIR}/symlink-bulk.zip"
+( cd "${FIXTURE_DIR}/symlink-bulk" && zip -qry ../symlink-bulk.zip "$PLUGIN_SLUG" )
+assert_rejected_for "${FIXTURE_DIR}/symlink-bulk.zip" "${FIXTURE_DIR}/work-symlink-bulk" \
+  "symlink entry" "archive with a symlink among many entries"
+
 # Prove the dereference risk is real: the same tree zipped WITHOUT -y embeds
 # the link target's contents. If zip ever stops dereferencing, this fixture
 # stops proving anything, so assert the leak explicitly.
@@ -198,5 +224,17 @@ rm -f "${FIXTURE_DIR}/symlink-deref.zip"
 if unzip -p "${FIXTURE_DIR}/symlink-deref.zip" "*/src/leak.txt" 2>/dev/null | grep -q SENTINEL_TARGET_CONTENT; then
   echo "  (confirmed: zip -r dereferences symlinks into archive contents)"
 fi
+
+# Credential-shaped filenames must never ship. The gate is a filename check
+# only; it must not reject an ordinary plugin file.
+for credential in .env server.pem private.key id_rsa .npmrc credentials.json .env.production; do
+  safe="$(printf '%s' "$credential" | tr -c 'A-Za-z0-9' '_')"
+  make_fixture "cred-$safe"
+  : > "${FIXTURE_DIR}/cred-$safe/${PLUGIN_SLUG}/${credential}"
+  rm -f "${FIXTURE_DIR}/cred-$safe.zip"
+  ( cd "${FIXTURE_DIR}/cred-$safe" && zip -qr "../cred-$safe.zip" "$PLUGIN_SLUG" )
+  assert_rejected_for "${FIXTURE_DIR}/cred-$safe.zip" "${FIXTURE_DIR}/work-cred-$safe" \
+    "credential-shaped file" "archive containing $credential"
+done
 
 echo "release ZIP contract passed"

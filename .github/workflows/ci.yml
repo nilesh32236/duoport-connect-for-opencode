@@ -17,7 +17,6 @@ on:
       - 'tests/Unit/*.sh'
       - 'scripts/build-release.sh'
       - '.distignore'
-      - '.gitignore'
       - '.github/reviewer-dependency.json'
   pull_request:
     branches: ["main", "master"]
@@ -34,7 +33,6 @@ on:
       - 'tests/Unit/*.sh'
       - 'scripts/build-release.sh'
       - '.distignore'
-      - '.gitignore'
       - '.github/reviewer-dependency.json'
 
 permissions:
@@ -88,12 +86,15 @@ jobs:
 
   # Packaging is verified on every PR that can change it. The guards that
   # decide what may ship (forbidden artifacts, path traversal, symlinks,
-  # conflict markers, missing required entries) otherwise only ran locally,
-  # so a regression could reach a release tag unnoticed.
+  # conflict markers, credential-shaped files, missing required entries)
+  # otherwise only ran locally, so a regression could reach a release tag.
   #
-  # Read-only with respect to the release process: this job builds the ZIP and
-  # inspects it. It does not tag, publish, or deploy. Release packaging and
-  # publication stay in release.yml.
+  # Read-only with respect to the release process: this job builds the ZIP in a
+  # scratch directory and inspects it, then discards it. It does not tag,
+  # publish, deploy, or upload the archive. On a public repository a workflow
+  # artifact is downloadable by anyone, which would turn a content-guard
+  # failure into a public disclosure; the real artifact is produced by
+  # release.yml, where it is reviewed before publication.
   release-package:
     name: Release package verification
     runs-on: ubuntu-latest
@@ -127,12 +128,3 @@ jobs:
           test -f "$zip_file"
           unzip -t "$zip_file" >/dev/null
           echo "verified: $zip_file"
-
-      # An artifact for inspection only. Nothing here is published.
-      - name: Upload the verified package for inspection
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: duoport-release-package
-          path: duoport-connect-for-opencode-*.zip
-          retention-days: 7
-          if-no-files-found: error

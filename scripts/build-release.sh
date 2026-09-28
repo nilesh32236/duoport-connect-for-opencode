@@ -29,15 +29,40 @@ verify_zip() {
     return 1
   fi
 
+  # Reject credential-shaped files. A published plugin must contain none:
+  # anything added to the tree for local testing would otherwise ship, and a
+  # release ZIP is the worst possible place for a key. This is a filename
+  # gate only; it never opens or logs file contents.
+  if grep -Eiq '(^|/)(\.env($|\.)|.*\.(pem|key|p12|pfx|jks|keystore)$|id_rsa|id_dsa|id_ecdsa|id_ed25519|\.npmrc|\.netrc|credentials(\.json|$)|\.htpasswd)' "$zip_list"; then
+    echo "ERROR: ZIP contains a credential-shaped file:" >&2
+    grep -Eiq '(^|/)(\.env($|\.)|.*\.(pem|key|p12|pfx|jks|keystore)$|id_rsa|id_dsa|id_ecdsa|id_ed25519|\.npmrc|\.netrc|credentials(\.json|$)|\.htpasswd)' "$zip_list" | sed 's/^/  /' >&2
+    return 1
+  fi
+
   # Reject symlink entries. A published plugin needs none, and a stored
   # symlink is how a ZIP-based install escapes the plugin directory or
   # re-points a file at content from outside the archive. zipinfo marks
   # them with a leading "l" in the permissions column; when zipinfo is
   # unavailable this degrades to the staged-tree check in build_release.
+  #
+  # zipinfo output is captured first and matched in shell. Piping zipinfo into
+  # `grep -q` is the issue #44 failure class again: grep exits at the first
+  # match, zipinfo takes SIGPIPE, and `set -o pipefail` reports 141, which this
+  # `if` reads as "no symlink". Whether the race resolves in grep's favour
+  # depends on how much output zipinfo still has buffered, so the guard
+  # rejected a symlink only intermittently.
   if command -v zipinfo >/dev/null 2>&1; then
-    if zipinfo "$zip_path" 2>/dev/null | grep -q '^l'; then
+    local zipinfo_out symlink_line symlink_entry
+    symlink_entry=''
+    zipinfo_out="$(zipinfo "$zip_path" 2>/dev/null || true)"
+    while IFS= read -r zipinfo_line; do
+      case "$zipinfo_line" in
+        l*) symlink_entry="$zipinfo_line"; break ;;
+      esac
+    done <<<"$zipinfo_out"
+    if [ -n "$symlink_entry" ]; then
       echo "ERROR: ZIP contains a symlink entry" >&2
-      zipinfo "$zip_path" 2>/dev/null | grep '^l' | sed 's/^/  /' >&2
+      printf '  %s\n' "$symlink_entry" >&2
       return 1
     fi
   fi
