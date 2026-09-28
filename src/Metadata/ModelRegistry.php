@@ -51,10 +51,12 @@ final class ModelRegistry {
 	/**
 	 * Known non-chat endpoint families with no verified transport.
 	 *
-	 * Single source of truth for the endpoint-family deny table; consulted
-	 * by endpointFamily() and by EndpointRoute before any HTTP send so
-	 * future Responses/Messages/SystemOne models fail closed to a clear
-	 * rejection instead of being misrouted to chat/completions.
+	 * This is the single source of truth for *named* non-chat families, so a
+	 * denial can say which family was rejected instead of leaking a sentinel.
+	 * It is not the enforcement point: `EndpointRoute::PATHS` is a
+	 * chat-only allowlist and remains the gate that fails every unknown or
+	 * unlisted family closed. Adding a family here improves the diagnostic;
+	 * omitting one still fails closed.
 	 *
 	 * @var list<string>
 	 */
@@ -66,7 +68,15 @@ final class ModelRegistry {
 	);
 
 	/**
-	 * Whether an endpoint family is denied (no verified transport).
+	 * Sentinel endpoint family for allowlisted models whose documented family
+	 * is not implemented by this adapter.
+	 *
+	 * @var string
+	 */
+	public const ENDPOINT_FAMILY_UNSUPPORTED = 'unsupported';
+
+	/**
+	 * Whether an endpoint family is a known, named non-chat family.
 	 *
 	 * @param string $family Endpoint family name.
 	 * @return bool
@@ -83,11 +93,8 @@ final class ModelRegistry {
 	 * @return string
 	 */
 	private static function endpointFamily( string $id, string $catalog ): string {
-		if ( self::isUnsupportedFamily( $id ) ) {
-			return 'unsupported';
-		}
 		if ( 'zen' === $catalog && in_array( $id, self::UNSUPPORTED_ZEN_MODELS, true ) ) {
-			return 'unsupported';
+			return self::ENDPOINT_FAMILY_UNSUPPORTED;
 		}
 		return self::ENDPOINT_FAMILY;
 	}
