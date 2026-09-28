@@ -29,6 +29,19 @@ verify_zip() {
     return 1
   fi
 
+  # Reject symlink entries. A published plugin needs none, and a stored
+  # symlink is how a ZIP-based install escapes the plugin directory or
+  # re-points a file at content from outside the archive. zipinfo marks
+  # them with a leading "l" in the permissions column; when zipinfo is
+  # unavailable this degrades to the staged-tree check in build_release.
+  if command -v zipinfo >/dev/null 2>&1; then
+    if zipinfo "$zip_path" 2>/dev/null | grep -q '^l'; then
+      echo "ERROR: ZIP contains a symlink entry" >&2
+      zipinfo "$zip_path" 2>/dev/null | grep '^l' | sed 's/^/  /' >&2
+      return 1
+    fi
+  fi
+
   for required in "${REQUIRED_ENTRIES[@]}"; do
     grep -Fxq -- "$required" "$zip_list" || {
       echo "ERROR: $required missing in ZIP" >&2
@@ -126,9 +139,25 @@ build_release() {
     --exclude="scripts/" \
     "${root_dir}/" "${BUILD_DIR}/${PLUGIN_SLUG}/"
 
+  # Reject symlinks in the staged tree BEFORE zipping.
+  #
+  # `rsync -a` preserves symlinks, and `zip -r` (without -y) dereferences
+  # them: it writes the *contents of the link target* into the archive. A
+  # symlink committed anywhere in the plugin tree would therefore silently
+  # copy its target into a public WordPress.org release. A published plugin
+  # has no legitimate use for symlinks, so refuse to build one.
+  local staged_symlinks
+  staged_symlinks="$(find "${BUILD_DIR}/${PLUGIN_SLUG}" -type l -print 2>/dev/null)"
+  if [ -n "$staged_symlinks" ]; then
+    echo "ERROR: staged release tree contains symlinks, which zip would dereference:" >&2
+    printf '%s\n' "$staged_symlinks" | sed 's/^/  /' >&2
+    rm -rf "$BUILD_DIR"
+    return 1
+  fi
+
   echo "==> Creating release ZIP: ${zip_name}..."
   rm -f "$zip_path"
-  ( cd "$BUILD_DIR" && zip -qr "$zip_path" "$PLUGIN_SLUG" )
+  ( cd "$BUILD_DIR" && zip -qry "$zip_path" "$PLUGIN_SLUG" )
   test -f "$zip_path" || { echo "ERROR: ZIP not created at $zip_path" >&2; return 1; }
 
   echo "==> Verifying ZIP contents..."

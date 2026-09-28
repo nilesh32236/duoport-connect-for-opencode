@@ -15,6 +15,9 @@ on:
       - '.github/scripts/*.php'
       - '.github/scripts/*.sh'
       - 'tests/Unit/*.sh'
+      - 'scripts/build-release.sh'
+      - '.distignore'
+      - '.gitignore'
       - '.github/reviewer-dependency.json'
   pull_request:
     branches: ["main", "master"]
@@ -29,6 +32,9 @@ on:
       - '.github/scripts/*.php'
       - '.github/scripts/*.sh'
       - 'tests/Unit/*.sh'
+      - 'scripts/build-release.sh'
+      - '.distignore'
+      - '.gitignore'
       - '.github/reviewer-dependency.json'
 
 permissions:
@@ -79,3 +85,54 @@ jobs:
 
       - name: PHP compatibility (8.2+)
         run: vendor/bin/phpcs --standard=PHPCompatibilityWP --runtime-set testVersion 8.2- --ignore=vendor/*,.github/* .
+
+  # Packaging is verified on every PR that can change it. The guards that
+  # decide what may ship (forbidden artifacts, path traversal, symlinks,
+  # conflict markers, missing required entries) otherwise only ran locally,
+  # so a regression could reach a release tag unnoticed.
+  #
+  # Read-only with respect to the release process: this job builds the ZIP and
+  # inspects it. It does not tag, publish, or deploy. Release packaging and
+  # publication stay in release.yml.
+  release-package:
+    name: Release package verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@b604ade2a87db23f8871b7182e69ec5e75effb45 # v2
+        with:
+          php-version: "8.2"
+          extensions: mbstring
+          tools: composer:v2
+
+      - name: Install Dependencies
+        run: composer install --no-progress --prefer-dist
+
+      # Runs the guard fixtures directly so a broken guard is reported as a
+      # test failure, rather than being masked by the real build below.
+      - name: Release packaging contract
+        run: bash tests/Unit/release-build-contract.sh
+
+      - name: Build and verify the release package
+        run: |
+          set -euo pipefail
+          ./scripts/build-release.sh
+          zip_file="duoport-connect-for-opencode-$(grep 'Version:' duoport-connect-for-opencode.php | awk '{print $NF}' | tr -d '\r').zip"
+          test -f "$zip_file"
+          unzip -t "$zip_file" >/dev/null
+          echo "verified: $zip_file"
+
+      # An artifact for inspection only. Nothing here is published.
+      - name: Upload the verified package for inspection
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: duoport-release-package
+          path: duoport-connect-for-opencode-*.zip
+          retention-days: 7
+          if-no-files-found: error

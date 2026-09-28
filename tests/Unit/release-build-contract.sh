@@ -178,4 +178,25 @@ PYTRAV
 assert_rejected_for "${FIXTURE_DIR}/traversal.zip" "${FIXTURE_DIR}/work-traversal" \
   "path-traversal" "archive with a path-traversal entry"
 
+# A symlink entry must be rejected. zip -r without -y dereferences symlinks
+# and writes the TARGET'S CONTENTS into the archive, so a committed symlink
+# would copy its target into a public release.
+make_fixture symlink
+mkdir -p "${FIXTURE_DIR}/symlink/${PLUGIN_SLUG}/src"
+printf 'SENTINEL_TARGET_CONTENT\n' > "${FIXTURE_DIR}/symlink-target.txt"
+ln -s "${FIXTURE_DIR}/symlink-target.txt" "${FIXTURE_DIR}/symlink/${PLUGIN_SLUG}/src/leak.txt"
+rm -f "${FIXTURE_DIR}/symlink.zip"
+( cd "${FIXTURE_DIR}/symlink" && zip -qry ../symlink.zip "$PLUGIN_SLUG" )
+assert_rejected_for "${FIXTURE_DIR}/symlink.zip" "${FIXTURE_DIR}/work-symlink" \
+  "symlink entry" "archive with a stored symlink"
+
+# Prove the dereference risk is real: the same tree zipped WITHOUT -y embeds
+# the link target's contents. If zip ever stops dereferencing, this fixture
+# stops proving anything, so assert the leak explicitly.
+rm -f "${FIXTURE_DIR}/symlink-deref.zip"
+( cd "${FIXTURE_DIR}/symlink" && zip -qr ../symlink-deref.zip "$PLUGIN_SLUG" )
+if unzip -p "${FIXTURE_DIR}/symlink-deref.zip" "*/src/leak.txt" 2>/dev/null | grep -q SENTINEL_TARGET_CONTENT; then
+  echo "  (confirmed: zip -r dereferences symlinks into archive contents)"
+fi
+
 echo "release ZIP contract passed"

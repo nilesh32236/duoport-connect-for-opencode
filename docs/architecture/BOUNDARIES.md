@@ -119,6 +119,35 @@ change unless three files were edited in lockstep. A new cached family must be
 added to `Catalog` and nowhere else; `CatalogKeysTest` pins the full key
 surface so the set cannot shrink by accident.
 
+## Release package boundary
+
+What ships is decided by `scripts/build-release.sh`, not by the working tree.
+`verify_zip()` fails the build on any of:
+
+- a forbidden `vendor/`, `tests/`, or `.firecrawl/` path;
+- a `*.jsonl` agent artifact, matched case-insensitively at any depth;
+- a path-traversal (`..`) or absolute entry;
+- a symlink entry;
+- an unresolved `<<<<<<<`, `>>>>>>>`, or `=======` conflict marker;
+- a missing required entry.
+
+Symlinks are rejected at two points. Staging rejects them before archiving,
+because `rsync -a` preserves a symlink and `zip -r` then *dereferences* it,
+writing the target's contents into the archive — a symlink anywhere in the
+tree would copy its target into a public release. `verify_zip()` rejects
+symlink entries a second time, so an archive built by any other route is
+still refused. A published plugin has no legitimate use for a symlink.
+
+Packaging is verified in CI on every change to `build-release.sh`,
+`.distignore`, or `.gitignore`, not only at release time. That job builds and
+inspects the ZIP; it does not tag, publish, or deploy. Publication stays in
+`release.yml`.
+
+The guard tests assert the *expected diagnostic*, not merely a non-zero exit.
+A rejection fixture that only checks "it failed" also passes when the archive
+is missing or the script errors, which is how an inverted guard shipped once
+already.
+
 ## Extension-point rules
 
 - Add an interface only when there are multiple implementations, a real test seam, or a verified future transport family.
