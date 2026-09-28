@@ -68,4 +68,45 @@ final class ModelRegistryTest extends MonkeyTestCase {
 		self::assertTrue( $zen_free['free'] );
 		self::assertSame( 'zen', $zen_free['catalog'] );
 	}
+
+	/**
+	 * The published deny table names exactly the known non-chat families.
+	 *
+	 * @param string $family   Endpoint family under test.
+	 * @param bool   $expected Whether the family should be reported denied.
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider( 'unsupportedFamilyProvider' )]
+	public function test_is_unsupported_family_covers_the_published_table( string $family, bool $expected ): void {
+		self::assertSame( $expected, ModelRegistry::isUnsupportedFamily( $family ) );
+	}
+
+	/**
+	 * Deny-table fixtures.
+	 *
+	 * @return array<string, array{string, bool}>
+	 */
+	public static function unsupportedFamilyProvider(): array {
+		return array(
+			'responses'         => array( 'responses', true ),
+			'messages'          => array( 'messages', true ),
+			'systemone'         => array( 'systemone', true ),
+			'provider-specific' => array( 'provider-specific', true ),
+			'chat'              => array( 'chat', false ),
+			'unsupported'       => array( 'unsupported', false ),
+			'unknown'           => array( 'some-future-family', false ),
+			'empty'             => array( '', false ),
+		);
+	}
+
+	/**
+	 * A model id that merely looks like a family name is still chat-routed.
+	 *
+	 * Guards against comparing a model id against the family deny table.
+	 */
+	public function test_model_id_matching_a_family_name_is_not_treated_as_a_family(): void {
+		$record = ModelRegistry::record( 'responses', 'go' );
+
+		self::assertNull( $record, 'A family name is not an allowlisted model id.' );
+		self::assertFalse( ModelRegistry::isUnsupportedFamily( 'responses' ) === false );
+	}
 }

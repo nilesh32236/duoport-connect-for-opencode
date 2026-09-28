@@ -75,6 +75,17 @@ Request DTO
 
 The current implementation only has a verified chat-completions path. Responses, messages, and provider-specific model paths are not silently treated as chat. Until each family has a tested request/response adapter, it must be rejected with a clear unsupported-endpoint result. The eventual transport contract should be small (for example, a `supports()`/`send()` pair) and should not become a generic HTTP framework.
 
+`EndpointRoute::PATHS` is the enforcing gate: a chat-only allowlist, so any
+family that is not a key there fails closed before transport.
+`ModelRegistry::UNSUPPORTED_FAMILIES` is the published deny table for *named*
+non-chat families (`responses`, `messages`, `systemone`,
+`provider-specific`). It exists to give a denial a meaningful name, not to
+replace the allowlist: adding a family improves the diagnostic, and omitting
+one still fails closed. Allowlisted models whose documented family is not
+implemented carry the separate `ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED`
+sentinel, which is reported as "not implemented by this adapter" rather than
+being echoed back as if it were a real family name.
+
 ## Availability boundary
 
 The backend must retain a detailed value even when the WordPress interface requires a boolean:

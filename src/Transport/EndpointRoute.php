@@ -23,14 +23,43 @@ final class EndpointRoute {
 	/**
 	 * Implemented family-to-path map.
 	 *
-	 * Responses, Messages, and provider-specific transports remain denied
-	 * until their payload, parser, and authentication contracts are complete.
+	 * This chat-only allowlist is the enforcement point: every family that is
+	 * not a key here fails closed before transport, whether or not it is
+	 * named in `ModelRegistry::isUnsupportedFamily()`. Responses, Messages,
+	 * and provider-specific transports remain denied until their payload,
+	 * parser, and authentication contracts are complete.
 	 *
 	 * @var array<string, string>
 	 */
 	private const PATHS = array(
 		'chat' => 'chat/completions',
 	);
+
+	/**
+	 * Build the fail-closed message for a rejected endpoint family.
+	 *
+	 * The registry sentinel means "this model's documented family is not
+	 * implemented", which is a different fact from a named family, so it gets
+	 * its own message instead of quoting the sentinel back to the caller.
+	 *
+	 * @param string $kind Endpoint family name.
+	 * @return never
+	 * @throws UnsupportedEndpointFamilyException Always.
+	 */
+	private static function rejectFamily( string $kind ): never {
+		if ( ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === $kind ) {
+			$message = 'This model\'s documented endpoint family is not implemented by this adapter; chat/completions only.';
+		} elseif ( ModelRegistry::isUnsupportedFamily( $kind ) ) {
+			$message = sprintf( 'Endpoint family "%s" is unsupported; chat/completions only.', $kind );
+		} else {
+			// Unknown family: the chat-only allowlist still fails closed, but do
+			// not echo an unrecognised name back to the caller.
+			$message = 'Endpoint family is unsupported; chat/completions only.';
+		}
+
+		// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message, not output.
+		throw new UnsupportedEndpointFamilyException( $message );
+	}
 
 	/**
 	 * Resolve a model record's endpoint kind or fail before transport.
@@ -47,7 +76,7 @@ final class EndpointRoute {
 		}
 		$kind = (string) ( $record['endpoint_family'] ?? '' );
 		if ( ! isset( self::PATHS[ $kind ] ) ) {
-			throw new UnsupportedEndpointFamilyException( 'Model endpoint kind is unsupported.' );
+			self::rejectFamily( $kind );
 		}
 		return $kind;
 	}
@@ -73,7 +102,7 @@ final class EndpointRoute {
 	 */
 	public static function pathForEndpointKind( string $kind ): string {
 		if ( ! isset( self::PATHS[ $kind ] ) ) {
-			throw new UnsupportedEndpointFamilyException( 'Endpoint kind is unsupported.' );
+			self::rejectFamily( $kind );
 		}
 		return self::PATHS[ $kind ];
 	}
