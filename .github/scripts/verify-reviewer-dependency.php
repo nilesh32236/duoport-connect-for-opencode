@@ -73,7 +73,18 @@ $workflow_files = array_merge(
 );
 $reference_count = 0;
 foreach ($workflow_files as $file) {
-    $source = (string) file_get_contents($file);
+    // Only real action lines count. A commented-out reference, of the kind
+    // added when documenting a previous approach, is documentation rather than
+    // configuration; counting it would inflate the expected-reference total
+    // and fail CI on an explanatory line.
+    $lines = array();
+    foreach (explode("\n", (string) file_get_contents($file)) as $line) {
+        if ('' !== ltrim($line) && 0 === strpos(ltrim($line), '#')) {
+            continue;
+        }
+        $lines[] = $line;
+    }
+    $source = implode("\n", $lines);
     if (preg_match_all('/uses:\s*nilesh32236\/opencode-ai-reviewer@([^\s#]+)/', $source, $matches)) {
         foreach ($matches[1] as $used_ref) {
             ++$reference_count;
@@ -82,10 +93,11 @@ foreach ($workflow_files as $file) {
             }
         }
     }
-    // A stale trailing "# vX.Y.Z" comment would claim a version the floating
-    // ref no longer corresponds to, which is exactly the drift this manifest
-    // used to prevent. Reject it so the comment cannot outlive the pin.
-    if (preg_match('/uses:\s*nilesh32236\/opencode-ai-reviewer@\S+\s+#\s*\S/', $source)) {
+    // A trailing "# vX.Y.Z" comment would claim a version the floating ref no
+    // longer corresponds to, which is exactly the drift this manifest used to
+    // prevent. Only version-shaped comments are rejected, so a genuine note
+    // beside the reference is still allowed.
+    if (preg_match('/uses:\s*nilesh32236\/opencode-ai-reviewer@\S+\s+#\s*v?\d/i', $source)) {
         $errors[] = basename($file) . ' reviewer reference carries a stale version comment';
     }
 }

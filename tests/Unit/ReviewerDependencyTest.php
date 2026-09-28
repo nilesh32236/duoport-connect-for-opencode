@@ -234,6 +234,46 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * A commented-out reference is documentation, not configuration.
+	 *
+	 * Documenting a superseded pin in a comment is normal practice. Counting
+	 * that line would inflate the expected-reference total and fail CI on an
+	 * explanatory line, so the scan must ignore YAML comments.
+	 */
+	public function test_verifier_ignores_commented_out_references(): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$workflow = $root . '/.github/workflows/ai-review.yml';
+			file_put_contents( $workflow, (string) file_get_contents( $workflow )
+				. "\n      # superseded: uses: nilesh32236/opencode-ai-reviewer@" . str_repeat( 'e', 40 ) . " # v1.22.0\n" );
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertSame( 0, $status, implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
+	 * A non-version comment beside the reference must be allowed.
+	 */
+	public function test_verifier_allows_a_non_version_comment(): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$workflow = $root . '/.github/workflows/ai-review.yml';
+			file_put_contents( $workflow, (string) file_get_contents( $workflow )
+				. "\n        # keep in sync with daily-audit.yml\n" );
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertSame( 0, $status, implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
 	 * The removed updater must not come back with no driver.
 	 *
 	 * Its helper scripts wrote to the repository. Half of that machinery
