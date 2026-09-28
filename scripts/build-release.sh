@@ -29,13 +29,37 @@ verify_zip() {
     return 1
   fi
 
-  # Reject credential-shaped files. A published plugin must contain none:
+  # Reject credential-shaped entries. A published plugin must contain none:
   # anything added to the tree for local testing would otherwise ship, and a
-  # release ZIP is the worst possible place for a key. This is a filename
-  # gate only; it never opens or logs file contents.
-  if grep -Eiq '(^|/)(\.env($|\.)|.*\.(pem|key|p12|pfx|jks|keystore)$|id_rsa|id_dsa|id_ecdsa|id_ed25519|\.npmrc|\.netrc|credentials(\.json|$)|\.htpasswd)' "$zip_list"; then
+  # release ZIP is the worst possible place for a key.
+  #
+  # Matching is done on the basename with shell patterns rather than one
+  # unanchored regex. A regex either under-rejects (missing `.env/`
+  # directories, `.envrc`, `credentials.php`) or over-rejects (an unanchored
+  # `id_rsa` alternative also matches a path like `Utils/GridRsaHelper.php`).
+  # Basename patterns are exact in both directions.
+  #
+  # This is a filename gate only. It never opens, reads, or logs contents.
+  local entry base credential_hits
+  credential_hits=''
+  while IFS= read -r entry; do
+    [ -n "$entry" ] || continue
+    base="${entry##*/}"
+    base="${base%/}"
+    case "$base" in
+      .env | .env.* | .envrc | .npmrc | .netrc | .htpasswd )
+        credential_hits="${credential_hits}${entry}"$'\n' ;;
+      credentials | credentials.* )
+        credential_hits="${credential_hits}${entry}"$'\n' ;;
+      *.pem | *.key | *.p12 | *.pfx | *.jks | *.keystore )
+        credential_hits="${credential_hits}${entry}"$'\n' ;;
+      id_rsa | id_rsa.* | id_dsa | id_dsa.* | id_ecdsa | id_ecdsa.* | id_ed25519 | id_ed25519.* )
+        credential_hits="${credential_hits}${entry}"$'\n' ;;
+    esac
+  done < "$zip_list"
+  if [ -n "$credential_hits" ]; then
     echo "ERROR: ZIP contains a credential-shaped file:" >&2
-    grep -Eiq '(^|/)(\.env($|\.)|.*\.(pem|key|p12|pfx|jks|keystore)$|id_rsa|id_dsa|id_ecdsa|id_ed25519|\.npmrc|\.netrc|credentials(\.json|$)|\.htpasswd)' "$zip_list" | sed 's/^/  /' >&2
+    printf '%s' "$credential_hits" | sed 's/^/  /' >&2
     return 1
   fi
 
@@ -52,7 +76,7 @@ verify_zip() {
   # depends on how much output zipinfo still has buffered, so the guard
   # rejected a symlink only intermittently.
   if command -v zipinfo >/dev/null 2>&1; then
-    local zipinfo_out symlink_line symlink_entry
+    local zipinfo_out zipinfo_line symlink_entry
     symlink_entry=''
     zipinfo_out="$(zipinfo "$zip_path" 2>/dev/null || true)"
     while IFS= read -r zipinfo_line; do

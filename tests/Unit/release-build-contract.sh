@@ -201,12 +201,13 @@ rm -f "${FIXTURE_DIR}/symlink.zip"
 assert_rejected_for "${FIXTURE_DIR}/symlink.zip" "${FIXTURE_DIR}/work-symlink" \
   "symlink entry" "archive with a stored symlink"
 
-# Many entries plus a symlink. zipinfo buffers far more output here, so the
-# old `zipinfo | grep -q` form reliably lost the race: grep exited at the
-# first match, zipinfo took SIGPIPE, and `set -o pipefail` turned that into
-# "no symlink". The guard rejected a symlink only intermittently, which made
-# the contract flaky rather than reliably wrong. This fixture is
-# deterministic: the old form fails it every time.
+# Many entries plus a symlink, to widen the window in which the old
+# `zipinfo | grep -q` form lost the race: grep exited at the first match,
+# zipinfo took SIGPIPE, and `set -o pipefail` turned that into "no symlink".
+# Measured against the old form, this fixture failed 4 runs in 5. It is not
+# deterministic, and neither was the guard: the residual pass is the race.
+# The leak.txt entry is written last so it appears last in zipinfo output,
+# which is the case that most favours the old form.
 make_fixture symlink-bulk
 mkdir -p "${FIXTURE_DIR}/symlink-bulk/${PLUGIN_SLUG}/src"
 for i in $(seq 1 400); do printf 'padding entry %s\n' "$i" > "${FIXTURE_DIR}/symlink-bulk/${PLUGIN_SLUG}/src/entry-$i.txt"; done
@@ -227,7 +228,10 @@ fi
 
 # Credential-shaped filenames must never ship. The gate is a filename check
 # only; it must not reject an ordinary plugin file.
-for credential in .env server.pem private.key id_rsa .npmrc credentials.json .env.production; do
+for credential in .env .env.production .envrc .npmrc .netrc .htpasswd \
+                  credentials credentials.json credentials.php \
+                  server.pem private.key store.p12 cert.pfx my.jks app.keystore \
+                  id_rsa id_rsa.pub id_ed25519; do
   safe="$(printf '%s' "$credential" | tr -c 'A-Za-z0-9' '_')"
   make_fixture "cred-$safe"
   : > "${FIXTURE_DIR}/cred-$safe/${PLUGIN_SLUG}/${credential}"
@@ -236,5 +240,17 @@ for credential in .env server.pem private.key id_rsa .npmrc credentials.json .en
   assert_rejected_for "${FIXTURE_DIR}/cred-$safe.zip" "${FIXTURE_DIR}/work-cred-$safe" \
     "credential-shaped file" "archive containing $credential"
 done
+
+# The credential gate must not over-reject. An unanchored `id_rsa`
+# alternative also matches paths like `Utils/GridRsaHelper.php`, which is a
+# legitimate plugin filename; the gate matches basenames for that reason.
+make_fixture credential-lookalikes
+mkdir -p "${FIXTURE_DIR}/credential-lookalikes/${PLUGIN_SLUG}/src/Utils"
+for lookalike in GridRsaHelper.php id_rsa_helper.php valid_dsa_notes.md keychain.txt environment.php; do
+  : > "${FIXTURE_DIR}/credential-lookalikes/${PLUGIN_SLUG}/src/Utils/${lookalike}"
+done
+rm -f "${FIXTURE_DIR}/credential-lookalikes.zip"
+( cd "${FIXTURE_DIR}/credential-lookalikes" && zip -qr ../credential-lookalikes.zip "$PLUGIN_SLUG" )
+verify_zip "${FIXTURE_DIR}/credential-lookalikes.zip" "${FIXTURE_DIR}/work-credential-lookalikes" >/dev/null
 
 echo "release ZIP contract passed"

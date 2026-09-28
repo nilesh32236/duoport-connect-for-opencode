@@ -128,14 +128,21 @@ What ships is decided by `scripts/build-release.sh`, not by the working tree.
 - a `*.jsonl` agent artifact, matched case-insensitively at any depth;
 - a path-traversal (`..`) or absolute entry;
 - a symlink entry;
-- a credential-shaped filename (`.env*`, `*.pem`, `*.key`, `id_rsa*`,
-  `*.p12`, `.npmrc`, `.netrc`, `credentials.json`, `.htpasswd`);
+- a credential-shaped filename: `.env`, `.env.*`, `.envrc`, `credentials`,
+  `credentials.*`, `*.pem`, `*.key`, `*.p12`, `*.pfx`, `*.jks`,
+  `*.keystore`, `id_rsa`/`id_dsa`/`id_ecdsa`/`id_ed25519` with any suffix,
+  `.npmrc`, `.netrc`, `.htpasswd`;
 - an unresolved `<<<<<<<`, `>>>>>>>`, or `=======` conflict marker;
 - a missing required entry.
 
-The credential gate is a filename check only. It never opens or logs file
-contents, and it exists because a release ZIP is the worst possible place for
-a key: anything added to the tree for local testing would otherwise ship.
+The credential gate matches the *basename* with shell patterns rather than one
+unanchored regex, because a regex under-rejects in the unsafe direction (it
+misses `.env/` directory entries, `.envrc`, and `credentials.php`) or
+over-rejects in the safe direction (an unanchored `id_rsa` alternative also
+matches a legitimate path such as `Utils/GridRsaHelper.php`). It is a
+filename check only and never opens or logs file contents; it exists because
+a release ZIP is the worst possible place for a key, and anything added to the
+tree for local testing would otherwise ship.
 
 Symlinks are rejected at two points, and the archiving mode is part of the
 defence. Plain `zip -r` *dereferences* a symlink and writes the target's
@@ -151,8 +158,8 @@ use for a symlink.
 The archive symlink check uses `zipinfo` and degrades to skipped when
 Info-ZIP is unavailable; the staging check has no such dependency.
 
-Packaging is verified in CI on every change to `build-release.sh`,
-`.distignore`, or `.gitignore`, not only at release time. That job builds and
+Packaging is verified in CI on every change to `build-release.sh` or
+`.distignore`, not only at release time. That job builds and
 inspects the ZIP; it does not tag, publish, or deploy. Publication stays in
 `release.yml`.
 
