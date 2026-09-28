@@ -84,11 +84,14 @@ configured
 verified
 usable
 state: not_configured | verified | invalid_key | no_credits |
-       rate_limited | free_tier_limit | network_error | server_error |
-       unsupported_model | unsupported_endpoint | unsupported_capability | unknown
+       rate_limited | free_tier_limit | uncheckable | network_error |
+       server_error | unsupported_model | unsupported_endpoint |
+       unsupported_capability | unknown
 ```
 
 `isConfigured()` may remain a compatibility projection. Settings may simplify the value for display, but must not collapse diagnostics before the backend result is produced. Probe responses must be cached briefly, must use the smallest safe request, and must never log the request authorization header.
+
+A could-not-be-checked outcome (5xx, transport failure, concurrent probe) is reported as `uncheckable` with `configured=false` and `verified=false`. It is never cached as the connection result and never clears the transient-only last-known-good flag; it is cached for one short window only so a persistent outage costs one probe per window instead of one probe per call. Quota outcomes are never `uncheckable`: 429 maps to `rate_limited` or `free_tier_limit`, and 401 with a credits error maps to `no_credits`. Only a proven invalid or missing key reports not configured.
 
 ## Extension-point rules
 
