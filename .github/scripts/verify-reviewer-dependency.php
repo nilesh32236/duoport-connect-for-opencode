@@ -72,6 +72,10 @@ $workflow_files = array_merge(
     glob($workflow_dir . '/*.yaml') ?: array()
 );
 $reference_count = 0;
+$workflow_sources = array();
+foreach ($workflow_files as $file) {
+    $workflow_sources[$file] = (string) file_get_contents($file);
+}
 foreach ($workflow_files as $file) {
     // Only real action lines count. A commented-out reference, of the kind
     // added when documenting a previous approach, is documentation rather than
@@ -113,7 +117,7 @@ if (4 !== $reference_count) {
 $readback_marker = '      - name: Record the reviewer main at run start';
 $readback_bodies = array();
 foreach ($workflow_files as $file) {
-    $text = (string) file_get_contents($file);
+    $text = $workflow_sources[$file];
     $offset = 0;
     while (false !== ($position = strpos($text, $readback_marker, $offset))) {
         // Double quotes: PHP single quotes do not expand \n, which would make
@@ -132,6 +136,14 @@ if (4 !== count($readback_bodies)) {
         if ($body !== $first) {
             $errors[] = 'reviewer revision read-back copy ' . ($index + 2) . ' has drifted from the first';
         }
+
+    // The read-back only reads a public repository, so it must use the default
+    // token. The PAT carries broader scope and is reserved for the reviewer's
+    // own write operations; a uniform copy using it would otherwise expose a
+    // wider credential for no gain.
+    if (str_contains($first, 'secrets.GH_PAT') || !str_contains($first, 'GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}')) {
+        $errors[] = 'reviewer revision read-back must use the default GITHUB_TOKEN, not the PAT';
+    }
     }
 }
 
@@ -140,7 +152,8 @@ $graph_path = $root . '/docs/architecture/DEPENDENCY-GRAPH.json';
 if (!is_file($graph_path)) {
     $errors[] = 'docs/architecture/DEPENDENCY-GRAPH.json is missing';
 } else {
-    $graph = json_decode((string) file_get_contents($graph_path), true);
+    $graph_text = (string) file_get_contents($graph_path);
+    $graph = json_decode($graph_text, true);
     if (!is_array($graph)) {
         $errors[] = 'DEPENDENCY-GRAPH.json is not valid JSON';
     } else {
@@ -161,7 +174,6 @@ if (!is_file($graph_path)) {
                 }
             }
         }
-        $graph_text = (string) file_get_contents($graph_path);
         foreach (array('reviewer-update.yml', 'update-opencode-reviewer.php', 'reviewer-pr-guard.sh') as $removed) {
             if (str_contains($graph_text, $removed)) {
                 $errors[] = "DEPENDENCY-GRAPH.json still references the removed {$removed}";
@@ -186,9 +198,10 @@ foreach (array(
     }
 }
 
-$review_source = (string) file_get_contents($workflow_dir . '/ai-review.yml');
-$audit_source = (string) file_get_contents($workflow_dir . '/daily-audit.yml');
-$research_source = (string) file_get_contents($workflow_dir . '/research-monitor.yml');
+// Reuse the sources read above rather than reading each file again.
+$review_source = $workflow_sources[$workflow_dir . '/ai-review.yml'] ?? '';
+$audit_source = $workflow_sources[$workflow_dir . '/daily-audit.yml'] ?? '';
+$research_source = $workflow_sources[$workflow_dir . '/research-monitor.yml'] ?? '';
 $setup_source = (string) file_get_contents($root . '/.github/scripts/setup-opencode.sh');
 $reviewer_counts = array(
     'ai-review.yml' => 3,

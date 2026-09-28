@@ -416,6 +416,14 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		// jobs API cannot confirm because it redacts the resolved ref.
 		self::assertStringContainsString( 'at the start of this run', $step_marker_source = $review );
 
+		// The read-back only reads a public repository, so it must not use the
+		// broader PAT. The reviewer action itself still does; that is separate.
+		$token_start = strpos( $review, '      - name: Record the reviewer main at run start' );
+		$token_end = strpos( $review, '      - name:', $token_start + 10 );
+		$readback = substr( $review, $token_start, false === $token_end ? null : $token_end - $token_start );
+		self::assertStringContainsString( 'GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}', $readback );
+		self::assertStringNotContainsString( 'secrets.GH_PAT', $readback, 'the public read-back must not use the broader PAT' );
+
 		// Scope the fail-closed assertion to the read-back step itself. Other
 		// steps legitimately mask errors on best-effort label and PR edits,
 		// so a whole-file check would either pass vacuously or force those

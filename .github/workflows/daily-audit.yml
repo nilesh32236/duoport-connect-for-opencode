@@ -133,7 +133,9 @@ jobs:
       # says nothing about which reviewer code was in play.
       - name: Record the reviewer main at run start
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          # The reviewer repository is public, so the default token is enough.
+          # The PAT is reserved for the reviewer's own write operations.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           SHA=$(gh api repos/nilesh32236/opencode-ai-reviewer/commits/main --jq .sha)
