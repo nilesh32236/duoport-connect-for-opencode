@@ -202,8 +202,8 @@ final class ConnectionDiagnostics {
 	/**
 	 * Build a server-error result.
 	 *
-	 * classify() no longer produces this state; it is retained so a legacy
-	 * cached value can still be interpreted fail-open by callers.
+	 * The classifier no longer produces this state; it is retained so a
+	 * legacy cached value can still be interpreted fail-open by callers.
 	 *
 	 * @param int $status HTTP status.
 	 * @return array<string, mixed>
