@@ -140,7 +140,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 			return null;
 		}
 		$record = ModelRegistry::record( $id, $this->catalogKey() );
-		if ( null !== $record && 'unsupported' === ( $record['endpoint_family'] ?? '' ) ) {
+		if ( null !== $record && ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === ( $record['endpoint_family'] ?? '' ) ) {
 			return null;
 		}
 		$is_image = (bool) ( $record['capabilities']['image'] ?? false );

@@ -508,6 +508,16 @@ namespace OpenCodeConnector\Tests\Unit {
 				$source,
 				'A raw $row[\'id\'] read lets an array id reach record() and throw a TypeError.'
 			);
+			self::assertStringContainsString(
+				'ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === ( $record[\'endpoint_family\'] ?? \'\' )',
+				$source,
+				'The unsupported-family filter in the consumer of ModelRegistry::record() must use the shared constant, not a bare literal, or it silently stops filtering when the constant changes.'
+			);
+			self::assertStringNotContainsString(
+				"'unsupported' === ( \$record['endpoint_family']",
+				$source,
+				'A bare literal in the unsupported-family filter goes stale the moment ENDPOINT_FAMILY_UNSUPPORTED changes, and the filter fails OPEN.'
+			);
 		}
 	}
 }
