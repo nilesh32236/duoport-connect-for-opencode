@@ -89,4 +89,49 @@ final class CatalogKeysTest extends MonkeyTestCase {
 		self::assertSame( '', Catalog::baseUrl( 'unknown' ), 'Unknown catalogs fail open to an empty base.' );
 		self::assertSame( '', Catalog::modelsUrl( 'unknown' ) );
 	}
+
+	/**
+	 * The metadata directories must resolve their slug through Catalog.
+	 *
+	 * `catalogKey()` keys every downstream lookup: `ModelRegistry::record()`
+	 * and `ModelRegistry::supports()`. A bare literal here bypasses the one
+	 * place a slug change is meant to happen, and the failure is silent. If a
+	 * slug moved in Catalog, these two would keep returning the old value, so
+	 * `ModelAllowlist::ALLOW[ <new-slug> ]` would not exist, the `?? array()`
+	 * fallback in ModelAllowlist would swallow it, and
+	 * `in_array( $id, array(), true )` would return false for every model —
+	 * blanking that catalog's entire model list with no error and no failing
+	 * test.
+	 *
+	 * The literal check comes first so a reintroduced literal fails on the
+	 * invariant that actually matters, naming the file it was found in.
+	 */
+	public function test_metadata_directories_return_the_shared_catalog_constant(): void {
+		$directories = array(
+			'OpenCodeGoModelMetadataDirectory.php'  => array(
+				'literal'   => 'go',
+				'constant'  => 'Catalog::GO',
+			),
+			'OpenCodeZenModelMetadataDirectory.php' => array(
+				'literal'   => 'zen',
+				'constant'  => 'Catalog::ZEN',
+			),
+		);
+
+		foreach ( $directories as $file => $expect ) {
+			$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Metadata/' . $file );
+
+			self::assertStringNotContainsString(
+				"return '{$expect['literal']}';",
+				$source,
+				$file . " must not return the bare '{$expect['literal']}' literal; it bypasses Catalog and blanks the catalog's model list if the slug ever changes."
+			);
+
+			self::assertStringContainsString(
+				'return ' . $expect['constant'] . ';',
+				$source,
+				$file . ' must return ' . $expect['constant'] . ' so the slug is resolved in exactly one place.'
+			);
+		}
+	}
 }

@@ -44,6 +44,6 @@ final class OpenCodeGoModelMetadataDirectory extends AbstractOpenCodeModelMetada
 	 * @return string
 	 */
 	protected function catalogKey(): string {
-		return 'go';
+		return Catalog::GO;
 	}
 }
