@@ -31,7 +31,9 @@ final class CodeQualityRatchetTest extends MonkeyTestCase {
 		$notice_at         = strpos( $readme, $notice_heading );
 		self::assertNotFalse( $changelog_at, 'Changelog heading must exist.' );
 		self::assertNotFalse( $notice_at, 'Upgrade Notice heading must exist.' );
-		self::assertLessThan( $notice_at, $changelog_at === false ? PHP_INT_MAX : $changelog_at, 'Changelog must precede Upgrade Notice.' );
+		if ( false === $changelog_at || false === $notice_at || $changelog_at >= $notice_at ) {
+			self::fail( 'Changelog must precede Upgrade Notice.' );
+		}
 		$changelog = substr( $readme, $changelog_at + strlen( $changelog_heading ), $notice_at - ( $changelog_at + strlen( $changelog_heading ) ) );
 		$notice    = substr( $readme, $notice_at + strlen( $notice_heading ) );
 		self::assertStringContainsString( '= 0.1.7 =', $changelog );
