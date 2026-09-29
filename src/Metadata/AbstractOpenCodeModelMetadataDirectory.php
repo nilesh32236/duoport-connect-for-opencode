@@ -131,12 +131,16 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	 * @return ModelMetadata|null
 	 */
 	private function metadataForRow( $row, bool $show_all, array $common_opts ): ?ModelMetadata {
-		$id = is_array( $row ) ? ( $row['id'] ?? '' ) : '';
+		// A malformed /models row can carry a non-scalar id (array/object); it is
+		// treated exactly like an absent one rather than stringified into a garbage
+		// model id that would then fail the string-typed ModelRegistry::record().
+		$raw_id = is_array( $row ) ? ( $row['id'] ?? '' ) : '';
+		$id     = is_scalar( $raw_id ) ? (string) $raw_id : '';
 		if ( ! $id ) {
 			return null;
 		}
 		$record = ModelRegistry::record( $id, $this->catalogKey() );
-		if ( null !== $record && 'unsupported' === ( $record['endpoint_family'] ?? '' ) ) {
+		if ( null !== $record && ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === ( $record['endpoint_family'] ?? '' ) ) {
 			return null;
 		}
 		$is_image = (bool) ( $record['capabilities']['image'] ?? false );

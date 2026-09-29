@@ -112,7 +112,7 @@ final class ModelRegistry {
 		}
 
 		$endpoint_family = self::endpointFamily( $id, $catalog );
-		$route_supported = 'unsupported' !== $endpoint_family;
+		$route_supported = self::ENDPOINT_FAMILY_UNSUPPORTED !== $endpoint_family;
 		$capabilities    = array(
 			'text'       => $route_supported,
 			'tools'      => $route_supported && ModelAllowlist::isToolCapable( $id, $catalog ),
@@ -127,7 +127,7 @@ final class ModelRegistry {
 			'free'                => ModelAllowlist::isFree( $id ),
 			'endpoint_family'     => $endpoint_family,
 			'capabilities'        => $capabilities,
-			'verification_status' => 'unsupported' === $endpoint_family ? 'needs-adapter' : self::VERIFICATION_STATUS,
+			'verification_status' => self::ENDPOINT_FAMILY_UNSUPPORTED === $endpoint_family ? 'needs-adapter' : self::VERIFICATION_STATUS,
 			'last_verified'       => self::LAST_VERIFIED,
 		);
 	}

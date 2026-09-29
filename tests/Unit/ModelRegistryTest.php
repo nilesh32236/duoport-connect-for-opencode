@@ -109,4 +109,39 @@ final class ModelRegistryTest extends MonkeyTestCase {
 		self::assertNull( $record, 'A family name is not an allowlisted model id.' );
 		self::assertFalse( ModelRegistry::isUnsupportedFamily( 'responses' ) === false );
 	}
+
+	/**
+	 * The route and verification guards must read the shared constant.
+	 *
+	 * These two comparisons decide whether a model is routed or denied, and
+	 * EndpointRoute.php already compares against
+	 * ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED. A bare 'unsupported' literal
+	 * here would keep matching the old value if the constant ever changed, so
+	 * a model whose family is not implemented would be routed anyway and the
+	 * fail-closed guarantee this class documents would silently disappear.
+	 */
+	public function test_unsupported_family_guards_use_the_shared_constant(): void {
+		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Metadata/ModelRegistry.php' );
+
+		self::assertStringContainsString(
+			'self::ENDPOINT_FAMILY_UNSUPPORTED !== $endpoint_family',
+			$source,
+			'The route guard must compare against ENDPOINT_FAMILY_UNSUPPORTED.'
+		);
+		self::assertStringContainsString(
+			'self::ENDPOINT_FAMILY_UNSUPPORTED === $endpoint_family',
+			$source,
+			'The verification-status guard must compare against ENDPOINT_FAMILY_UNSUPPORTED.'
+		);
+		self::assertStringNotContainsString(
+			"'unsupported' !== \$endpoint_family",
+			$source,
+			'A bare literal in the route guard goes stale the moment the constant changes.'
+		);
+		self::assertStringNotContainsString(
+			"'unsupported' === \$endpoint_family",
+			$source,
+			'A bare literal in the verification guard goes stale the moment the constant changes.'
+		);
+	}
 }
