@@ -387,7 +387,7 @@ final class ModelRadar {
 			'_is_retired'          => $is_retired,
 			'_free_name'           => $free_name,
 			'_free_explicit'       => $free_explicit,
-			'_unsupported'         => null !== $record && 'unsupported' === ( $record['endpoint_family'] ?? '' ),
+			'_unsupported'         => null !== $record && ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === ( $record['endpoint_family'] ?? '' ),
 			'_status'              => (string) ( $result['status'] ?? '' ),
 			'_states'              => array_values( array_unique( $states ) ),
 		);
@@ -468,7 +468,7 @@ final class ModelRadar {
 	 */
 	private function is_supported( ?array $record ): bool {
 		return null !== $record
-			&& 'unsupported' !== ( $record['endpoint_family'] ?? '' )
+			&& ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED !== ( $record['endpoint_family'] ?? '' )
 			&& in_array( $record['verification_status'] ?? '', self::SUPPORTED_STATUSES, true );
 	}
 
