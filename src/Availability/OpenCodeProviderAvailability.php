@@ -174,10 +174,18 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			}
 		}
 
-		$diagnosis  = null;
-		$cls        = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
+		$diagnosis = null;
+		$cls       = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
+		// HttpMethodEnum::POST() is a magic factory: the SDK declares it as an
+		// `@method static` annotation and serves it from AbstractEnum::__callStatic,
+		// so method_exists() cannot see it and is permanently false against the
+		// shipped SDK. Probe the backing constant instead, the same rule
+		// AbstractOpenCodeProvider::createProviderMetadata() applies to
+		// ProviderTypeEnum and RequestAuthenticationMethod. `url` is a real
+		// static method on AbstractApiProvider, so method_exists() is correct
+		// for it.
 		$surface_ok = class_exists( $cls ) && method_exists( $cls, 'url' )
-			&& class_exists( Request::class ) && class_exists( HttpMethodEnum::class ) && method_exists( HttpMethodEnum::class, 'POST' );
+			&& class_exists( Request::class ) && class_exists( HttpMethodEnum::class ) && defined( HttpMethodEnum::class . '::POST' );
 		if ( ! $surface_ok && null !== $diagnostics ) {
 			try {
 				$diagnosis = $diagnostics->classify( 0, null, new \RuntimeException( 'verify surface unavailable' ) );
