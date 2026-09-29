@@ -2,9 +2,9 @@
 Contributors: nilesh912
 Tags: ai, artificial-intelligence, connector, opencode, zen
 Requires at least: 7.0
-Tested up to: 7.1
+Tested up to: 7.1.2
 Requires PHP: 8.2
-Stable tag: 0.1.6
+Stable tag: 0.1.7
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -109,6 +109,13 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 == Changelog ==
 
+= 0.1.7 =
+* Fixed: credential verification now detects the WordPress AI Client HTTP method enum correctly, so valid keys are no longer treated as unverifiable because of a dynamic SDK method.
+* Improved: temporary server, transport, and rate-limit outcomes preserve the last known good configuration state; Zen free-tier limits are still recognized as a valid key.
+* Fixed: malformed model-list entries with non-scalar IDs are skipped safely instead of causing a fatal error.
+* Fixed: endpoint-family and catalog identifiers now use shared constants in the registry, metadata, and Model Radar paths.
+* CI: release verification now runs the test suite on PHP 8.2, 8.3, 8.4, and 8.5.
+
 = 0.1.6 =
 * Added two real WordPress.org screenshots for the Connectors and DuoPort Settings screens.
 * Expanded the listing with factual Go + Zen, free-model, verified-support, and WordPress AI Client sections.
@@ -135,11 +142,20 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 == Upgrade Notice ==
 
+= 0.1.7 =
+No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release improves key verification, preserves the last known good state during temporary provider failures, and safely ignores malformed model-list entries.
+
 = 0.1.6 =
 No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged; this release publishes the verified listing screenshots and documentation improvements.
 
 = 0.1.5 =
 No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged.
+
+= 0.1.4 =
+Added `deepseek-v4.1-flash` to the Go catalog and fixed key validation so valid Go/Zen keys are accepted. Adds an image-generation path behind a per-catalog allowlist with no image models enabled, so text generation is unaffected.
+
+= 0.1.3 =
+Removed hy3-free and laguna-s-2.1-free from the Zen catalog; OpenCode retired both from the API.
 
 = 0.1.2 =
 Go and Zen now use separate API key fields. After updating, re-enter your opencode.ai key in both fields on Settings → Connectors.
