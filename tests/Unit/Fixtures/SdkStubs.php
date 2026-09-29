@@ -15,8 +15,48 @@ namespace WordPress\AiClient\Providers\Http\Enums {
 	if ( ! class_exists( \WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum::class ) ) {
 		/**
 		 * Minimal HTTP method stub.
+		 *
+		 * Models the shipped SDK shape on purpose: the real
+		 * `HttpMethodEnum` extends `AbstractEnum`, declares each verb as a
+		 * real backing constant, and exposes `POST()` only as an
+		 * `@method static` annotation served by `AbstractEnum::__callStatic()`.
+		 * A stub that instead declared `public static function POST()` made
+		 * `method_exists( HttpMethodEnum::class, 'POST' )` return true here
+		 * while it is false against the real SDK, which hid a production-only
+		 * breakage of `OpenCodeProviderAvailability::verify()` from CI.
+		 *
+		 * @method static self GET()
+		 * @method static self POST()
+		 * @method static self PUT()
+		 * @method static self PATCH()
+		 * @method static self DELETE()
+		 * @method static self HEAD()
+		 * @method static self OPTIONS()
 		 */
 		final class HttpMethodEnum {
+			public const GET     = 'GET';
+			public const POST    = 'POST';
+			public const PUT     = 'PUT';
+			public const PATCH   = 'PATCH';
+			public const DELETE  = 'DELETE';
+			public const HEAD    = 'HEAD';
+			public const OPTIONS = 'OPTIONS';
+
+			/**
+			 * Known verbs, keyed by constant name.
+			 *
+			 * @var array<string, string>
+			 */
+			private const VERBS = array(
+				'GET'     => self::GET,
+				'POST'    => self::POST,
+				'PUT'     => self::PUT,
+				'PATCH'   => self::PATCH,
+				'DELETE'  => self::DELETE,
+				'HEAD'    => self::HEAD,
+				'OPTIONS' => self::OPTIONS,
+			);
+
 			/**
 			 * Constructor.
 			 *
@@ -26,12 +66,21 @@ namespace WordPress\AiClient\Providers\Http\Enums {
 			}
 
 			/**
-			 * POST method.
+			 * Serve the magic static factories, mirroring AbstractEnum.
 			 *
+			 * @param string       $name      Factory name.
+			 * @param array<mixed> $arguments Factory arguments (unused).
 			 * @return self
+			 * @throws \BadMethodCallException When the verb is unknown.
 			 */
-			public static function POST(): self {
-				return new self( 'POST' );
+			public static function __callStatic( string $name, array $arguments ): self {
+				$constant = strtoupper( $name );
+				if ( ! isset( self::VERBS[ $constant ] ) ) {
+					throw new \BadMethodCallException(
+						sprintf( 'Method %s::%s does not exist', self::class, $name )
+					);
+				}
+				return new self( self::VERBS[ $constant ] );
 			}
 
 			/**
