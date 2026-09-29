@@ -22,6 +22,7 @@ if (!is_array($manifest)) {
 }
 
 $reviewer_ref = (string) ($manifest['reviewer_ref'] ?? '');
+$reviewer_ref_kind = (string) ($manifest['reviewer_ref_kind'] ?? '');
 $cli = $manifest['opencode_cli'] ?? array();
 $cli_version = (string) ($cli['version'] ?? '');
 $errors = array();
@@ -35,9 +36,6 @@ if (!is_file($manifest_validator)) {
     if (0 !== $validation_status) {
         $errors[] = 'manifest schema validation failed: ' . implode('; ', $validation_output);
     }
-}
-if ('main' !== $reviewer_ref) {
-    $errors[] = 'reviewer_ref must be the reviewer main branch';
 }
 if ('v1.18.31' !== $cli_version) {
     $errors[] = 'opencode_cli.version must remain the checksum-verified v1.18.31';
@@ -108,13 +106,20 @@ foreach ($workflow_files as $file) {
             }
         }
     }
-    // A trailing "# vX.Y.Z" comment would claim a version the floating ref no
-    // longer corresponds to, which is exactly the drift this manifest used to
-    // prevent. Only version-shaped comments are rejected, so a genuine note
-    // beside the reference is still allowed.
-    if (preg_match('/uses:\s*nilesh32236\/opencode-ai-reviewer@\S+\s+#\s*v?\d/i', $source)) {
-        $errors[] = basename($file) . ' reviewer reference carries a stale version comment';
-    }
+}
+// The reviewer action runs with a repo-scoped PAT, GITHUB_TOKEN and three
+// provider API keys, so the ref that selects its code is a privilege boundary.
+// A branch or tag ref is mutable by anyone with write or release rights on the
+// reviewer repository, which would let an unreviewed upstream push execute here
+// with duoport's credentials. The manifest ref must therefore be an exact
+// commit SHA: content-addressed, unrepointable, and reproducible across runs.
+// A trailing "# vX.Y.Z" style comment beside a SHA pin is informative rather
+// than a stale claim, so it is allowed.
+if (1 !== preg_match('/^[a-f0-9]{40}$/', $reviewer_ref)) {
+    $errors[] = 'reviewer_ref must be an exact 40-character lowercase hex commit SHA; a branch or tag ref is mutable and can execute unreviewed reviewer code with write-capable credentials';
+}
+if ('commit-sha' !== $reviewer_ref_kind) {
+    $errors[] = 'reviewer_ref_kind must be commit-sha; the pin must not silently regress to a branch or a tag';
 }
 if (4 !== $reference_count) {
     $errors[] = "expected four reviewer action references, found {$reference_count}";
@@ -352,7 +357,7 @@ foreach (array(
     '.github/scripts/reviewer-pr-guard.sh',
 ) as $removed) {
     if (file_exists($root . '/' . $removed)) {
-        $errors[] = "{$removed} must stay removed while the reviewer ref is floating";
+        $errors[] = "{$removed} must stay removed; the reviewer ref is pinned, so no updater may rewrite it";
     }
 }
 
@@ -487,4 +492,4 @@ if ($errors) {
     exit(1);
 }
 
-echo "Reviewer dependency contract valid: {$reviewer_ref} (floating); OpenCode {$cli_version}\n";
+echo "Reviewer dependency contract valid: {$reviewer_ref} (pinned commit-sha); OpenCode {$cli_version}\n";

@@ -41,17 +41,17 @@ $expect = static function (bool $condition, string $message) use (&$errors): voi
     }
 };
 $expect(($manifest['reviewer_repository'] ?? null) === 'nilesh32236/opencode-ai-reviewer', 'reviewer_repository is not the approved repository');
-// The reviewer action tracks a floating branch, so there is no release tag or
-// commit to validate here. What is validated instead is that the recorded ref
-// is the one the workflows actually use, and that the retired release fields
-// have not crept back in: a manifest that still carried release_commit would
-// imply a pin that no longer exists.
+// The reviewer action is pinned to an exact commit SHA. The pin is asserted
+// structurally here — a lowercase 40-character hex SHA and kind `commit-sha` —
+// because that is what makes it unrepointable; the workflows are checked
+// against it separately by verify-reviewer-dependency.php, which fails closed
+// if any `uses:` line drifts from the manifest.
 $expect(is_string($manifest['reviewer_ref'] ?? null) && '' !== $manifest['reviewer_ref'], 'reviewer_ref must be a non-empty string');
-$expect(($manifest['reviewer_ref'] ?? null) === 'main', 'reviewer_ref must be the reviewer main branch');
-$expect(($manifest['reviewer_ref_kind'] ?? null) === 'floating-branch', 'reviewer_ref_kind must be floating-branch');
-$expect(is_string($manifest['reviewer_ref_note'] ?? null) && '' !== trim($manifest['reviewer_ref_note']), 'reviewer_ref_note must explain the floating ref and its trade-off');
+$expect(is_string($manifest['reviewer_ref'] ?? null) && preg_match('/^[a-f0-9]{40}$/', (string) $manifest['reviewer_ref']) === 1, 'reviewer_ref must be an exact 40-character lowercase hex commit SHA, not a branch or a tag');
+$expect(($manifest['reviewer_ref_kind'] ?? null) === 'commit-sha', 'reviewer_ref_kind must be commit-sha so the pin cannot silently regress to a branch or a tag');
+$expect(is_string($manifest['reviewer_ref_note'] ?? null) && '' !== trim($manifest['reviewer_ref_note']), 'reviewer_ref_note must state the reproducibility guarantee and the manual-bump procedure');
 foreach (array('release_tag', 'release_commit', 'release_published_at', 'release_url', 'updated_at') as $retired) {
-    $expect(!array_key_exists($retired, $manifest), "retired field {$retired} must not remain while the reviewer ref is floating");
+    $expect(!array_key_exists($retired, $manifest), "retired field {$retired} must not remain; the pin lives in reviewer_ref");
 }
 
 $cli = $manifest['opencode_cli'] ?? null;
