@@ -132,10 +132,8 @@ final class ModelAllowlist {
 	private const FREE = array(
 		'deepseek-v4-flash-free',
 		'mimo-v2.5-free',
-		'hy3-free',
 		'nemotron-3-ultra-free',
 		'nemotron-3.5-lightning-free',
-		'laguna-s-2.1-free',
 		'big-pickle',
 	);
 

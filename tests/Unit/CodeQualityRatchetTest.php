@@ -22,11 +22,24 @@ final class CodeQualityRatchetTest extends MonkeyTestCase {
 		$main = (string) file_get_contents( $root . '/duoport-connect-for-opencode.php' );
 		$readme = (string) file_get_contents( $root . '/readme.txt' );
 
-		self::assertStringContainsString( 'Version:           0.1.6', $main );
-		self::assertStringContainsString( "const VERSION     = '0.1.6';", $main );
-		self::assertStringContainsString( 'Stable tag: 0.1.6', $readme );
-		self::assertStringContainsString( '= 0.1.6 =', $readme );
-		self::assertStringContainsString( "const FALLBACK_VERSION = '0.1.6';", (string) file_get_contents( $root . '/src/Http/ClientUserAgent.php' ) );
+		self::assertStringContainsString( 'Version:           0.1.7', $main );
+		self::assertStringContainsString( "const VERSION     = '0.1.7';", $main );
+		self::assertStringContainsString( 'Stable tag: 0.1.7', $readme );
+		self::assertStringContainsString( 'Tested up to: 7.1.2', $readme );
+		$changelog_heading = '== Changelog ==';
+		$notice_heading    = '== Upgrade Notice ==';
+		$changelog_at      = strpos( $readme, $changelog_heading );
+		$notice_at         = strpos( $readme, $notice_heading );
+		self::assertNotFalse( $changelog_at, 'Changelog heading must exist.' );
+		self::assertNotFalse( $notice_at, 'Upgrade Notice heading must exist.' );
+		if ( false === $changelog_at || false === $notice_at || $changelog_at >= $notice_at ) {
+			self::fail( 'Changelog must precede Upgrade Notice.' );
+		}
+		$changelog = substr( $readme, $changelog_at + strlen( $changelog_heading ), $notice_at - ( $changelog_at + strlen( $changelog_heading ) ) );
+		$notice    = substr( $readme, $notice_at + strlen( $notice_heading ) );
+		self::assertStringContainsString( '= 0.1.7 =', $changelog );
+		self::assertStringContainsString( '= 0.1.7 =', $notice );
+		self::assertStringContainsString( "const FALLBACK_VERSION = '0.1.7';", (string) file_get_contents( $root . '/src/Http/ClientUserAgent.php' ) );
 
 		$post_release_files = array(
 			$root . '/src/Http/ClientUserAgent.php',

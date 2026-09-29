@@ -67,6 +67,8 @@ final class ModelRegistryTest extends MonkeyTestCase {
 		self::assertIsArray( $zen_free );
 		self::assertTrue( $zen_free['free'] );
 		self::assertSame( 'zen', $zen_free['catalog'] );
+		self::assertFalse( \OpenCodeConnector\Metadata\ModelAllowlist::isFree( 'hy3-free' ) );
+		self::assertFalse( \OpenCodeConnector\Metadata\ModelAllowlist::isFree( 'laguna-s-2.1-free' ) );
 	}
 
 	/**
