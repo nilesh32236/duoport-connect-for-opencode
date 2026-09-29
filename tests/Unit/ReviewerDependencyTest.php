@@ -504,16 +504,16 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 			'dropped 8.2'  => array(
 				array(
 					'label' => 'dropping 8.2 from the matrix',
-					'from'  => 'php: ["8.2", "8.3"]',
-					'to'    => 'php: ["8.3"]',
+					'from'  => 'php: ["8.2", "8.3", "8.4", "8.5"]',
+					'to'    => 'php: ["8.3", "8.4", "8.5"]',
 				),
 				1,
 			),
-			'added 8.4'    => array(
+			'added 8.6'    => array(
 				array(
 					'label' => 'extending the matrix',
-					'from'  => 'php: ["8.2", "8.3"]',
-					'to'    => 'php: ["8.2", "8.3", "8.4"]',
+					'from'  => 'php: ["8.2", "8.3", "8.4", "8.5"]',
+					'to'    => 'php: ["8.2", "8.3", "8.4", "8.5", "8.6"]',
 				),
 				0,
 			),
