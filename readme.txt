@@ -112,7 +112,6 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 = 0.1.7 =
 * Fixed: connection status could never report a valid key. The availability check tested for a method the AI Client provides dynamically, so every key showed "could not be checked".
 * Fixed: a malformed model list from the API could cause a fatal error. The affected entry is now skipped safely.
-* Pinned the bundled review integration to one exact reviewed commit, so it can no longer change without a new review.
 * Internal: the model endpoint-family check now uses one shared constant instead of repeated string literals, closing a path that could route an unsupported model.
 
 = 0.1.6 =
