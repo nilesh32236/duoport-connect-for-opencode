@@ -26,7 +26,8 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		self::assertSame( 0, $status, implode( "\n", $output ) );
 		$manifest = json_decode( (string) file_get_contents( $root . '/.github/reviewer-dependency.json' ), true );
 		self::assertIsArray( $manifest );
-		self::assertSame( 'main', (string) $manifest['reviewer_ref'] );
+		self::assertSame( 1, preg_match( '/^[a-f0-9]{40}$/', (string) $manifest['reviewer_ref'] ), 'reviewer_ref must be an exact commit SHA, not a branch or a tag' );
+		self::assertSame( 'commit-sha', (string) $manifest['reviewer_ref_kind'] );
 		self::assertStringContainsString( (string) $manifest['reviewer_ref'], implode( "\n", $output ) );
 	}
 
@@ -186,15 +187,23 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	 * it would run a different revision than the manifest describes while
 	 * still passing a casual read of the workflow.
 	 */
-	public function test_verifier_rejects_a_reintroduced_sha_pin(): void {
+	/**
+	 * A workflow ref that drifts from the pinned SHA must fail verification.
+	 *
+	 * Under the SHA pin this is the check that a bumped manifest cannot be
+	 * half-applied: all four `uses:` lines must name the pinned commit, so a
+	 * workflow left on an older or unrelated SHA fails closed.
+	 */
+	public function test_verifier_rejects_a_workflow_ref_that_drifts_from_the_pin(): void {
 		$root = $this->copy_automation_fixture();
 		try {
+			$manifest = json_decode( (string) file_get_contents( $root . '/.github/reviewer-dependency.json' ), true );
+			self::assertIsArray( $manifest );
 			$workflow = $root . '/.github/workflows/ai-review.yml';
-			file_put_contents( $workflow, preg_replace(
-				'#nilesh32236/opencode-ai-reviewer@main#',
+			file_put_contents( $workflow, str_replace(
+				'nilesh32236/opencode-ai-reviewer@' . (string) $manifest['reviewer_ref'],
 				'nilesh32236/opencode-ai-reviewer@' . str_repeat( 'c', 40 ),
-				(string) file_get_contents( $workflow ),
-				1
+				(string) file_get_contents( $workflow )
 			) );
 			$output = array();
 			$status = 0;
@@ -207,27 +216,124 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * A stale "# vX.Y.Z" comment must fail verification.
+	 * A mutable branch ref in the manifest must fail verification.
 	 *
-	 * With a floating ref the comment claims a version that the ref no longer
-	 * corresponds to, which is precisely the drift the manifest existed to
-	 * prevent. Leaving one behind is how a reader would come to believe the
-	 * dependency is pinned when it is not.
+	 * The reviewer action runs with a repo-scoped PAT, GITHUB_TOKEN and three
+	 * provider API keys. A `main` ref lets any unreviewed upstream push
+	 * execute here with those credentials, so the verifier must reject any
+	 * manifest ref that is not an exact 40-character lowercase hex SHA.
 	 */
-	public function test_verifier_rejects_a_stale_version_comment(): void {
+	public function test_verifier_rejects_a_branch_ref_in_the_manifest(): void {
 		$root = $this->copy_automation_fixture();
 		try {
-			$workflow = $root . '/.github/workflows/ai-review.yml';
-			file_put_contents( $workflow, str_replace(
-				'nilesh32236/opencode-ai-reviewer@main',
-				'nilesh32236/opencode-ai-reviewer@main # v1.22.0',
-				(string) file_get_contents( $workflow )
-			) );
+			$manifest_path = $root . '/.github/reviewer-dependency.json';
+			$manifest = json_decode( (string) file_get_contents( $manifest_path ), true );
+			self::assertIsArray( $manifest );
+			$sha = (string) $manifest['reviewer_ref'];
+			$manifest['reviewer_ref'] = 'main';
+			file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) );
+			foreach ( array( 'ai-review.yml', 'daily-audit.yml' ) as $name ) {
+				$workflow = $root . '/.github/workflows/' . $name;
+				file_put_contents( $workflow, str_replace(
+					'nilesh32236/opencode-ai-reviewer@' . $sha,
+					'nilesh32236/opencode-ai-reviewer@main',
+					(string) file_get_contents( $workflow )
+				) );
+			}
 			$output = array();
 			$status = 0;
 			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
-			self::assertNotSame( 0, $status );
-			self::assertStringContainsString( 'stale version comment', implode( "\n", $output ) );
+			self::assertNotSame( 0, $status, 'a floating branch ref must fail verification' );
+			self::assertStringContainsString( '40-character lowercase hex commit SHA', implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
+	 * A tag ref in the manifest must fail verification.
+	 *
+	 * A tag looks pinned but is not: anyone with release rights on the reviewer
+	 * repository can move or delete it, which re-opens the same hole as a
+	 * branch. Only a content-addressed commit SHA is unrepointable.
+	 */
+	public function test_verifier_rejects_a_tag_ref_in_the_manifest(): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$manifest_path = $root . '/.github/reviewer-dependency.json';
+			$manifest = json_decode( (string) file_get_contents( $manifest_path ), true );
+			self::assertIsArray( $manifest );
+			$sha = (string) $manifest['reviewer_ref'];
+			$manifest['reviewer_ref'] = 'v1.22.1';
+			file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) );
+			foreach ( array( 'ai-review.yml', 'daily-audit.yml' ) as $name ) {
+				$workflow = $root . '/.github/workflows/' . $name;
+				file_put_contents( $workflow, str_replace(
+					'nilesh32236/opencode-ai-reviewer@' . $sha,
+					'nilesh32236/opencode-ai-reviewer@v1.22.1',
+					(string) file_get_contents( $workflow )
+				) );
+			}
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status, 'a movable tag ref must fail verification' );
+			self::assertStringContainsString( '40-character lowercase hex commit SHA', implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
+	 * A floating-branch kind must fail even when the ref is a SHA.
+	 *
+	 * The kind is asserted separately so the pin cannot be quietly relaxed back
+	 * to a moving target while the ref happens to look pinned.
+	 */
+	public function test_verifier_rejects_a_non_commit_sha_ref_kind(): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$manifest_path = $root . '/.github/reviewer-dependency.json';
+			$manifest = json_decode( (string) file_get_contents( $manifest_path ), true );
+			self::assertIsArray( $manifest );
+			$manifest['reviewer_ref_kind'] = 'floating-branch';
+			file_put_contents( $manifest_path, json_encode( $manifest, JSON_PRETTY_PRINT ) );
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertNotSame( 0, $status, 'a floating-branch kind must fail verification' );
+			self::assertStringContainsString( 'reviewer_ref_kind must be commit-sha', implode( "\n", $output ) );
+		} finally {
+			$this->remove_fixture( $root );
+		}
+	}
+
+	/**
+	 * A base-version comment beside a SHA pin must be allowed.
+	 *
+	 * Under a floating ref a trailing "# vX.Y.Z" claimed a version the ref no
+	 * longer corresponded to, so the verifier rejected it. Under a SHA pin the
+	 * comment only records which reviewer baseline the commit sits on, which is
+	 * informative rather than a stale claim.
+	 */
+	public function test_verifier_allows_a_version_comment_beside_a_sha_pin(): void {
+		$root = $this->copy_automation_fixture();
+		try {
+			$manifest = json_decode( (string) file_get_contents( $root . '/.github/reviewer-dependency.json' ), true );
+			self::assertIsArray( $manifest );
+			$sha = (string) $manifest['reviewer_ref'];
+			foreach ( array( 'ai-review.yml', 'daily-audit.yml' ) as $name ) {
+				$workflow = $root . '/.github/workflows/' . $name;
+				file_put_contents( $workflow, str_replace(
+					'nilesh32236/opencode-ai-reviewer@' . $sha,
+					'nilesh32236/opencode-ai-reviewer@' . $sha . ' # v1.22.1+ad1c202',
+					(string) file_get_contents( $workflow )
+				) );
+			}
+			$output = array();
+			$status = 0;
+			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
+			self::assertSame( 0, $status, implode( "\n", $output ) );
 		} finally {
 			$this->remove_fixture( $root );
 		}
@@ -482,7 +588,7 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	 * miss. Reject the ref directly so the invariant is tested on its own.
 	 */
 	#[\PHPUnit\Framework\Attributes\DataProvider( 'invalid_refs' )]
-	public function test_verifier_rejects_a_manifest_ref_that_is_not_main( string $ref ): void {
+	public function test_verifier_rejects_a_manifest_ref_that_is_not_a_commit_sha( string $ref ): void {
 		$root = $this->copy_automation_fixture();
 		try {
 			$manifest_path = $root . '/.github/reviewer-dependency.json';
@@ -494,7 +600,7 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 			$status = 0;
 			exec( 'DUOPORT_REPO_ROOT=' . escapeshellarg( $root ) . ' php ' . escapeshellarg( $root . '/.github/scripts/verify-reviewer-dependency.php' ) . ' 2>&1', $output, $status );
 			self::assertNotSame( 0, $status, 'ref ' . $ref . ' was accepted' );
-			self::assertStringContainsString( 'reviewer_ref must be the reviewer main branch', implode( "\n", $output ) );
+			self::assertStringContainsString( '40-character lowercase hex commit SHA', implode( "\n", $output ) );
 		} finally {
 			$this->remove_fixture( $root );
 		}
@@ -507,11 +613,13 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	 */
 	public static function invalid_refs(): array {
 		return array(
-			'sha'      => array( str_repeat( 'a', 40 ) ),
 			'tag'      => array( 'v1.22.1' ),
 			'branch'   => array( 'develop' ),
+			'floating' => array( 'main' ),
 			'empty'    => array( '' ),
 			'injected' => array( 'main; rm -rf /' ),
+			'uppercase_sha' => array( strtoupper( 'ad1c202cba9023ee789a5a828835748b81896566' ) ),
+			'short_sha' => array( 'ad1c202' ),
 		);
 	}
 
@@ -656,17 +764,20 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * A floating ref is only defensible if the revision in use is observable.
+	 * Every reviewer job uses the pinned SHA and records the revision in use.
 	 *
-	 * Every job that runs the reviewer records the resolved commit for that
-	 * run. Without it, "the reference floats" means the run log cannot say what
-	 * actually executed, which is the property the old pin provided.
+	 * All four `uses:` lines must name the exact commit the manifest pins, and
+	 * every reviewer job additionally records the resolved revision so a run
+	 * log can show what actually executed.
 	 */
 	public function test_every_reviewer_job_records_the_revision_in_use(): void {
 		$root = dirname( __DIR__, 2 );
+		$manifest = json_decode( (string) file_get_contents( $root . '/.github/reviewer-dependency.json' ), true );
+		self::assertIsArray( $manifest );
+		$pinned = 'uses: nilesh32236/opencode-ai-reviewer@' . (string) $manifest['reviewer_ref'];
 		foreach ( array( 'ai-review.yml' => 3, 'daily-audit.yml' => 1 ) as $name => $expected ) {
 			$source = (string) file_get_contents( $root . '/.github/workflows/' . $name );
-			$references = substr_count( $source, 'uses: nilesh32236/opencode-ai-reviewer@main' );
+			$references = substr_count( $source, $pinned );
 			self::assertSame( $expected, $references, $name . ' reviewer reference count' );
 			self::assertSame(
 				$expected,
