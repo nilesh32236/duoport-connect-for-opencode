@@ -417,34 +417,34 @@ namespace OpenCodeConnector\Tests\Unit {
 			self::assertFalse( $availability->isConfigured(), 'Without authentication the provider is not configured.' );
 		}
 
-		/**
-		 * No unexpected upstream answer clears the last-known-good flag.
-		 *
-		 * A 401 ModelError (a model-side refusal), an unrecognised response,
-		 * and a non-auth 4xx such as the documented Go 400 MissingSessionID or
-		 * a 402/403 account limit all say nothing about the key, so they must
-		 * preserve last-known-good instead of locking a valid key out.
-		 *
-		 * @since 0.1.8
-		 *
-		 * @return void
-		 */
-		#[RunInSeparateProcess]
-		#[PreserveGlobalState( false )]
-		public function test_unexpected_upstream_states_preserve_last_known_good(): void {
-			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+	/**
+	 * No unexpected upstream answer clears the last-known-good flag.
+	 *
+	 * A 401 ModelError (a model-side refusal), an unrecognised response,
+	 * and a non-auth 4xx such as the documented Go 400 MissingSessionID or
+	 * a 402/403 account limit all say nothing about the key, so they must
+	 * preserve last-known-good instead of locking a valid key out.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return void
+	 */
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_unexpected_upstream_states_preserve_last_known_good(): void {
+		require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
 
-			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
-				define( 'MINUTE_IN_SECONDS', 60 );
-			}
+		if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+			define( 'MINUTE_IN_SECONDS', 60 );
+		}
 
-			$cases = array(
-				'model-side 401'   => array( 401, array( 'error' => array( 'type' => 'ModelError' ) ), 'probe_model_unavailable' ),
-				'body-less 401'    => array( 401, null, 'probe_model_unavailable' ),
-				'400 missing sid'  => array( 400, array( 'error' => array( 'type' => 'MissingSessionID' ) ), 'unknown' ),
-				'402 account'     => array( 402, null, 'unknown' ),
-				'403 account'     => array( 403, null, 'unknown' ),
-			);
+		$cases = array(
+			'model-side 401'   => array( 401, array( 'error' => array( 'type' => 'ModelError' ) ), 'probe_model_unavailable' ),
+			'400 missing sid'  => array( 400, array( 'error' => array( 'type' => 'MissingSessionID' ) ), 'unknown' ),
+			'402 account'     => array( 402, null, 'unknown' ),
+			'403 account'     => array( 403, null, 'unknown' ),
+		);
+
 
 			foreach ( $cases as $label => $case ) {
 				list( $code, $data, $expected_state ) = $case;
@@ -481,22 +481,29 @@ namespace OpenCodeConnector\Tests\Unit {
 			}
 		}
 
-		/**
-		 * A rejected credential is still the only definitive negative.
-		 *
-		 * @since 0.1.8
-		 *
-		 * @return void
-		 */
-		#[RunInSeparateProcess]
-		#[PreserveGlobalState( false )]
-		public function test_rejected_credential_clears_last_known_good(): void {
-			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+	/**
+	 * A rejected credential is still the only definitive negative.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return void
+	 */
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_rejected_credential_clears_last_known_good(): void {
+		require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
 
-			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
-				define( 'MINUTE_IN_SECONDS', 60 );
-			}
+		if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+			define( 'MINUTE_IN_SECONDS', 60 );
+		}
 
+		$cases = array(
+			'401 AuthError'       => 'AuthError',
+			'401 invalid_api_key' => 'invalid_api_key',
+			'body-less 401'       => null,
+		);
+
+		foreach ( $cases as $label => $type ) {
 			$store   = array( 'opencode_connector_avail_go_last_good' => 1 );
 			$deleted = array();
 			Functions\when( 'get_transient' )->alias(
@@ -518,16 +525,166 @@ namespace OpenCodeConnector\Tests\Unit {
 			);
 			Functions\when( 'wp_rand' )->justReturn( 0 );
 
+			$data = null === $type ? null : array( 'error' => array( 'type' => $type ) );
 			$availability = new OpenCodeProviderAvailability( 'go' );
-			$availability->setHttpTransporter(
-				new FakeProbeTransporter( new Response( 401, array( 'error' => array( 'type' => 'AuthError' ) ) ) )
-			);
+			$availability->setHttpTransporter( new FakeProbeTransporter( new Response( 401, $data ) ) );
 			$availability->setRequestAuthentication( new FakeProbeAuthentication() );
 
-			self::assertFalse( $availability->isConfigured() );
-			self::assertSame( 'invalid_key', $availability->getLastResult()['state'] );
-			self::assertContains( 'opencode_connector_avail_go_last_good', $deleted, 'A rejected credential clears last-known-good.' );
+			self::assertFalse( $availability->isConfigured(), $label );
+			self::assertSame( 'invalid_key', $availability->getLastResult()['state'], $label );
+			self::assertContains( 'opencode_connector_avail_go_last_good', $deleted, $label . ' must clear last-known-good.' );
 		}
+	}
+
+	/**
+	 * A settled drift verdict is cached on the long window, a transient fault
+	 * on the short one.
+	 *
+	 * Probe-model drift does not resolve in a minute, and each uncached probe
+	 * costs up to two chat/completions calls, so the long window is what keeps
+	 * a retired probe model from becoming sustained outbound traffic.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return void
+	 */
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_probe_model_drift_is_cached_on_the_long_window(): void {
+		require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+		if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+			define( 'MINUTE_IN_SECONDS', 60 );
+		}
+
+		$store = array();
+		$ttls  = array();
+		Functions\when( 'get_transient' )->alias(
+			static function ( string $key ) use ( &$store ): mixed {
+				return $store[ $key ] ?? false;
+			}
+		);
+		Functions\when( 'set_transient' )->alias(
+			static function ( string $key, mixed $value, int $ttl ) use ( &$store, &$ttls ): bool {
+				$store[ $key ] = $value;
+				$ttls[ $key ]  = $ttl;
+				return true;
+			}
+		);
+		Functions\when( 'delete_transient' )->justReturn( true );
+		Functions\when( 'wp_rand' )->justReturn( 0 );
+
+		$transporter  = new QueueingProbeTransporter(
+			array(
+				new Response( 401, array( 'error' => array( 'type' => 'ModelError' ) ) ),
+				new Response( 401, array( 'error' => array( 'type' => 'ModelError' ) ) ),
+			)
+		);
+		$availability = new OpenCodeProviderAvailability( 'zen' );
+		$availability->setHttpTransporter( $transporter );
+		$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+		$availability->diagnose();
+
+		self::assertSame( 'probe_model_unavailable', $availability->getLastResult()['state'] );
+		self::assertSame( 5 * MINUTE_IN_SECONDS, $ttls['opencode_connector_avail_zen'] ?? 0, 'Settled drift uses the long jittered window.' );
+
+		// A transient fault keeps the short window, so a real outage recovers
+		// as soon as the gateway does. Different catalog, so the settled verdict
+		// above is not served from cache.
+		$outage             = new OpenCodeProviderAvailability( 'go' );
+		$outage_transporter = new QueueingProbeTransporter( array( new Response( 503, null ) ) );
+		$outage->setHttpTransporter( $outage_transporter );
+		$outage->setRequestAuthentication( new FakeProbeAuthentication() );
+		$outage->diagnose();
+
+		self::assertSame( MINUTE_IN_SECONDS, $ttls['opencode_connector_avail_go'] ?? 0, 'A transient fault uses the short window.' );
+	}
+
+	/**
+	 * A retired probe model that answers 400/404 is retried, not reported.
+	 *
+	 * A renamed or removed model is at least as likely to answer
+	 * `model_not_found` as a 401, so without this the verdict is `unknown`,
+	 * isConfigured() is false on a fresh install, and the probe never recovers.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return void
+	 */
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_probe_model_drift_retries_on_model_not_found(): void {
+		require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+		if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+			define( 'MINUTE_IN_SECONDS', 60 );
+		}
+
+		Functions\when( 'get_transient' )->justReturn( false );
+		Functions\when( 'set_transient' )->justReturn( true );
+		Functions\when( 'delete_transient' )->justReturn( true );
+		Functions\when( 'wp_rand' )->justReturn( 0 );
+
+		$transporter  = new QueueingProbeTransporter(
+			array(
+				new Response( 404, array( 'error' => array( 'type' => 'model_not_found' ) ) ),
+				new Response( 401, array( 'error' => array( 'type' => 'CreditsError' ) ) ),
+			)
+		);
+		$availability = new OpenCodeProviderAvailability( 'go' );
+		$availability->setHttpTransporter( $transporter );
+		$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+
+		self::assertTrue( $availability->isConfigured(), 'A renamed probe model must not read as a failed connection.' );
+		self::assertSame( 'no_credits', $availability->getLastResult()['state'] );
+		self::assertCount( 2, $transporter->seen );
+	}
+
+	/**
+	 * The stampede lock outlives the worst-case probe.
+	 *
+	 * Each candidate model is a sequential blocking request, so a lock sized
+	 * for one round trip expires mid-probe and the next request starts a
+	 * second full probe.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return void
+	 */
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_stampede_lock_outlives_the_candidate_probes(): void {
+		require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+		if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+			define( 'MINUTE_IN_SECONDS', 60 );
+		}
+
+		$ttls = array();
+		Functions\when( 'get_transient' )->justReturn( false );
+		Functions\when( 'set_transient' )->alias(
+			static function ( string $key, mixed $value, int $ttl ) use ( &$ttls ): bool {
+				$ttls[ $key ] = $ttl;
+				return true;
+			}
+		);
+		Functions\when( 'delete_transient' )->justReturn( true );
+		Functions\when( 'wp_rand' )->justReturn( 0 );
+
+		$transporter  = new QueueingProbeTransporter(
+			array(
+				new Response( 401, array( 'error' => array( 'type' => 'ModelError' ) ) ),
+				new Response( 401, array( 'error' => array( 'type' => 'ModelError' ) ) ),
+			)
+		);
+		$availability = new OpenCodeProviderAvailability( 'zen' );
+		$availability->setHttpTransporter( $transporter );
+		$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+		$availability->diagnose();
+
+		self::assertSame( 20, $ttls['opencode_connector_avail_zen_lock'] ?? 0, 'Two candidate probes, two lock windows.' );
+	}
+
 
 		/**
 		 * Probe-model drift is retried with another reviewed, paid model.

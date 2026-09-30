@@ -111,11 +111,12 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 = 0.1.8 =
 * Fixed: the Zen MiniMax models (`minimax-m3`, `minimax-m2.7`, `minimax-m2.5`) are routable again. They are documented on OpenCode's Zen chat/completions endpoint, so blocking them had hidden them from the model picker and then thrown "endpoint family is not implemented" if one was selected.
-* Fixed: key validation now branches on the gateway error type instead of the status code. A 401 that names no credential error (for example `ModelError` for a model OpenCode will not serve) is reported as "could not be checked" instead of "Invalid API key", and no longer clears the 30-day last known good state.
-* Improved: the availability probe is resilient to probe-model drift — when the probe model is refused model-side it retries once with a different reviewed paid model, and both the availability probe and the verification probe now send the same Go session and User-Agent headers.
+* Fixed: key validation now branches on the gateway error type instead of the status code. A 401 the gateway attributes to the requested model (for example `ModelError` for a model OpenCode will not serve) is reported as "could not be checked" instead of "Invalid API key", and no longer clears the 30-day last known good state. Any other 401 — including one with no error type at all — is a rejected credential, so a renamed upstream error type can no longer leave a revoked key reported as connected.
+* Improved: the availability probe is resilient to probe-model drift — when the probe model is refused model-side (a 401 `ModelError` or a 400/404 model-not-found) it retries once with a different reviewed paid model, and both the availability probe and the verification probe now send the same Go session and User-Agent headers.
+* Improved: a retired probe model is no longer re-probed every minute; the settled verdict is cached on the same staggered window as a successful check, and the probe lock is sized to the number of candidate models.
 * Improved: an allowlisted model whose endpoint family is not re-confirmed in OpenCode's current tables stays available but is reported as verification-required by the Model Radar, with no inherited verification date, instead of being stamped as reviewed.
 * Fixed: free labels are per catalog and sourced from OpenCode's published Zen pricing table. `deepseek-v4-flash-free` is no longer labeled `(Free)` while it is absent from the current published tables; the other four Zen free models are unchanged.
-* Fixed: a network uninstall now clears the settings row and plugin transients on every site instead of only the current one.
+* Fixed: a network uninstall now clears the settings row and plugin transients on every site instead of only the current one, pages through the whole network instead of re-cleaning the same sites, and only deletes this plugin's own AI Client model-cache keys.
 * Docs: model counts now state the routable per-catalog totals (Go: 17, Zen: 17) and the test suite derives them from the registry.
 
 = 0.1.7 =
@@ -152,7 +153,7 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 == Upgrade Notice ==
 
 = 0.1.8 =
-No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. The three Zen MiniMax models become selectable again, the Zen free label now follows OpenCode's published pricing table (so `deepseek-v4-flash-free` is no longer marked `(Free)`), and connection checks report a retired probe model as a temporary, retryable condition instead of an invalid key.
+No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. The three Zen MiniMax models become selectable again, the Zen free label now follows OpenCode's published pricing table (so `deepseek-v4-flash-free` is no longer marked `(Free)`), a probe model OpenCode will not serve is reported as a temporary, retryable condition instead of an invalid key, and a 401 that is not a model-side refusal is treated as a rejected key.
 
 = 0.1.7 =
 No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release improves key verification, preserves the last known good state during temporary provider failures, and safely ignores malformed model-list entries.

@@ -42,7 +42,8 @@ WordPress AI Client model request
 Availability
   -> transient-cached, max_tokens=1 chat/completions probe
   -> boolean contract: 2xx, 429, and 401 CreditsError are configured
-  -> all other responses/exceptions are not configured
+  -> a 401 the gateway attributes to the model is retried, then could-not-be-checked
+  -> every other response, including a body-less 401, is not configured
 ```
 
 Model Radar flow:
@@ -113,6 +114,6 @@ The reviewer reference is a floating branch rather than a released-commit pin, a
 
 ## Baseline metrics
 
-The machine-readable inventory on the active PR head reports 27 PHP classes, 3,833 source lines, largest class `ModelRadar` (338 lines), largest method `ModelRadar::catalog_report` (126 lines), and the highest fan-in `OpenCodeGoProvider` (8) / fan-out `AbstractOpenCodeTextGenerationModel` (7) concentration. The previous v0.1.5 baseline was 26 classes and 3,457 source lines. These are measurements, not a target to optimize by splitting code merely to reduce numbers.
+The machine-readable inventory tracks 27 PHP classes and 4,667 class lines, with the largest class `OpenCodeProviderAvailability` (730 lines) and the largest method `OpenCodeProviderAvailability::probe` (66 lines). The v0.1.6 audit snapshot it was generated from reported 27 classes, 3,833 source lines, largest class `ModelRadar` (338 lines), largest method `ModelRadar::catalog_report` (126 lines), and the highest fan-in `OpenCodeGoProvider` (8) / fan-out `AbstractOpenCodeTextGenerationModel` (7) concentration; the previous v0.1.5 baseline was 26 classes and 3,457 source lines. Class spans, method lists, and method counts in `class-inventory.json` are regenerated on each change; its dependency, fan-in/fan-out, and `source_lines` metrics are still the hand-curated v0.1.6 snapshot, because the audit generator is not part of this repository. These are measurements, not a target to optimize by splitting code merely to reduce numbers.
 
 The live unauthenticated catalogs returned 80 Zen IDs and 42 Go IDs at audit time, while the curated allowlist contains 17 IDs per catalog. The difference is intentional safety drift; new IDs require verification before promotion.

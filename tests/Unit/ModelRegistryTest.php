@@ -100,6 +100,53 @@ final class ModelRegistryTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * A reviewed ID must never also be listed as pending.
+	 *
+	 * ENDPOINT_FAMILIES membership is the evidence, and it wins the lookup, so
+	 * an ID recorded in both maps would keep routing but lose its review date.
+	 * This ratchet catches the overlap at the source table instead of letting a
+	 * future edit silently demote a reviewed model to verification-required.
+	 */
+	public function test_reviewed_and_pending_family_tables_do_not_overlap(): void {
+		$reviewed = self::private_const( 'ENDPOINT_FAMILIES' );
+		$pending  = self::private_const( 'PENDING_FAMILIES' );
+		self::assertNotEmpty( $reviewed );
+		self::assertNotEmpty( $pending );
+
+		foreach ( Catalog::ALL as $catalog ) {
+			$ids          = ModelAllowlist::allowedIds( $catalog );
+			$reviewed_ids = array_keys( $reviewed[ $catalog ] ?? array() );
+			$pending_ids  = $pending[ $catalog ] ?? array();
+			foreach ( array( $reviewed_ids, $pending_ids ) as $recorded ) {
+				self::assertSame(
+					array(),
+					array_values( array_diff( $recorded, $ids ) ),
+					$catalog . ' records a family for a non-allowlisted ID.'
+				);
+			}
+			$overlap = array_values( array_intersect( $reviewed_ids, $pending_ids ) );
+			self::assertSame(
+				array(),
+				$overlap,
+				$catalog . ' lists ' . implode( ',', $overlap ) . ' as both reviewed and pending.'
+			);
+		}
+	}
+
+	/**
+	 * Read one of the registry's private family tables.
+	 *
+	 * @param string $name Constant name.
+	 * @return array<string, mixed>
+	 */
+	private static function private_const( string $name ): array {
+		$constant = new \ReflectionClassConstant( ModelRegistry::class, $name );
+		$value    = $constant->getValue();
+		self::assertIsArray( $value );
+		return $value;
+	}
+
+	/**
 	 * Unknown IDs and unsupported capabilities are default-deny.
 	 */
 	public function test_unknown_models_and_capabilities_are_denied(): void {
@@ -228,7 +275,7 @@ final class ModelRegistryTest extends MonkeyTestCase {
 			'The route guard must compare against ENDPOINT_FAMILY_UNSUPPORTED.'
 		);
 		self::assertStringContainsString(
-			'return self::ENDPOINT_FAMILY_UNSUPPORTED;',
+			'return array( self::ENDPOINT_FAMILY_UNSUPPORTED, false );',
 			$source,
 			'An unclassified model must fail closed to the shared sentinel.'
 		);

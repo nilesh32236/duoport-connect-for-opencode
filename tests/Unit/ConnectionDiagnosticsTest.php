@@ -80,23 +80,88 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 	 *
 	 * Verified live: an unsupported model ID answers 401 ModelError with the
 	 * same status as a bad key, so keying the verdict on the status alone
-	 * reported a valid key as invalid whenever the probe model drifted.
+	 * reported a valid key as invalid whenever the probe model drifted. The
+	 * type is matched normalized, because gateway spelling and casing are not
+	 * contractual.
 	 */
 	public function test_model_side_401_is_not_an_invalid_key(): void {
 		$diagnostics = new ConnectionDiagnostics();
-		$model_error = $diagnostics->classify( 401, array( 'error' => array( 'type' => 'ModelError' ) ) );
-		$empty       = $diagnostics->classify( 401 );
-		$future      = $diagnostics->classify( 401, array( 'error' => array( 'type' => 'SomeFutureError' ) ) );
 
-		foreach ( array( 'model_error' => $model_error, 'empty' => $empty, 'future' => $future ) as $label => $result ) {
-			self::assertSame( 'probe_model_unavailable', $result['state'], $label );
-			self::assertTrue( $result['configured'], $label );
-			self::assertFalse( $result['usable'], $label );
-			self::assertSame( 401, $result['status'], $label );
+		foreach ( array( 'ModelError', 'model_error', 'model-error', 'MODELERROR' ) as $type ) {
+			$result = $diagnostics->classify( 401, array( 'error' => array( 'type' => $type ) ) );
+			self::assertSame( 'probe_model_unavailable', $result['state'], $type );
+			self::assertTrue( $result['configured'], $type );
+			self::assertFalse( $result['usable'], $type );
+			self::assertSame( 401, $result['status'], $type );
 			// Nothing about the credential can be concluded, so verification
 			// reports could-not-be-checked and keeps last-known-good state.
-			self::assertSame( 'could-not-be-checked', $diagnostics->verify_state( $result ), $label );
+			self::assertSame( 'could-not-be-checked', $diagnostics->verify_state( $result ), $type );
 		}
+	}
+
+	/**
+	 * A 401 that is not a model-side refusal is a rejected credential.
+	 *
+	 * Fail-closed on purpose: an unlisted type (including a body-less 401) must
+	 * not degrade into an unverifiable verdict, which would keep a revoked key
+	 * displayed as connected for the whole last-known-good window after a
+	 * one-word upstream rename. The canonical OpenAI-compatible spellings are
+	 * all invalid keys, and so is an unrecognised type.
+	 */
+	public function test_unlisted_401_is_a_rejected_credential(): void {
+		$diagnostics = new ConnectionDiagnostics();
+
+		$types = array( 'AuthError', 'InvalidApiKey', 'invalid_api_key', 'authentication_error', 'permission_denied_error', 'SomeFutureError', '' );
+		foreach ( $types as $type ) {
+			$data     = '' === $type ? null : array( 'error' => array( 'type' => $type ) );
+			$result   = $diagnostics->classify( 401, $data );
+			$label    = '' === $type ? 'body-less 401' : $type;
+			self::assertSame( 'invalid_key', $result['state'], $label );
+			self::assertFalse( $result['configured'], $label );
+			self::assertContains( $result['state'], ConnectionDiagnostics::DEFINITIVE_NEGATIVE_STATES, $label );
+			self::assertSame( 'invalid_key', $diagnostics->verify_state( $result ), $label );
+		}
+	}
+
+	/**
+	 * The credit and free-tier error types are matched normalized too.
+	 *
+	 * Gateway casing is not contractual, so a rename of CreditsError must not
+	 * silently degrade into invalid_key (or of FreeUsageLimitError into
+	 * rate_limited).
+	 */
+	public function test_quota_error_types_match_any_casing(): void {
+		$diagnostics = new ConnectionDiagnostics();
+
+		$credits = $diagnostics->classify( 401, array( 'error' => array( 'type' => 'credits_error' ) ) );
+		self::assertSame( 'no_credits', $credits['state'] );
+		self::assertTrue( $credits['configured'] );
+
+		$free = $diagnostics->classify( 429, array( 'error' => array( 'type' => 'free_usage_limit_error' ) ) );
+		self::assertSame( 'free_tier_limit', $free['state'] );
+		self::assertTrue( $free['configured'] );
+	}
+
+	/**
+	 * The state buckets have one home, shared with the availability probe.
+	 */
+	public function test_state_buckets_are_single_sourced(): void {
+		self::assertSame(
+			array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' ),
+			ConnectionDiagnostics::KEYED_STATES
+		);
+		self::assertSame( array( 'not_configured', 'invalid_key' ), ConnectionDiagnostics::DEFINITIVE_NEGATIVE_STATES );
+		self::assertContains( 'probe_model_unavailable', ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES );
+		// The buckets must stay disjoint: a state in two buckets would make the
+		// probe's verdict order, not the state, decide the credential outcome.
+		self::assertSame(
+			array(),
+			array_intersect( ConnectionDiagnostics::KEYED_STATES, ConnectionDiagnostics::DEFINITIVE_NEGATIVE_STATES )
+		);
+		self::assertSame(
+			array(),
+			array_intersect( ConnectionDiagnostics::KEYED_STATES, ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES )
+		);
 	}
 
 	/**

@@ -174,11 +174,13 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 		// base model (tools param + tool_calls response parsing), so
 		// tool-verified models advertise it and stop being filtered out of
 		// Abilities-API tool tasks. Web search stays gated until the
-		// chat/completions payload is gateway-verified (fail-open default).
-		if ( ModelRegistry::supports( $id, $this->catalogKey(), 'tools' ) ) {
+		// chat/completions payload is gateway-verified (fail-open default). The
+		// flags are read from the record already fetched above, so a row costs
+		// one record build instead of three.
+		if ( true === ( $record['capabilities']['tools'] ?? false ) ) {
 			$opts[] = new SupportedOption( OptionEnum::functionDeclarations() );
 		}
-		if ( ModelRegistry::supports( $id, $this->catalogKey(), 'web_search' ) ) {
+		if ( true === ( $record['capabilities']['web_search'] ?? false ) ) {
 			$opts[] = new SupportedOption( OptionEnum::webSearch() );
 		}
 		return new ModelMetadata( $id, $name, array( CapabilityEnum::textGeneration(), CapabilityEnum::chatHistory() ), $opts );

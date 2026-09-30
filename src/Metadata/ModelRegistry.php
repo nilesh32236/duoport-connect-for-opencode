@@ -199,25 +199,31 @@ final class ModelRegistry {
 	}
 
 	/**
-	 * Resolve the recorded endpoint family for a model.
+	 * Resolve the recorded endpoint family for a model, and whether it still
+	 * needs an individual review.
 	 *
 	 * Fail-closed: an allowlisted ID with no recorded family returns the
 	 * unsupported sentinel instead of being assumed chat, so adding an ID to
 	 * `ModelAllowlist::ALLOW` can never silently widen the transport surface.
 	 *
+	 * Both answers come from one lookup, in one order: a recorded
+	 * ENDPOINT_FAMILIES entry is the evidence and always wins, so an ID that
+	 * is (wrongly) listed in both maps is still reported as reviewed instead of
+	 * being demoted to verification-required.
+	 *
 	 * @param string $id      Model ID.
 	 * @param string $catalog Catalog slug.
-	 * @return string
+	 * @return array{0: string, 1: bool} Endpoint family, then pending flag.
 	 */
-	private static function endpointFamily( string $id, string $catalog ): string {
+	private static function endpointFamily( string $id, string $catalog ): array {
 		$families = self::ENDPOINT_FAMILIES[ $catalog ] ?? array();
 		if ( isset( $families[ $id ] ) ) {
-			return (string) $families[ $id ];
+			return array( (string) $families[ $id ], false );
 		}
 		if ( self::isPending( $id, $catalog ) ) {
-			return self::ENDPOINT_FAMILY;
+			return array( self::ENDPOINT_FAMILY, true );
 		}
-		return self::ENDPOINT_FAMILY_UNSUPPORTED;
+		return array( self::ENDPOINT_FAMILY_UNSUPPORTED, false );
 	}
 
 	/**
@@ -259,10 +265,9 @@ final class ModelRegistry {
 			return null;
 		}
 
-		$endpoint_family = self::endpointFamily( $id, $catalog );
-		$route_supported = self::ENDPOINT_FAMILY_UNSUPPORTED !== $endpoint_family;
-		$pending         = $route_supported && self::isPending( $id, $catalog );
-		$capabilities    = array(
+		list( $endpoint_family, $pending ) = self::endpointFamily( $id, $catalog );
+		$route_supported                   = self::ENDPOINT_FAMILY_UNSUPPORTED !== $endpoint_family;
+		$capabilities                      = array(
 			'text'       => $route_supported,
 			'tools'      => $route_supported && ModelAllowlist::isToolCapable( $id, $catalog ),
 			'web_search' => $route_supported && ModelAllowlist::isWebSearchCapable( $id, $catalog ),

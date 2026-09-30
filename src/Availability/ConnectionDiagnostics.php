@@ -18,28 +18,89 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Classifies safe backend outcomes without retaining response credentials.
  *
  * Each verdict has a named factory so callers cannot build a result from a
- * positional argument bag, and so the state vocabulary has one home.
+ * positional argument bag, and so the state vocabulary has one home: the
+ * state buckets below are the only definition of keyed, could-not-be-checked,
+ * and definitively negative, and every caller reads them from here.
  */
 final class ConnectionDiagnostics {
 
 	/**
-	 * 401 error types that are a definitive credential rejection.
+	 * States that prove the key was accepted by the gateway.
 	 *
-	 * Verified against the live gateway: a bad key answers 401 AuthError,
-	 * while a model the gateway will not serve answers 401 ModelError with the
-	 * same status. The verdict therefore keys on the error type, never on the
-	 * status alone, so a model-side rejection is never reported as an invalid
-	 * key. Compared case-insensitively because gateway type casing is not
-	 * contractual.
+	 * `free_tier_limit` is a Zen free-tier quota stop, which is still a valid
+	 * key, so it counts as configured even though nothing is usable.
+	 *
+	 * @since 0.1.8
 	 *
 	 * @var list<string>
 	 */
-	private const CREDENTIAL_ERROR_TYPES = array(
-		'autherror',
-		'authenticationerror',
-		'invalidapikey',
-		'unauthorizederror',
+	public const KEYED_STATES = array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' );
+
+	/**
+	 * States that say nothing about the credential.
+	 *
+	 * 5xx, transport failures, a response that matched no known rule
+	 * (`unknown`), and a 401 the gateway attributes to the requested model
+	 * (`probe_model_unavailable`) all preserve last-known-good state instead
+	 * of flipping a valid key to not-connected.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @var list<string>
+	 */
+	public const COULD_NOT_BE_CHECKED_STATES = array( 'uncheckable', 'network_error', 'server_error', 'unknown', 'probe_model_unavailable' );
+
+	/**
+	 * States that are a definitive negative for the credential.
+	 *
+	 * Only these clear the 30-day last-known-good flag; an unexpected upstream
+	 * status must never destroy good state.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @var list<string>
+	 */
+	public const DEFINITIVE_NEGATIVE_STATES = array( 'not_configured', 'invalid_key' );
+
+	/**
+	 * 401 error types the gateway attributes to the requested model.
+	 *
+	 * Verified against the live gateway: a bad key answers 401 AuthError,
+	 * while a model the gateway will not serve answers 401 ModelError with the
+	 * same status. Only the model-side types are allowlisted, so an unlisted
+	 * type (including a body-less 401) stays a definitive credential rejection
+	 * instead of silently degrading to an unverifiable verdict that would keep
+	 * a revoked key displayed as connected for the whole last-known-good
+	 * window. Compared normalized because gateway type spelling and casing are
+	 * not contractual: `ModelError`, `model_error` and `modelerror` are the
+	 * same fact.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @var list<string>
+	 */
+	private const MODEL_SIDE_ERROR_TYPES = array(
+		'modelerror',
+		'modelnotfound',
+		'modelnotfounderror',
+		'modelunavailable',
+		'invalidmodel',
+		'unsupportedmodel',
 	);
+
+	/**
+	 * 401 error type for a valid key with an empty balance.
+	 *
+	 * @since 0.1.8
+	 */
+	private const CREDITS_ERROR_TYPE = 'creditserror';
+
+	/**
+	 * 429 error type for a Zen free-tier quota stop.
+	 *
+	 * @since 0.1.8
+	 */
+	private const FREE_TIER_ERROR_TYPE = 'freeusagelimiterror';
 
 	/**
 	 * Classify one backend response or transport exception.
@@ -48,11 +109,15 @@ final class ConnectionDiagnostics {
 	 *
 	 * Fail-open contract: quota exhaustion (401 CreditsError), rate limiting
 	 * (429), and Zen free-tier quota stops (429 FreeUsageLimitError) report a
-	 * configured key; a 401 that names no credential error (401 ModelError,
-	 * or any type this plugin has not seen) reports a distinct
-	 * probe-model-unavailable verdict; 5xx and transport failures report a
-	 * could-not-be-checked verdict. All of those preserve last-known-good
-	 * state instead of flipping to not-connected.
+	 * configured key; a 401 the gateway attributes to the requested model
+	 * (401 ModelError) reports a distinct probe-model-unavailable verdict, and
+	 * 5xx and transport failures report a could-not-be-checked verdict. All of
+	 * those preserve last-known-good state instead of flipping to
+	 * not-connected.
+	 *
+	 * A 401 that is not a recognised model-side refusal is a rejected
+	 * credential, whatever the body says: a gateway that renames its error
+	 * type must not turn a definitive signal into an unverifiable one.
 	 *
 	 * @param int                       $status    HTTP status code, or zero for a transport failure.
 	 * @param array<string, mixed>|null $data      Response data used only to identify the error type.
@@ -66,18 +131,20 @@ final class ConnectionDiagnostics {
 		if ( $status >= 200 && $status < 300 ) {
 			return $this->verified( $status );
 		}
+		// Read the type once, normalized, so every comparison in this class
+		// agrees on spelling and casing.
+		$error_type = $this->errorType( $data );
 		if ( 401 === $status ) {
-			$error_type = $this->errorType( $data );
-			if ( 'CreditsError' === $error_type ) {
+			if ( self::CREDITS_ERROR_TYPE === $error_type ) {
 				return $this->noCredits( $status );
 			}
-			if ( $this->isCredentialError( $error_type ) ) {
-				return $this->invalidKey( $status );
+			if ( in_array( $error_type, self::MODEL_SIDE_ERROR_TYPES, true ) ) {
+				return $this->probeModelUnavailable( $status );
 			}
-			return $this->probeModelUnavailable( $status );
+			return $this->invalidKey( $status );
 		}
 		if ( 429 === $status ) {
-			if ( 'FreeUsageLimitError' === $this->errorType( $data ) ) {
+			if ( self::FREE_TIER_ERROR_TYPE === $error_type ) {
 				return $this->freeTierLimit( $status );
 			}
 			return $this->rateLimited( $status );
@@ -103,45 +170,40 @@ final class ConnectionDiagnostics {
 	 */
 	public function verify_state( array $diagnosis ): string {
 		$state = isset( $diagnosis['state'] ) && is_string( $diagnosis['state'] ) ? $diagnosis['state'] : '';
-		if ( in_array( $state, array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' ), true ) ) {
+		if ( in_array( $state, self::KEYED_STATES, true ) ) {
 			return 'valid';
 		}
-		if ( in_array( $state, array( 'invalid_key', 'not_configured' ), true ) ) {
+		if ( in_array( $state, self::DEFINITIVE_NEGATIVE_STATES, true ) ) {
 			return 'invalid_key';
 		}
 		return 'could-not-be-checked';
 	}
 
 	/**
-	 * Read the credential-blind backend error type.
+	 * Read the credential-blind backend error type, normalized.
+	 *
+	 * Separators and casing are stripped so a gateway may spell the same fact
+	 * `ModelError`, `model_error`, or `model-error`.
 	 *
 	 * @param array<string, mixed>|null $data Response data.
 	 * @return string Empty string when the type is absent.
 	 */
 	private function errorType( ?array $data ): string {
-		return is_array( $data ) ? (string) ( $data['error']['type'] ?? '' ) : '';
+		if ( ! is_array( $data ) ) {
+			return '';
+		}
+		$raw = (string) ( $data['error']['type'] ?? '' );
+		return (string) preg_replace( '/[^a-z0-9]/', '', strtolower( $raw ) );
 	}
 
 	/**
-	 * Whether a 401 error type names a rejected credential.
-	 *
-	 * An absent or unrecognised type is not a credential verdict: the gateway
-	 * also answers 401 ModelError when it will not serve the requested model.
-	 *
-	 * @param string $error_type Backend error type.
-	 * @return bool
-	 */
-	private function isCredentialError( string $error_type ): bool {
-		return in_array( strtolower( $error_type ), self::CREDENTIAL_ERROR_TYPES, true );
-	}
-
-	/**
-	 * Build a result for a 401 that names no credential error.
+	 * Build a result for a 401 the gateway attributes to the requested model.
 	 *
 	 * The gateway reached, read the key, and refused the *model* (401
-	 * ModelError, verified live) or refused for a reason this plugin has not
-	 * seen. The key is not proven bad, so callers keep last-known-good state
-	 * and may retry with a different probe model.
+	 * ModelError, verified live). The key is not proven bad, so callers keep
+	 * last-known-good state and may retry with a different probe model.
+	 *
+	 * @since 0.1.8
 	 *
 	 * @param int $status HTTP status.
 	 * @return array<string, mixed>
@@ -205,6 +267,10 @@ final class ConnectionDiagnostics {
 
 	/**
 	 * Build a network-error result.
+	 *
+	 * The classifier no longer produces this state: transport failures arrive
+	 * as an exception and are classified as `uncheckable`. It is retained so a
+	 * legacy cached value can still be interpreted fail-open by callers.
 	 *
 	 * @return array<string, mixed>
 	 */

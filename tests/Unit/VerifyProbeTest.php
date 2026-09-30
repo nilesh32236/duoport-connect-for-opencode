@@ -423,17 +423,31 @@ namespace OpenCodeConnector\Tests\Unit {
 				}
 			);
 
-			$probe_transporter  = new VerifyQueueingTransporter( array( new Response( 200, null ) ) );
-			$probe_availability = new OpenCodeProviderAvailability( 'go' );
-			$probe_availability->setHttpTransporter( $probe_transporter );
-			$probe_availability->setRequestAuthentication( new VerifyPassthroughAuthentication() );
-			$probe_availability->diagnose();
-			$probe_headers = $probe_transporter->seen[0]->getHeaders();
+		$probe_transporter  = new VerifyQueueingTransporter( array( new Response( 200, null ) ) );
+		$probe_availability = new OpenCodeProviderAvailability( 'go' );
+		$probe_availability->setHttpTransporter( $probe_transporter );
+		$probe_availability->setRequestAuthentication( new VerifyPassthroughAuthentication() );
+		$probe_availability->diagnose();
+		$probe_headers = $probe_transporter->seen[0]->getHeaders();
 
-			self::assertArrayHasKey( \OpenCodeConnector\Http\SessionHeader::HEADER_NAME, $verify_headers );
-			self::assertArrayHasKey( \OpenCodeConnector\Http\ClientUserAgent::HEADER_NAME, $verify_headers );
-			self::assertSame( $probe_headers, $verify_headers );
-		}
+		self::assertArrayHasKey( \OpenCodeConnector\Http\SessionHeader::HEADER_NAME, $verify_headers );
+		self::assertArrayHasKey( \OpenCodeConnector\Http\ClientUserAgent::HEADER_NAME, $verify_headers );
+		self::assertSame( $probe_headers, $verify_headers );
+
+		// Without this negative the parity assertion is near-tautological: both
+		// sides come from the same helper, so it would pass for a wrong helper
+		// output (for example one that never sent the Go pair at all). The Zen
+		// catalog must NOT get the Go client User-Agent, which pins the branch
+		// the helper actually takes.
+		$zen_transporter  = new VerifyQueueingTransporter( array( new Response( 200, null ) ) );
+		$zen_availability = new OpenCodeProviderAvailability( 'zen' );
+		$zen_availability->setHttpTransporter( $zen_transporter );
+		$zen_availability->setRequestAuthentication( new VerifyPassthroughAuthentication() );
+		$zen_availability->diagnose();
+		$zen_probe_headers = $zen_transporter->seen[0]->getHeaders();
+		self::assertArrayNotHasKey( \OpenCodeConnector\Http\ClientUserAgent::HEADER_NAME, $zen_probe_headers );
+		self::assertNotSame( $probe_headers, $zen_probe_headers );
+	}
 
 		/**
 		 * A model-side 401 verifies as could-not-be-checked, not invalid_key.

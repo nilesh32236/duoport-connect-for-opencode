@@ -68,22 +68,43 @@ final class UninstallCleanupTest extends MonkeyTestCase {
 		$calls = array();
 		$this->stub( $calls );
 		Functions\when( 'is_multisite' )->justReturn( true );
+		// A full first page, then a short one, so the sweep has to advance the
+		// offset instead of re-cleaning the same lowest-ID prefix.
+		$site_args = array();
 		Functions\when( 'get_sites' )->alias(
-			static function ( array $args = array() ): array {
-				// The bounded cap keeps a large network from timing the request out.
-				self::assertLessThanOrEqual( 500, (int) ( $args['number'] ?? 0 ) );
-				self::assertSame( 'ids', $args['fields'] ?? '' );
-				return array( 2, 3 );
+			static function ( array $args = array() ) use ( &$site_args ): array {
+				$site_args[] = $args;
+				$offset       = (int) ( $args['offset'] ?? 0 );
+				if ( 0 === $offset ) {
+					return range( 2, 1 + (int) $args['number'] );
+				}
+				return array( 4, 5 );
+			}
+		);
+		Functions\when( 'wp_suspend_cache_invalidation' )->alias(
+			static function ( bool $suspend = true ) use ( &$calls ): bool {
+				$calls['wp_suspend_cache_invalidation'][] = $suspend;
+				return true;
 			}
 		);
 
 		require dirname( __DIR__, 2 ) . '/uninstall.php';
 
-		// Current site first, then one pass per site in the network.
-		self::assertSame( array( 2, 3 ), $calls['switch_to_blog'] );
-		self::assertCount( 2, $calls['restore_current_blog'] );
-		// 1 current site + 2 switched sites.
-		self::assertCount( 3, $calls['delete_option'] );
+		$first_page = (int) ( $site_args[0]['number'] ?? 0 );
+		$expected   = array_merge( range( 2, 1 + $first_page ), array( 4, 5 ) );
+		// Every site is switched to exactly once, and each switch is unwound.
+		self::assertSame( $expected, $calls['switch_to_blog'] );
+		self::assertCount( count( $expected ), $calls['restore_current_blog'] );
+		self::assertSame( array( true, false ), $calls['wp_suspend_cache_invalidation'] );
+		// The paging contract, asserted here rather than inside the get_sites
+		// double: an assertion in the stub is never checked when the stub is
+		// not reached, and its argument order is easy to invert.
+		self::assertSame( 'ids', $site_args[0]['fields'] ?? '' );
+		self::assertGreaterThan( 0, $first_page, 'A zero page size would never advance.' );
+		self::assertSame( 0, (int) ( $site_args[0]['offset'] ?? -1 ) );
+		self::assertSame( $first_page, (int) ( $site_args[1]['offset'] ?? 0 ), 'Each batch must advance by one page.' );
+		// 1 current site + one pass per site in the network.
+		self::assertCount( 1 + count( $expected ), $calls['delete_option'] );
 		// Network-level rows are cleared once, not per site.
 		self::assertCount( 1, $calls['delete_site_option'] );
 		foreach ( $calls['delete_option'] as $option ) {
@@ -94,8 +115,127 @@ final class UninstallCleanupTest extends MonkeyTestCase {
 			self::assertContains( $key, $calls['delete_transient'] );
 			self::assertContains( $key, $calls['delete_site_transient'] );
 		}
-		// Current site plus one delete per switched site, for every key.
-		self::assertCount( 3 * count( $expected_transients ), $calls['delete_transient'] );
+		// Current site plus one pass per site in the network, for every key:
+		// the plugin's own transients plus the two AI Client model caches.
+		self::assertCount(
+			( 1 + count( $expected ) ) * ( count( $expected_transients ) + 2 ),
+			$calls['delete_transient']
+		);
+	}
+
+	/**
+	 * The model-cache delete stays scoped to this plugin's own directories.
+	 *
+	 * The AI Client cache key is provider-agnostic apart from the per-directory
+	 * md5, so a wildcard `ai_client_%_models` delete would purge another
+	 * component's live model cache across the whole network.
+	 *
+	 * @return void
+	 */
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_model_cache_cleanup_is_scoped_to_plugin_owned_keys(): void {
+		$this->boot();
+		$calls = array();
+		$this->stub( $calls );
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'get_sites' )->justReturn( array() );
+		Functions\when( 'wp_suspend_cache_invalidation' )->justReturn( true );
+
+		$prepared = array();
+		$queries  = array();
+		$wpdb     = new class( $prepared, $queries ) {
+			/**
+			 * Options table name.
+			 *
+			 * @var string
+			 */
+			public string $options = 'wp_options';
+
+			/**
+			 * Sitemeta table name.
+			 *
+			 * @var string
+			 */
+			public string $sitemeta = 'wp_sitemeta';
+
+			/**
+			 * Prepared statement arguments by call.
+			 *
+			 * @var array<int, mixed>
+			 */
+			private array $prepared;
+
+			/**
+			 * Executed queries.
+			 *
+			 * @var array<int, string>
+			 */
+			public array $queries;
+
+			/**
+			 * Constructor.
+			 *
+			 * @param array<int, mixed> $prepared Prepared args sink.
+			 * @param array<int, string> $queries  Query sink.
+			 */
+			public function __construct( array &$prepared, array &$queries ) {
+				$this->prepared = &$prepared;
+				$this->queries  = &$queries;
+			}
+
+			/**
+			 * Record a prepare() call.
+			 *
+			 * @param string $query Query with placeholders.
+			 * @param mixed  ...$args Bound values.
+			 * @return string
+			 */
+			public function prepare( string $query, ...$args ): string {
+				$this->prepared[] = $args;
+				return $query;
+			}
+
+			/**
+			 * Record a query() call.
+			 *
+			 * @param string $sql SQL.
+			 * @return int
+			 */
+			public function query( string $sql ): int {
+				$this->queries[] = $sql;
+				return 1;
+			}
+		};
+
+		$previous  = $GLOBALS['wpdb'] ?? null;
+		$GLOBALS['wpdb'] = $wpdb;
+		try {
+			require dirname( __DIR__, 2 ) . '/uninstall.php';
+		} finally {
+			if ( null === $previous ) {
+				unset( $GLOBALS['wpdb'] );
+			} else {
+				$GLOBALS['wpdb'] = $previous;
+			}
+		}
+
+		$patterns = array();
+		foreach ( $prepared as $args ) {
+			$patterns[] = (string) ( $args[0] ?? '' );
+		}
+		self::assertNotEmpty( $patterns, 'The model-cache rows are deleted with a bound pattern.' );
+		foreach ( $patterns as $pattern ) {
+			self::assertStringNotContainsString( '_models\'', $pattern, 'No provider-agnostic wildcard tail.' );
+			self::assertStringNotContainsString( '_', str_replace( '\\_', '', substr( $pattern, 0, 1 ) ), 'Leading underscore must be escaped.' );
+		}
+		// Both directories are represented, so neither leaves its cache behind.
+		$joined = implode( "\n", $patterns );
+		self::assertStringContainsString( md5( 'OpenCodeConnector\\Metadata\\OpenCodeGoModelMetadataDirectory' ), $joined );
+		self::assertStringContainsString( md5( 'OpenCodeConnector\\Metadata\\OpenCodeZenModelMetadataDirectory' ), $joined );
+		foreach ( $wpdb->queries as $query ) {
+			self::assertStringNotContainsString( 'ai_client\_%\_models', $query, 'A provider-agnostic delete must never ship.' );
+		}
 	}
 
 	/**

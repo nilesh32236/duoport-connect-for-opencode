@@ -119,9 +119,14 @@ final class ToolCapabilityTest extends MonkeyTestCase {
 		$registry_src = (string) file_get_contents( $root . '/src/Metadata/ModelRegistry.php' );
 
 		self::assertStringContainsString( 'OptionEnum::functionDeclarations()', $dir_src );
-		self::assertStringContainsString( "ModelRegistry::supports( \$id, \$this->catalogKey(), 'tools' )", $dir_src );
 		self::assertStringContainsString( 'OptionEnum::webSearch()', $dir_src );
-		self::assertStringContainsString( "ModelRegistry::supports( \$id, \$this->catalogKey(), 'web_search' )", $dir_src );
+		// The gates are read from the registry record the row already fetched,
+		// so a model row cannot drift from the record it was filtered by, and
+		// the directory builds one record per row instead of three.
+		self::assertStringContainsString( 'ModelRegistry::record( $id, $this->catalogKey() )', $dir_src );
+		self::assertStringContainsString( "true === ( \$record['capabilities']['tools'] ?? false )", $dir_src );
+		self::assertStringContainsString( "true === ( \$record['capabilities']['web_search'] ?? false )", $dir_src );
+		self::assertStringNotContainsString( 'ModelRegistry::supports(', $dir_src, 'A per-row second lookup re-derives the record.' );
 		self::assertStringContainsString( 'function supports', $registry_src );
 
 		self::assertStringContainsString( 'function isToolCapable', $allow_src );

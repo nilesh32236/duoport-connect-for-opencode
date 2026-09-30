@@ -17,7 +17,10 @@
     "highest_fan_out": "OpenCodeConnector\\Models\\AbstractOpenCodeTextGenerationModel",
     "highest_fan_out_count": 7,
     "highest_dependency_concentration": "OpenCodeConnector\\Providers\\AbstractOpenCodeProvider",
-    "highest_dependency_count": 16
+    "highest_dependency_count": 16,
+    "regenerated_at": "2026-09-30",
+    "regenerated_from_commit": "04d8d99",
+    "note": "Per-class spans, method lists, and method counts were regenerated from the working tree; generated_from_commit records the audit snapshot the hand-curated dependency, fan-in/fan-out, and source_lines metrics come from (0.1.6). Those metrics are not recomputed here because the audit generator is not part of the repository."
   },
   "classes": [
     {
@@ -28,60 +31,150 @@
       "final": true,
       "extends": null,
       "implements": null,
-      "start_line": 20,
-      "end_line": 103,
-      "lines": 84,
+      "start_line": 25,
+      "end_line": 358,
+      "lines": 334,
       "methods": [
         {
           "name": "classify",
           "visibility": "public",
           "static": false,
-          "line": 32,
-          "end_line": 53,
-          "lines": 22
+          "line": 127,
+          "end_line": 156,
+          "lines": 30
+        },
+        {
+          "name": "verify_state",
+          "visibility": "public",
+          "static": false,
+          "line": 171,
+          "end_line": 180,
+          "lines": 10
+        },
+        {
+          "name": "errorType",
+          "visibility": "private",
+          "static": false,
+          "line": 191,
+          "end_line": 197,
+          "lines": 7
+        },
+        {
+          "name": "probeModelUnavailable",
+          "visibility": "public",
+          "static": false,
+          "line": 211,
+          "end_line": 213,
+          "lines": 3
         },
         {
           "name": "notConfigured",
           "visibility": "public",
           "static": false,
-          "line": 60,
-          "end_line": 62,
+          "line": 220,
+          "end_line": 222,
           "lines": 3
         },
         {
           "name": "verified",
           "visibility": "public",
           "static": false,
-          "line": 69,
-          "end_line": 71,
+          "line": 234,
+          "end_line": 236,
           "lines": 3
         },
         {
           "name": "unknown",
           "visibility": "public",
           "static": false,
-          "line": 78,
-          "end_line": 80,
+          "line": 248,
+          "end_line": 250,
+          "lines": 3
+        },
+        {
+          "name": "uncheckable",
+          "visibility": "public",
+          "static": false,
+          "line": 264,
+          "end_line": 266,
+          "lines": 3
+        },
+        {
+          "name": "networkError",
+          "visibility": "public",
+          "static": false,
+          "line": 277,
+          "end_line": 279,
+          "lines": 3
+        },
+        {
+          "name": "noCredits",
+          "visibility": "public",
+          "static": false,
+          "line": 287,
+          "end_line": 289,
+          "lines": 3
+        },
+        {
+          "name": "invalidKey",
+          "visibility": "public",
+          "static": false,
+          "line": 297,
+          "end_line": 299,
+          "lines": 3
+        },
+        {
+          "name": "rateLimited",
+          "visibility": "public",
+          "static": false,
+          "line": 307,
+          "end_line": 309,
+          "lines": 3
+        },
+        {
+          "name": "freeTierLimit",
+          "visibility": "public",
+          "static": false,
+          "line": 320,
+          "end_line": 322,
+          "lines": 3
+        },
+        {
+          "name": "serverError",
+          "visibility": "public",
+          "static": false,
+          "line": 333,
+          "end_line": 335,
           "lines": 3
         },
         {
           "name": "result",
           "visibility": "private",
           "static": false,
-          "line": 93,
-          "end_line": 102,
+          "line": 348,
+          "end_line": 357,
           "lines": 10
         }
       ],
-      "method_count": 5,
+      "method_count": 15,
       "public_methods": [
         "classify",
+        "verify_state",
+        "probeModelUnavailable",
         "notConfigured",
         "verified",
-        "unknown"
+        "unknown",
+        "uncheckable",
+        "networkError",
+        "noCredits",
+        "invalidKey",
+        "rateLimited",
+        "freeTierLimit",
+        "serverError"
       ],
       "protected_methods": [],
       "private_methods": [
+        "errorType",
         "result"
       ],
       "dependencies": [],
@@ -103,61 +196,241 @@
       "final": true,
       "extends": null,
       "implements": "ProviderAvailabilityInterface, WithHttpTransporterInterface, WithRequestAuthenticationInterface",
-      "start_line": 36,
-      "end_line": 167,
-      "lines": 132,
+      "start_line": 40,
+      "end_line": 769,
+      "lines": 730,
       "methods": [
         {
           "name": "__construct",
           "visibility": "public",
           "static": false,
-          "line": 47,
-          "end_line": 49,
-          "lines": 3
+          "line": 125,
+          "end_line": 128,
+          "lines": 4
         },
         {
           "name": "isConfigured",
           "visibility": "public",
           "static": false,
-          "line": 58,
-          "end_line": 61,
-          "lines": 4
+          "line": 151,
+          "end_line": 170,
+          "lines": 20
         },
         {
           "name": "diagnose",
           "visibility": "public",
           "static": false,
-          "line": 68,
-          "end_line": 70,
+          "line": 177,
+          "end_line": 179,
           "lines": 3
         },
         {
           "name": "getLastResult",
           "visibility": "public",
           "static": false,
-          "line": 77,
-          "end_line": 79,
+          "line": 186,
+          "end_line": 188,
           "lines": 3
+        },
+        {
+          "name": "verify",
+          "visibility": "public",
+          "static": false,
+          "line": 204,
+          "end_line": 261,
+          "lines": 58
+        },
+        {
+          "name": "verify_result",
+          "visibility": "private",
+          "static": false,
+          "line": 276,
+          "end_line": 298,
+          "lines": 23
+        },
+        {
+          "name": "store_verify_verdict",
+          "visibility": "private",
+          "static": false,
+          "line": 310,
+          "end_line": 325,
+          "lines": 16
+        },
+        {
+          "name": "cacheTtl",
+          "visibility": "private",
+          "static": false,
+          "line": 338,
+          "end_line": 352,
+          "lines": 15
+        },
+        {
+          "name": "lockTtl",
+          "visibility": "private",
+          "static": false,
+          "line": 365,
+          "end_line": 374,
+          "lines": 10
         },
         {
           "name": "probe",
           "visibility": "private",
           "static": false,
-          "line": 86,
-          "end_line": 159,
-          "lines": 74
+          "line": 381,
+          "end_line": 446,
+          "lines": 66
+        },
+        {
+          "name": "sendProbe",
+          "visibility": "private",
+          "static": false,
+          "line": 458,
+          "end_line": 471,
+          "lines": 14
+        },
+        {
+          "name": "isProbeModelDrift",
+          "visibility": "private",
+          "static": false,
+          "line": 488,
+          "end_line": 494,
+          "lines": 7
+        },
+        {
+          "name": "sendProbeOnce",
+          "visibility": "private",
+          "static": false,
+          "line": 509,
+          "end_line": 535,
+          "lines": 27
+        },
+        {
+          "name": "probeHeaders",
+          "visibility": "private",
+          "static": false,
+          "line": 553,
+          "end_line": 566,
+          "lines": 14
+        },
+        {
+          "name": "probeModels",
+          "visibility": "private",
+          "static": false,
+          "line": 583,
+          "end_line": 590,
+          "lines": 8
+        },
+        {
+          "name": "fallbackProbeModel",
+          "visibility": "private",
+          "static": false,
+          "line": 602,
+          "end_line": 628,
+          "lines": 27
+        },
+        {
+          "name": "providerClassName",
+          "visibility": "private",
+          "static": false,
+          "line": 637,
+          "end_line": 639,
+          "lines": 3
+        },
+        {
+          "name": "sdkSurfaceAvailable",
+          "visibility": "private",
+          "static": false,
+          "line": 656,
+          "end_line": 660,
+          "lines": 5
+        },
+        {
+          "name": "stateOf",
+          "visibility": "private",
+          "static": false,
+          "line": 668,
+          "end_line": 670,
+          "lines": 3
+        },
+        {
+          "name": "readLastGood",
+          "visibility": "private",
+          "static": false,
+          "line": 682,
+          "end_line": 685,
+          "lines": 4
+        },
+        {
+          "name": "writeLastGood",
+          "visibility": "private",
+          "static": false,
+          "line": 695,
+          "end_line": 703,
+          "lines": 9
+        },
+        {
+          "name": "getCached",
+          "visibility": "private",
+          "static": false,
+          "line": 713,
+          "end_line": 718,
+          "lines": 6
+        },
+        {
+          "name": "setCached",
+          "visibility": "private",
+          "static": false,
+          "line": 730,
+          "end_line": 735,
+          "lines": 6
+        },
+        {
+          "name": "deleteCached",
+          "visibility": "private",
+          "static": false,
+          "line": 745,
+          "end_line": 750,
+          "lines": 6
+        },
+        {
+          "name": "diagnostics",
+          "visibility": "private",
+          "static": false,
+          "line": 759,
+          "end_line": 761,
+          "lines": 3
         }
       ],
-      "method_count": 5,
+      "method_count": 25,
       "public_methods": [
         "__construct",
         "isConfigured",
         "diagnose",
-        "getLastResult"
+        "getLastResult",
+        "verify"
       ],
       "protected_methods": [],
       "private_methods": [
-        "probe"
+        "verify_result",
+        "store_verify_verdict",
+        "cacheTtl",
+        "lockTtl",
+        "probe",
+        "sendProbe",
+        "isProbeModelDrift",
+        "sendProbeOnce",
+        "probeHeaders",
+        "probeModels",
+        "fallbackProbeModel",
+        "providerClassName",
+        "sdkSurfaceAvailable",
+        "stateOf",
+        "readLastGood",
+        "writeLastGood",
+        "getCached",
+        "setCached",
+        "deleteCached",
+        "diagnostics"
       ],
       "dependencies": [
         "OpenCodeConnector\\Http\\SessionHeader",
@@ -196,8 +469,8 @@
       "abstract": false,
       "final": true,
       "start_line": 24,
-      "end_line": 140,
-      "lines": 117,
+      "end_line": 201,
+      "lines": 178,
       "methods": [
         {
           "name": "__construct",
@@ -212,25 +485,52 @@
           "visibility": "public",
           "static": false,
           "line": 57,
-          "end_line": 130,
-          "lines": 74
+          "end_line": 94,
+          "lines": 38
+        },
+        {
+          "name": "checkWordPress",
+          "visibility": "private",
+          "static": false,
+          "line": 104,
+          "end_line": 109,
+          "lines": 6
+        },
+        {
+          "name": "checkRegistry",
+          "visibility": "private",
+          "static": false,
+          "line": 119,
+          "end_line": 152,
+          "lines": 34
+        },
+        {
+          "name": "checkProviders",
+          "visibility": "private",
+          "static": false,
+          "line": 162,
+          "end_line": 191,
+          "lines": 30
         },
         {
           "name": "get_wordpress_version",
           "visibility": "private",
           "static": false,
-          "line": 137,
-          "end_line": 139,
+          "line": 198,
+          "end_line": 200,
           "lines": 3
         }
       ],
-      "method_count": 3,
+      "method_count": 6,
       "public_methods": [
         "__construct",
         "inspect"
       ],
       "protected_methods": [],
       "private_methods": [
+        "checkWordPress",
+        "checkRegistry",
+        "checkProviders",
         "get_wordpress_version"
       ],
       "extends": null,
@@ -263,8 +563,8 @@
       "extends": null,
       "implements": null,
       "start_line": 31,
-      "end_line": 111,
-      "lines": 81,
+      "end_line": 109,
+      "lines": 79,
       "methods": [
         {
           "name": "value",
@@ -279,8 +579,8 @@
           "visibility": "public",
           "static": true,
           "line": 98,
-          "end_line": 110,
-          "lines": 13
+          "end_line": 108,
+          "lines": 11
         }
       ],
       "method_count": 2,
@@ -352,8 +652,8 @@
       "extends": null,
       "implements": null,
       "start_line": 28,
-      "end_line": 229,
-      "lines": 202,
+      "end_line": 214,
+      "lines": 187,
       "methods": [
         {
           "name": "derive_from_data",
@@ -384,24 +684,24 @@
           "visibility": "private",
           "static": true,
           "line": 148,
-          "end_line": 167,
-          "lines": 20
+          "end_line": 162,
+          "lines": 15
         },
         {
           "name": "inject_into_headers",
           "visibility": "public",
           "static": true,
-          "line": 181,
-          "end_line": 198,
-          "lines": 18
+          "line": 176,
+          "end_line": 191,
+          "lines": 16
         },
         {
           "name": "normalize_content",
           "visibility": "private",
           "static": true,
-          "line": 208,
-          "end_line": 228,
-          "lines": 21
+          "line": 201,
+          "end_line": 213,
+          "lines": 13
         }
       ],
       "method_count": 6,
@@ -437,48 +737,48 @@
       "extends": null,
       "implements": null,
       "start_line": 29,
-      "end_line": 224,
-      "lines": 196,
+      "end_line": 222,
+      "lines": 194,
       "methods": [
         {
           "name": "is_allowed_mime",
           "visibility": "public",
           "static": true,
-          "line": 56,
-          "end_line": 58,
+          "line": 59,
+          "end_line": 61,
           "lines": 3
         },
         {
           "name": "is_within_size_limit",
           "visibility": "public",
           "static": true,
-          "line": 68,
-          "end_line": 70,
+          "line": 71,
+          "end_line": 73,
           "lines": 3
         },
         {
           "name": "validate",
           "visibility": "public",
           "static": true,
-          "line": 86,
-          "end_line": 126,
+          "line": 89,
+          "end_line": 129,
           "lines": 41
         },
         {
           "name": "detect_mime",
           "visibility": "private",
           "static": true,
-          "line": 140,
-          "end_line": 154,
+          "line": 143,
+          "end_line": 157,
           "lines": 15
         },
         {
           "name": "save_to_media_library",
           "visibility": "public",
           "static": true,
-          "line": 166,
-          "end_line": 223,
-          "lines": 58
+          "line": 169,
+          "end_line": 221,
+          "lines": 53
         }
       ],
       "method_count": 5,
@@ -510,8 +810,8 @@
       "extends": "AbstractOpenAiCompatibleModelMetadataDirectory",
       "implements": null,
       "start_line": 36,
-      "end_line": 166,
-      "lines": 131,
+      "end_line": 211,
+      "lines": 176,
       "methods": [
         {
           "name": "providerClass",
@@ -542,11 +842,35 @@
           "visibility": "protected",
           "static": false,
           "line": 80,
-          "end_line": 165,
-          "lines": 86
+          "end_line": 100,
+          "lines": 21
+        },
+        {
+          "name": "buildCommonOptions",
+          "visibility": "private",
+          "static": false,
+          "line": 109,
+          "end_line": 121,
+          "lines": 13
+        },
+        {
+          "name": "metadataForRow",
+          "visibility": "private",
+          "static": false,
+          "line": 133,
+          "end_line": 187,
+          "lines": 55
+        },
+        {
+          "name": "sortByFreeFirst",
+          "visibility": "private",
+          "static": false,
+          "line": 197,
+          "end_line": 210,
+          "lines": 14
         }
       ],
-      "method_count": 4,
+      "method_count": 7,
       "public_methods": [],
       "protected_methods": [
         "providerClass",
@@ -554,7 +878,11 @@
         "createRequest",
         "parseResponseToModelMetadataList"
       ],
-      "private_methods": [],
+      "private_methods": [
+        "buildCommonOptions",
+        "metadataForRow",
+        "sortByFreeFirst"
+      ],
       "dependencies": [
         "WordPress\\AiClient\\Messages\\Enums\\ModalityEnum",
         "WordPress\\AiClient\\Providers\\Http\\DTO\\Request",
@@ -591,64 +919,91 @@
       "extends": null,
       "implements": null,
       "start_line": 20,
-      "end_line": 246,
-      "lines": 227,
+      "end_line": 297,
+      "lines": 278,
       "methods": [
         {
           "name": "compare",
           "visibility": "public",
           "static": false,
-          "line": 39,
-          "end_line": 161,
-          "lines": 123
+          "line": 32,
+          "end_line": 63,
+          "lines": 32
+        },
+        {
+          "name": "validateDiscoveryRows",
+          "visibility": "private",
+          "static": false,
+          "line": 73,
+          "end_line": 117,
+          "lines": 45
+        },
+        {
+          "name": "diffAgainstBaseline",
+          "visibility": "private",
+          "static": false,
+          "line": 129,
+          "end_line": 179,
+          "lines": 51
+        },
+        {
+          "name": "appendRetirements",
+          "visibility": "private",
+          "static": false,
+          "line": 195,
+          "end_line": 212,
+          "lines": 18
         },
         {
           "name": "normalize",
           "visibility": "private",
           "static": false,
-          "line": 169,
-          "end_line": 180,
+          "line": 220,
+          "end_line": 231,
           "lines": 12
         },
         {
           "name": "capabilities_changed",
           "visibility": "private",
           "static": false,
-          "line": 189,
-          "end_line": 199,
+          "line": 240,
+          "end_line": 250,
           "lines": 11
         },
         {
           "name": "free_changed",
           "visibility": "private",
           "static": false,
-          "line": 208,
-          "end_line": 210,
+          "line": 259,
+          "end_line": 261,
           "lines": 3
         },
         {
           "name": "metadata_changed",
           "visibility": "private",
           "static": false,
-          "line": 219,
-          "end_line": 226,
+          "line": 270,
+          "end_line": 277,
           "lines": 8
         },
         {
           "name": "result",
           "visibility": "private",
           "static": false,
-          "line": 237,
-          "end_line": 245,
+          "line": 288,
+          "end_line": 296,
           "lines": 9
         }
       ],
-      "method_count": 6,
+      "method_count": 9,
       "public_methods": [
         "compare"
       ],
       "protected_methods": [],
       "private_methods": [
+        "validateDiscoveryRows",
+        "diffAgainstBaseline",
+        "appendRetirements",
         "normalize",
         "capabilities_changed",
         "free_changed",
@@ -679,63 +1034,63 @@
       "extends": null,
       "implements": null,
       "start_line": 25,
-      "end_line": 238,
-      "lines": 214,
+      "end_line": 280,
+      "lines": 256,
       "methods": [
         {
           "name": "isAllowed",
           "visibility": "public",
           "static": true,
-          "line": 131,
-          "end_line": 133,
+          "line": 167,
+          "end_line": 169,
           "lines": 3
         },
         {
           "name": "allowedIds",
           "visibility": "public",
           "static": true,
-          "line": 143,
-          "end_line": 145,
+          "line": 179,
+          "end_line": 181,
           "lines": 3
         },
         {
           "name": "isImageCapable",
           "visibility": "public",
           "static": true,
-          "line": 159,
-          "end_line": 161,
+          "line": 195,
+          "end_line": 197,
           "lines": 3
         },
         {
           "name": "isFree",
           "visibility": "public",
           "static": true,
-          "line": 171,
-          "end_line": 173,
+          "line": 213,
+          "end_line": 215,
           "lines": 3
         },
         {
           "name": "isToolCapable",
           "visibility": "public",
           "static": true,
-          "line": 192,
-          "end_line": 203,
+          "line": 234,
+          "end_line": 245,
           "lines": 12
         },
         {
           "name": "isWebSearchCapable",
           "visibility": "public",
           "static": true,
-          "line": 221,
-          "end_line": 223,
+          "line": 263,
+          "end_line": 265,
           "lines": 3
         },
         {
           "name": "displayName",
           "visibility": "public",
           "static": true,
-          "line": 233,
-          "end_line": 237,
+          "line": 275,
+          "end_line": 279,
           "lines": 5
         }
       ],
@@ -772,45 +1127,72 @@
       "final": true,
       "extends": null,
       "implements": null,
-      "start_line": 23,
-      "end_line": 127,
-      "lines": 105,
+      "start_line": 31,
+      "end_line": 328,
+      "lines": 298,
       "methods": [
+        {
+          "name": "isUnsupportedFamily",
+          "visibility": "public",
+          "static": true,
+          "line": 197,
+          "end_line": 199,
+          "lines": 3
+        },
         {
           "name": "endpointFamily",
           "visibility": "private",
           "static": true,
-          "line": 58,
-          "end_line": 63,
-          "lines": 6
+          "line": 218,
+          "end_line": 227,
+          "lines": 10
+        },
+        {
+          "name": "isPending",
+          "visibility": "public",
+          "static": true,
+          "line": 236,
+          "end_line": 238,
+          "lines": 3
+        },
+        {
+          "name": "isReviewed",
+          "visibility": "public",
+          "static": true,
+          "line": 250,
+          "end_line": 254,
+          "lines": 5
         },
         {
           "name": "record",
           "visibility": "public",
           "static": true,
-          "line": 72,
-          "end_line": 96,
-          "lines": 25
+          "line": 263,
+          "end_line": 297,
+          "lines": 35
         },
         {
           "name": "records",
           "visibility": "public",
           "static": true,
-          "line": 104,
-          "end_line": 113,
+          "line": 305,
+          "end_line": 314,
           "lines": 10
         },
         {
           "name": "supports",
           "visibility": "public",
           "static": true,
-          "line": 123,
-          "end_line": 126,
+          "line": 324,
+          "end_line": 327,
           "lines": 4
         }
       ],
-      "method_count": 4,
+      "method_count": 7,
       "public_methods": [
+        "isUnsupportedFamily",
+        "isPending",
+        "isReviewed",
         "record",
         "records",
         "supports"
@@ -1010,77 +1392,120 @@
       "extends": "AbstractOpenAiCompatibleTextGenerationModel",
       "implements": null,
       "start_line": 36,
-      "end_line": 317,
-      "lines": 282,
+      "end_line": 402,
+      "lines": 367,
       "methods": [
+        {
+          "name": "setFallback",
+          "visibility": "public",
+          "static": false,
+          "line": 62,
+          "end_line": 64,
+          "lines": 3
+        },
+        {
+          "name": "fallbackSelector",
+          "visibility": "protected",
+          "static": false,
+          "line": 76,
+          "end_line": 78,
+          "lines": 3
+        },
         {
           "name": "providerClass",
           "visibility": "protected",
           "static": false,
-          "line": 51,
-          "end_line": 51,
+          "line": 87,
+          "end_line": 87,
           "lines": 1
         },
         {
           "name": "createRequest",
           "visibility": "protected",
           "static": false,
-          "line": 72,
-          "end_line": 101,
+          "line": 108,
+          "end_line": 137,
           "lines": 30
         },
         {
           "name": "prepareResponseFormatParam",
           "visibility": "protected",
           "static": false,
-          "line": 111,
-          "end_line": 123,
+          "line": 147,
+          "end_line": 159,
           "lines": 13
         },
         {
           "name": "prepareToolsParam",
           "visibility": "protected",
           "static": false,
-          "line": 144,
-          "end_line": 196,
-          "lines": 53
+          "line": 180,
+          "end_line": 221,
+          "lines": 42
+        },
+        {
+          "name": "mapDeclarationToTool",
+          "visibility": "private",
+          "static": false,
+          "line": 234,
+          "end_line": 250,
+          "lines": 17
         },
         {
           "name": "route_model_id",
           "visibility": "protected",
           "static": false,
-          "line": 206,
-          "end_line": 208,
+          "line": 260,
+          "end_line": 262,
           "lines": 3
         },
         {
           "name": "fallback_model_ids",
           "visibility": "protected",
           "static": false,
-          "line": 218,
-          "end_line": 220,
+          "line": 272,
+          "end_line": 274,
           "lines": 3
         },
         {
           "name": "model_id_for_tool_gate",
           "visibility": "private",
           "static": false,
-          "line": 233,
-          "end_line": 284,
-          "lines": 52
+          "line": 287,
+          "end_line": 297,
+          "lines": 11
+        },
+        {
+          "name": "resolveViaAccessors",
+          "visibility": "private",
+          "static": false,
+          "line": 306,
+          "end_line": 329,
+          "lines": 24
+        },
+        {
+          "name": "resolveViaReflection",
+          "visibility": "private",
+          "static": false,
+          "line": 345,
+          "end_line": 369,
+          "lines": 25
         },
         {
           "name": "catalog_key_for_tool_gate",
           "visibility": "private",
           "static": false,
-          "line": 297,
-          "end_line": 316,
+          "line": 382,
+          "end_line": 401,
           "lines": 20
         }
       ],
-      "method_count": 8,
-      "public_methods": [],
+      "method_count": 13,
+      "public_methods": [
+        "setFallback"
+      ],
       "protected_methods": [
+        "fallbackSelector",
         "providerClass",
         "createRequest",
         "prepareResponseFormatParam",
@@ -1089,7 +1514,10 @@
         "fallback_model_ids"
       ],
       "private_methods": [
+        "mapDeclarationToTool",
         "model_id_for_tool_gate",
+        "resolveViaAccessors",
+        "resolveViaReflection",
         "catalog_key_for_tool_gate"
       ],
       "dependencies": [
@@ -1322,8 +1750,8 @@
       "extends": "AbstractApiProvider",
       "implements": null,
       "start_line": 42,
-      "end_line": 256,
-      "lines": 215,
+      "end_line": 284,
+      "lines": 243,
       "methods": [
         {
           "name": "providerId",
@@ -1362,51 +1790,67 @@
           "visibility": "protected",
           "static": true,
           "line": 89,
-          "end_line": 130,
-          "lines": 42
+          "end_line": 127,
+          "lines": 39
+        },
+        {
+          "name": "modelClassFor",
+          "visibility": "private",
+          "static": true,
+          "line": 140,
+          "end_line": 146,
+          "lines": 7
         },
         {
           "name": "capability_matches",
           "visibility": "private",
           "static": true,
-          "line": 149,
-          "end_line": 167,
+          "line": 165,
+          "end_line": 183,
           "lines": 19
         },
         {
           "name": "try_capability_checker",
           "visibility": "private",
           "static": true,
-          "line": 181,
-          "end_line": 191,
+          "line": 197,
+          "end_line": 207,
           "lines": 11
         },
         {
           "name": "createProviderMetadata",
           "visibility": "protected",
           "static": true,
-          "line": 201,
-          "end_line": 231,
+          "line": 217,
+          "end_line": 247,
           "lines": 31
         },
         {
           "name": "createProviderAvailability",
           "visibility": "protected",
           "static": true,
-          "line": 240,
-          "end_line": 242,
+          "line": 256,
+          "end_line": 258,
           "lines": 3
         },
         {
           "name": "createModelMetadataDirectory",
           "visibility": "protected",
           "static": true,
-          "line": 251,
-          "end_line": 255,
+          "line": 267,
+          "end_line": 270,
+          "lines": 4
+        },
+        {
+          "name": "directoryClassFor",
+          "visibility": "private",
+          "static": true,
+          "line": 279,
+          "end_line": 283,
           "lines": 5
         }
       ],
-      "method_count": 10,
+      "method_count": 12,
       "public_methods": [],
       "protected_methods": [
         "providerId",
@@ -1419,8 +1863,10 @@
         "createModelMetadataDirectory"
       ],
       "private_methods": [
+        "modelClassFor",
         "capability_matches",
-        "try_capability_checker"
+        "try_capability_checker",
+        "directoryClassFor"
       ],
       "dependencies": [
         "OpenCodeConnector\\Availability\\OpenCodeProviderAvailability",
@@ -1633,8 +2079,8 @@
       "extends": null,
       "implements": null,
       "start_line": 27,
-      "end_line": 248,
-      "lines": 222,
+      "end_line": 276,
+      "lines": 250,
       "methods": [
         {
           "name": "register",
@@ -1657,63 +2103,81 @@
           "visibility": "public",
           "static": false,
           "line": 76,
-          "end_line": 90,
-          "lines": 15
+          "end_line": 81,
+          "lines": 6
         },
         {
           "name": "bustCachesAdd",
           "visibility": "public",
           "static": false,
-          "line": 101,
-          "end_line": 114,
-          "lines": 14
+          "line": 92,
+          "end_line": 96,
+          "lines": 5
+        },
+        {
+          "name": "clearAvailabilityCaches",
+          "visibility": "public",
+          "static": true,
+          "line": 114,
+          "end_line": 121,
+          "lines": 8
         },
         {
           "name": "clearModelCaches",
           "visibility": "private",
           "static": false,
-          "line": 123,
-          "end_line": 154,
+          "line": 130,
+          "end_line": 161,
           "lines": 32
         },
         {
           "name": "modelCacheKey",
           "visibility": "private",
           "static": false,
-          "line": 166,
-          "end_line": 169,
+          "line": 173,
+          "end_line": 176,
           "lines": 4
         },
         {
           "name": "menu",
           "visibility": "public",
           "static": false,
-          "line": 178,
-          "end_line": 180,
+          "line": 185,
+          "end_line": 187,
           "lines": 3
+        },
+        {
+          "name": "fetchProviderStatus",
+          "visibility": "private",
+          "static": false,
+          "line": 199,
+          "end_line": 229,
+          "lines": 31
         },
         {
           "name": "render",
           "visibility": "public",
           "static": false,
-          "line": 189,
-          "end_line": 247,
-          "lines": 59
+          "line": 238,
+          "end_line": 275,
+          "lines": 38
         }
       ],
-      "method_count": 8,
+      "method_count": 10,
       "public_methods": [
         "register",
         "sanitize",
         "bustCaches",
         "bustCachesAdd",
+        "clearAvailabilityCaches",
         "menu",
         "render"
       ],
       "protected_methods": [],
       "private_methods": [
         "clearModelCaches",
-        "modelCacheKey"
+        "modelCacheKey",
+        "fetchProviderStatus"
       ],
       "dependencies": [
         "WordPress\\AiClient\\AiClient"
@@ -1740,42 +2204,52 @@
       "extends": null,
       "implements": null,
       "start_line": 21,
-      "end_line": 80,
-      "lines": 60,
+      "end_line": 109,
+      "lines": 89,
       "methods": [
+        {
+          "name": "rejectFamily",
+          "visibility": "private",
+          "static": true,
+          "line": 49,
+          "end_line": 62,
+          "lines": 14
+        },
         {
           "name": "endpointKindForModel",
           "visibility": "public",
           "static": true,
-          "line": 43,
-          "end_line": 53,
+          "line": 72,
+          "end_line": 82,
           "lines": 11
         },
         {
           "name": "pathForModel",
           "visibility": "public",
           "static": true,
-          "line": 63,
-          "end_line": 65,
+          "line": 92,
+          "end_line": 94,
           "lines": 3
         },
         {
           "name": "pathForEndpointKind",
           "visibility": "public",
           "static": true,
-          "line": 74,
-          "end_line": 79,
+          "line": 103,
+          "end_line": 108,
           "lines": 6
         }
       ],
-      "method_count": 3,
+      "method_count": 4,
       "public_methods": [
         "endpointKindForModel",
         "pathForModel",
         "pathForEndpointKind"
       ],
       "protected_methods": [],
-      "private_methods": [],
+      "private_methods": [
+        "rejectFamily"
+      ],
       "dependencies": [
         "OpenCodeConnector\\Metadata\\ModelRegistry",
         "OpenCodeConnector\\Transport\\UnsupportedEndpointFamilyException"
@@ -1834,57 +2308,75 @@
       "extends": null,
       "implements": null,
       "start_line": 20,
-      "end_line": 203,
-      "lines": 184,
+      "end_line": 258,
+      "lines": 239,
       "methods": [
         {
           "name": "__construct",
           "visibility": "public",
           "static": false,
-          "line": 51,
-          "end_line": 53,
+          "line": 44,
+          "end_line": 46,
           "lines": 3
         },
         {
           "name": "select",
           "visibility": "public",
           "static": false,
-          "line": 64,
-          "end_line": 157,
-          "lines": 94
+          "line": 57,
+          "end_line": 90,
+          "lines": 34
+        },
+        {
+          "name": "validatePrimary",
+          "visibility": "private",
+          "static": false,
+          "line": 101,
+          "end_line": 125,
+          "lines": 25
+        },
+        {
+          "name": "evaluateCandidate",
+          "visibility": "private",
+          "static": false,
+          "line": 143,
+          "end_line": 205,
+          "lines": 63
         },
         {
           "name": "is_verified",
           "visibility": "private",
           "static": false,
-          "line": 165,
-          "end_line": 167,
+          "line": 220,
+          "end_line": 222,
           "lines": 3
         },
         {
           "name": "record",
           "visibility": "private",
           "static": false,
-          "line": 176,
-          "end_line": 182,
+          "line": 231,
+          "end_line": 237,
           "lines": 7
         },
         {
           "name": "empty_result",
           "visibility": "private",
           "static": false,
-          "line": 190,
-          "end_line": 202,
+          "line": 245,
+          "end_line": 257,
           "lines": 13
         }
       ],
-      "method_count": 5,
+      "method_count": 7,
       "public_methods": [
         "__construct",
         "select"
       ],
       "protected_methods": [],
       "private_methods": [
+        "validatePrimary",
+        "evaluateCandidate",
         "is_verified",
         "record",
         "empty_result"
@@ -1913,84 +2405,156 @@
       "extends": null,
       "implements": null,
       "start_line": 23,
-      "end_line": 360,
-      "lines": 338,
+      "end_line": 487,
+      "lines": 465,
       "methods": [
+        {
+          "name": "__construct",
+          "visibility": "public",
+          "static": false,
+          "line": 39,
+          "end_line": 41,
+          "lines": 3
+        },
         {
           "name": "report",
           "visibility": "public",
           "static": false,
-          "line": 49,
-          "end_line": 78,
+          "line": 62,
+          "end_line": 91,
           "lines": 30
         },
         {
           "name": "markdown",
           "visibility": "public",
           "static": false,
-          "line": 86,
-          "end_line": 149,
-          "lines": 64
+          "line": 99,
+          "end_line": 121,
+          "lines": 23
+        },
+        {
+          "name": "catalogSection",
+          "visibility": "private",
+          "static": false,
+          "line": 132,
+          "end_line": 166,
+          "lines": 35
+        },
+        {
+          "name": "changeStatesText",
+          "visibility": "private",
+          "static": false,
+          "line": 176,
+          "end_line": 178,
+          "lines": 3
+        },
+        {
+          "name": "changeLabel",
+          "visibility": "private",
+          "static": false,
+          "line": 188,
+          "end_line": 194,
+          "lines": 7
+        },
+        {
+          "name": "measurementSection",
+          "visibility": "private",
+          "static": false,
+          "line": 204,
+          "end_line": 218,
+          "lines": 15
         },
         {
           "name": "unreachable_report",
           "visibility": "private",
           "static": false,
-          "line": 156,
-          "end_line": 180,
+          "line": 225,
+          "end_line": 249,
           "lines": 25
         },
         {
           "name": "catalog_report",
           "visibility": "private",
           "static": false,
-          "line": 190,
-          "end_line": 315,
-          "lines": 126
+          "line": 259,
+          "end_line": 287,
+          "lines": 29
         },
         {
-          "name": "is_supported",
+          "name": "scanExplicitFree",
           "visibility": "private",
           "static": false,
-          "line": 323,
-          "end_line": 327,
-          "lines": 5
+          "line": 297,
+          "end_line": 316,
+          "lines": 20
+        },
+        {
+          "name": "emptySummary",
+          "visibility": "private",
+          "static": false,
+          "line": 325,
+          "end_line": 345,
+          "lines": 21
+        },
+        {
+          "name": "buildChangeRow",
+          "visibility": "private",
+          "static": false,
+          "line": 358,
+          "end_line": 387,
+          "lines": 30
+        },
+        {
+          "name": "summarizeResult",
+          "visibility": "private",
+          "static": false,
+          "line": 401,
+          "end_line": 454,
+          "lines": 54
         },
         {
           "name": "looks_free_name",
           "visibility": "private",
           "static": false,
-          "line": 335,
-          "end_line": 337,
+          "line": 462,
+          "end_line": 464,
           "lines": 3
         },
         {
           "name": "metric_text",
           "visibility": "private",
           "static": false,
-          "line": 346,
-          "end_line": 349,
+          "line": 473,
+          "end_line": 476,
           "lines": 4
         },
         {
           "name": "safe_text",
           "visibility": "private",
           "static": false,
-          "line": 357,
-          "end_line": 359,
+          "line": 484,
+          "end_line": 486,
           "lines": 3
         }
       ],
-      "method_count": 8,
+      "method_count": 16,
       "public_methods": [
+        "__construct",
         "report",
         "markdown"
       ],
       "protected_methods": [],
       "private_methods": [
+        "catalogSection",
+        "changeStatesText",
+        "changeLabel",
+        "measurementSection",
         "unreachable_report",
         "catalog_report",
-        "is_supported",
+        "scanExplicitFree",
+        "emptySummary",
+        "buildChangeRow",
+        "summarizeResult",
         "looks_free_name",
         "metric_text",
         "safe_text"

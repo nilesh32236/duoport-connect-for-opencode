@@ -19,6 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 use OpenCodeConnector\Http\GoRequestHeaders;
 use OpenCodeConnector\Http\SessionHeader;
 use OpenCodeConnector\Metadata\Catalog;
+use OpenCodeConnector\Metadata\ModelAllowlist;
 use OpenCodeConnector\Metadata\ModelRegistry;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
@@ -53,39 +54,65 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 *
 	 * @since 0.1.6
 	 */
-	const PROBE_MODEL = 'deepseek-v4-flash';
+	public const PROBE_MODEL = 'deepseek-v4-flash';
 
 	/**
-	 * States that prove the key was accepted by the gateway.
+	 * Minutes a settled verdict stays cached.
 	 *
-	 * `free_tier_limit` is a Zen free-tier quota stop, which is still a valid
-	 * key, so it counts as configured even though nothing is usable.
+	 * One value for both the availability result and the verification verdict,
+	 * so the two windows can never drift apart.
+	 *
+	 * @since 0.1.8
+	 */
+	private const CACHE_TTL_MINUTES = 5;
+
+	/**
+	 * Seconds of stagger added to a cache window to avoid synchronized
+	 * stampedes.
+	 *
+	 * @since 0.1.8
+	 */
+	private const JITTER_SECONDS = 60;
+
+	/**
+	 * Floor for any cached window, so a negative jitter cannot produce an
+	 * already-expired verdict.
+	 *
+	 * @since 0.1.8
+	 */
+	private const MIN_TTL_SECONDS = 60;
+
+	/**
+	 * Seconds the stampede lock is held per probe attempt.
+	 *
+	 * Scaled by the number of probe models: a probe may issue that many
+	 * sequential blocking requests, and the lock must outlive the worst case or
+	 * the next request starts a second full probe.
+	 *
+	 * @since 0.1.8
+	 */
+	private const LOCK_TTL_SECONDS = 10;
+
+	/**
+	 * Days the last-known-good flag survives.
+	 *
+	 * @since 0.1.8
+	 */
+	private const LAST_GOOD_DAYS = 30;
+
+	/**
+	 * States that are a settled verdict rather than a transient fault.
+	 *
+	 * A settled, credential-blind verdict (a probe model the gateway will not
+	 * serve) does not resolve within a minute, so it is cached on the same
+	 * long jittered window as a success. A short window would multiply
+	 * outbound probe traffic for as long as the drift lasts.
+	 *
+	 * @since 0.1.8
 	 *
 	 * @var list<string>
 	 */
-	private const KEYED_STATES = array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' );
-
-	/**
-	 * States that say nothing about the credential.
-	 *
-	 * 5xx, transport failures, concurrent probes, a response that matched no
-	 * known rule (`unknown`), and a 401 that names no credential error
-	 * (`probe_model_unavailable`) all preserve last-known-good state instead of
-	 * flipping a valid key to not-connected.
-	 *
-	 * @var list<string>
-	 */
-	private const COULD_NOT_BE_CHECKED_STATES = array( 'uncheckable', 'network_error', 'server_error', 'unknown', 'probe_model_unavailable' );
-
-	/**
-	 * States that are a definitive negative for the credential.
-	 *
-	 * Only these clear the 30-day last-known-good flag; an unexpected upstream
-	 * status must never destroy good state.
-	 *
-	 * @var list<string>
-	 */
-	private const DEFINITIVE_NEGATIVE_STATES = array( 'not_configured', 'invalid_key' );
+	private const SETTLED_STATES = array( 'probe_model_unavailable' );
 
 	/**
 	 * Constructor.
@@ -125,17 +152,20 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		$result = $this->probe();
 		$state  = $this->stateOf( $result );
 		// Definitive, keyed outcomes stay configured.
-		if ( in_array( $state, self::KEYED_STATES, true ) ) {
+		if ( in_array( $state, ConnectionDiagnostics::KEYED_STATES, true ) ) {
 			return true;
 		}
 		// Could-not-be-checked outcomes fall back to last-known-good instead of
 		// flipping a valid key to not-connected during an outage.
-		if ( in_array( $state, self::COULD_NOT_BE_CHECKED_STATES, true ) ) {
+		if ( in_array( $state, ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES, true ) ) {
 			return $this->readLastGood();
 		}
-		// A state this plugin does not know is not a credential verdict. Trust
-		// the diagnosis when it says the gateway accepted the key, and let only
-		// last-known-good answer.
+		// A state this plugin does not know is not a credential verdict. The
+		// diagnosis and last-known-good must BOTH say the gateway accepted the
+		// key before it is called configured, so an unrecognized state can
+		// never clear the outage fallback. The `&&` is load-bearing: an `||`
+		// would report configured while last-known-good is empty, inverting the
+		// fail-open direction.
 		return true === ( $result['configured'] ?? false ) && $this->readLastGood();
 	}
 
@@ -205,7 +235,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 
 		if ( function_exists( 'set_transient' ) ) {
 			try {
-				set_transient( $lock_key, 1, 10 );
+				set_transient( $lock_key, 1, $this->lockTtl() );
 			} catch ( \Throwable $lock_exception ) {
 				unset( $lock_exception );
 				// Fail-open: proceed without the lock.
@@ -272,9 +302,9 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 *
 	 * @since 0.1.6
 	 *
-	 * @param string               $tkey    Transient key.
+	 * @param string               $tkey     Transient key.
 	 * @param string               $lock_key Lock transient key.
-	 * @param array<string, mixed> $verdict Safe verdict.
+	 * @param array<string, mixed> $verdict  Safe verdict.
 	 * @return void
 	 */
 	private function store_verify_verdict( string $tkey, string $lock_key, array $verdict ): void {
@@ -286,25 +316,61 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 				// Fail-open: caching must never be fatal.
 			}
 		}
-		if ( ! function_exists( 'set_transient' ) ) {
-			return;
-		}
-		$base = defined( 'MINUTE_IN_SECONDS' ) ? 5 * MINUTE_IN_SECONDS : 300;
-		$ttl  = (int) $base;
-		if ( function_exists( 'wp_rand' ) ) {
-			try {
-				$ttl = (int) $base + wp_rand( -60, 60 );
-			} catch ( \Throwable $rand_exception ) {
-				unset( $rand_exception );
-				$ttl = (int) $base;
-			}
-		}
 		try {
-			set_transient( $tkey, $verdict, max( 60, $ttl ) );
+			$this->setCached( $tkey, $verdict, $this->cacheTtl() );
 		} catch ( \Throwable $store_exception ) {
 			unset( $store_exception );
 			// Fail-open: caching must never be fatal.
 		}
+	}
+
+	/**
+	 * Cache window for a settled verdict, in seconds.
+	 *
+	 * One helper for the availability result and the verification verdict:
+	 * CACHE_TTL_MINUTES plus ±JITTER_SECONDS, floored at MIN_TTL_SECONDS.
+	 * Never throws.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return int
+	 */
+	private function cacheTtl(): int {
+		$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : self::MIN_TTL_SECONDS;
+		$base   = self::CACHE_TTL_MINUTES * $minute;
+		$jitter = 0;
+		if ( function_exists( 'wp_rand' ) ) {
+			try {
+				$jitter = (int) wp_rand( -self::JITTER_SECONDS, self::JITTER_SECONDS );
+			} catch ( \Throwable $rand_exception ) {
+				unset( $rand_exception );
+				// Fail-open: an unstaggered window still works.
+				$jitter = 0;
+			}
+		}
+		return max( self::MIN_TTL_SECONDS, $base + $jitter );
+	}
+
+	/**
+	 * Stampede-lock window, in seconds.
+	 *
+	 * Scaled to the number of probe models so the lock always outlives the
+	 * worst case: each candidate is a sequential blocking request, and an
+	 * expiring lock mid-probe is the stampede it exists to prevent.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return int
+	 */
+	private function lockTtl(): int {
+		$models = 0;
+		try {
+			$models = count( $this->probeModels() );
+		} catch ( \Throwable $models_exception ) {
+			unset( $models_exception );
+			$models = 0;
+		}
+		return self::LOCK_TTL_SECONDS * max( 1, $models );
 	}
 
 	/**
@@ -342,8 +408,9 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			return $this->last_result;
 		}
 
-		// Set lock before network I/O (10s).
-		$this->setCached( $lock_key, 1, 10 );
+		// Set lock before network I/O, sized to the number of probe attempts so
+		// it cannot expire while a probe is still running.
+		$this->setCached( $lock_key, 1, $this->lockTtl() );
 
 		// The whole SDK touch (class_exists(), Request construction, url()) is
 		// inside the guarded send, so a missing DTO or enum degrades to
@@ -353,24 +420,28 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		$state = $this->stateOf( $this->last_result );
 		// Could-not-be-checked (5xx, transport failure, concurrent probe, or a
 		// response that says nothing about the key): never write the failure to
-		// last-known-good. The verdict is cached briefly so a persistent
+		// last-known-good. A transient fault is cached briefly so a persistent
 		// upstream problem costs one probe per window instead of one per call,
-		// while isConfigured() keeps failing open.
-		if ( in_array( $state, self::COULD_NOT_BE_CHECKED_STATES, true ) ) {
-			$second = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
-			$this->setCached( $tkey, $this->last_result, $second );
+		// while isConfigured() keeps failing open. A settled, credential-blind
+		// verdict (a probe model the gateway will not serve) gets the long
+		// window instead: it will not resolve in a minute, and a short window
+		// would cost two probe requests a minute for as long as the drift lasts.
+		if ( in_array( $state, ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES, true ) ) {
+			if ( in_array( $state, self::SETTLED_STATES, true ) ) {
+				$this->setCached( $tkey, $this->last_result, $this->cacheTtl() );
+				return $this->last_result;
+			}
+			$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : self::MIN_TTL_SECONDS;
+			$this->setCached( $tkey, $this->last_result, $minute );
 			return $this->last_result;
 		}
 		// Definitive keyed outcomes refresh last-known-good. A Zen free-tier
 		// quota stop proves the key is valid, so it counts as a good result.
 		// Only a definitive negative (unkeyed, rejected credential) clears it:
 		// an unexpected upstream answer must never destroy good state.
-		$this->writeLastGood( ! in_array( $state, self::DEFINITIVE_NEGATIVE_STATES, true ) );
-		// Stagger expiry ±60s to avoid synchronized stampedes.
-		$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
-		$jitter = function_exists( 'wp_rand' ) ? wp_rand( -60, 60 ) : 0;
-		$ttl    = 5 * $minute + (int) $jitter;
-		$this->setCached( $tkey, $this->last_result, max( 60, $ttl ) );
+		$this->writeLastGood( ! in_array( $state, ConnectionDiagnostics::DEFINITIVE_NEGATIVE_STATES, true ) );
+		// Stagger expiry to avoid synchronized stampedes.
+		$this->setCached( $tkey, $this->last_result, $this->cacheTtl() );
 		return $this->last_result;
 	}
 
@@ -380,8 +451,8 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @since 0.1.8
 	 *
 	 * @param ConnectionDiagnostics $diagnostics Classifier.
-	 * @param string                $cls        Provider class.
-	 * @param string[]              $models     Probe models to try, in order.
+	 * @param string                $cls         Provider class.
+	 * @param string[]              $models      Probe models to try, in order.
 	 * @return array<string, mixed>
 	 */
 	private function sendProbe( ConnectionDiagnostics $diagnostics, string $cls, array $models ): array {
@@ -392,14 +463,36 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		$last_index = count( $models ) - 1;
 		foreach ( $models as $index => $probe_model ) {
 			$result = $this->sendProbeOnce( $diagnostics, $cls, (string) $probe_model );
-			// Probe-model drift (OpenCode retires or renames a model): a
-			// model-side 401 is not a credential verdict, so retry once with the
-			// next candidate instead of reporting a valid key as invalid.
-			if ( 'probe_model_unavailable' !== $this->stateOf( $result ) || $index >= $last_index ) {
+			if ( ! $this->isProbeModelDrift( $result ) || $index >= $last_index ) {
 				break;
 			}
 		}
 		return $result ?? $diagnostics->classify( 0, null, new \RuntimeException( 'probe transport failure' ) );
+	}
+
+	/**
+	 * Whether a verdict means the probe model itself was refused.
+	 *
+	 * Probe-model drift (OpenCode retires or renames a model) is not a
+	 * credential verdict, so the probe is retried with the next candidate
+	 * instead of reporting a valid key as invalid. Two shapes count: a 401 the
+	 * gateway attributes to the model, and a 400/404 model-not-found, which is
+	 * at least as likely once a model is renamed and classifies as `unknown`.
+	 * No credential verdict is weakened by this predicate.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param array<string, mixed> $result Diagnosis of one attempt.
+	 * @return bool
+	 */
+	private function isProbeModelDrift( array $result ): bool {
+		$state = $this->stateOf( $result );
+		// SETTLED_STATES is the drift set: a settled verdict is one that only a
+		// different probe model can change.
+		if ( in_array( $state, self::SETTLED_STATES, true ) ) {
+			return true;
+		}
+		return 'unknown' === $state && in_array( (int) ( $result['status'] ?? 0 ), array( 400, 404 ), true );
 	}
 
 	/**
@@ -411,7 +504,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @since 0.1.8
 	 *
 	 * @param ConnectionDiagnostics $diagnostics Classifier.
-	 * @param string                $cls        Provider class.
+	 * @param string                $cls         Provider class.
 	 * @param string                $probe_model Model ID to probe.
 	 * @return array<string, mixed>
 	 */
@@ -501,37 +594,37 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Resolve a different reviewed, paid allowlisted model for this catalog.
 	 *
+	 * Walks the allowlist and stops at the first qualifying record, so picking
+	 * one model string does not build every record in the catalog.
+	 *
 	 * @since 0.1.8
 	 *
 	 * @return string Empty string when the registry cannot supply one.
 	 */
 	private function fallbackProbeModel(): string {
-		if ( ! class_exists( ModelRegistry::class ) || ! method_exists( ModelRegistry::class, 'records' ) ) {
+		if ( ! class_exists( ModelRegistry::class ) || ! method_exists( ModelRegistry::class, 'record' ) ) {
 			return '';
 		}
 		try {
-			$records = ModelRegistry::records( $this->catalog );
+			$ids = ModelAllowlist::allowedIds( $this->catalog );
 		} catch ( \Throwable ) {
 			return '';
 		}
-		if ( ! is_array( $records ) ) {
+		if ( ! is_array( $ids ) ) {
 			return '';
 		}
-		foreach ( $records as $record ) {
-			if ( ! is_array( $record ) ) {
-				continue;
-			}
-			$id = (string) ( $record['id'] ?? '' );
+		foreach ( $ids as $id ) {
+			$id = is_scalar( $id ) ? (string) $id : '';
 			if ( '' === $id || self::PROBE_MODEL === $id ) {
 				continue;
 			}
+			$record = ModelRegistry::record( $id, $this->catalog );
 			// Paid and reviewed only: a free model cannot discriminate a valid
 			// key from an empty balance, and an unreviewed one would spread
 			// unproven assumptions.
-			if ( true === ( $record['free'] ?? false ) || ! ModelRegistry::isReviewed( $record ) ) {
-				continue;
+			if ( null !== $record && true !== ( $record['free'] ?? false ) && ModelRegistry::isReviewed( $record ) ) {
+				return $id;
 			}
-			return $id;
 		}
 		return '';
 	}
@@ -608,7 +701,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			return;
 		}
 		$day = defined( 'DAY_IN_SECONDS' ) ? (int) DAY_IN_SECONDS : 86400;
-		$this->setCached( $key, 1, 30 * $day );
+		$this->setCached( $key, 1, self::LAST_GOOD_DAYS * $day );
 	}
 
 	/**
