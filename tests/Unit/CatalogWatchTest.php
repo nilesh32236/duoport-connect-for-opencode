@@ -143,22 +143,31 @@ final class CatalogWatchTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Unknown capability keys and needs-adapter records require verification.
+	 * Unknown capability keys and unreviewed records require verification.
+	 *
+	 * The unreviewed case is a record whose endpoint family still needs an
+	 * individual review: it is allowlisted, so it must be reported as
+	 * verification-required rather than as settled coverage.
 	 */
-	public function test_unknown_capability_and_unverified_record_require_verification(): void {
+	public function test_unknown_capability_and_unreviewed_record_require_verification(): void {
 		$watch = new CatalogWatch();
 		$drift = $watch->compare(
 			'go',
 			array( array( 'id' => 'glm-5.3', 'capabilities' => array( 'embeddings' => true ) ) )
 		);
-		$unverified = $watch->compare( 'zen', array( array( 'id' => 'minimax-m3' ) ) );
+		$unreviewed = $watch->compare( 'go', array( array( 'id' => 'glm-5' ) ) );
+		$unreviewed_zen = $watch->compare( 'zen', array( array( 'id' => 'deepseek-v4-flash-free' ) ) );
 
 		$changed = array_values( array_filter( $drift, static fn( array $row ): bool => 'glm-5.3' === $row['id'] ) )[0];
-		$adapter = array_values( array_filter( $unverified, static fn( array $row ): bool => 'minimax-m3' === $row['id'] ) )[0];
+		$pending = array_values( array_filter( $unreviewed, static fn( array $row ): bool => 'glm-5' === $row['id'] ) )[0];
+		$free    = array_values( array_filter( $unreviewed_zen, static fn( array $row ): bool => 'deepseek-v4-flash-free' === $row['id'] ) )[0];
 		self::assertSame( 'verification_required', $changed['status'] );
 		self::assertContains( 'capability_changed', $changed['states'] );
-		self::assertSame( 'verification_required', $adapter['status'] );
-		self::assertTrue( $adapter['allowlisted'] );
+		self::assertSame( 'verification_required', $pending['status'] );
+		self::assertContains( 'allowlisted', $pending['states'] );
+		self::assertTrue( $pending['allowlisted'] );
+		self::assertSame( 'verification_required', $free['status'] );
+		self::assertTrue( $free['allowlisted'] );
 	}
 
 	/**

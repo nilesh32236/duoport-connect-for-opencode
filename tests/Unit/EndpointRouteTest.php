@@ -23,17 +23,26 @@ final class EndpointRouteTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Model-level unimplemented Zen routes are denied before transport.
+	 * The registry sentinel family is denied before transport.
+	 *
+	 * No allowlisted model carries it today, so the kind is exercised directly:
+	 * the chat-only path table must still fail closed for it, which is what
+	 * keeps a future non-chat record unroutable.
 	 */
 	public function test_unimplemented_model_routes_are_denied(): void {
-		foreach ( array( 'minimax-m3', 'minimax-m2.7', 'minimax-m2.5' ) as $id ) {
-			try {
-				EndpointRoute::pathForModel( $id, 'zen' );
-				self::fail( 'Expected an unsupported model route exception.' );
-			} catch ( UnsupportedEndpointFamilyException ) {
-				self::assertTrue( true );
-			}
-		}
+		$this->expectException( UnsupportedEndpointFamilyException::class );
+		EndpointRoute::pathForEndpointKind( \OpenCodeConnector\Metadata\ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED );
+	}
+
+	/**
+	 * A model with a recorded pending family still resolves its chat path.
+	 *
+	 * An undocumented published-table entry is not evidence of a different
+	 * family, so the model stays routable instead of disappearing.
+	 */
+	public function test_pending_family_model_resolves_chat_path(): void {
+		self::assertSame( 'chat', EndpointRoute::endpointKindForModel( 'glm-5', 'go' ) );
+		self::assertSame( 'chat/completions', EndpointRoute::pathForModel( 'mimo-v2-omni', 'go' ) );
 	}
 
 	/**
@@ -68,8 +77,8 @@ final class EndpointRouteTest extends MonkeyTestCase {
 	 */
 	public function test_registry_sentinel_is_not_echoed_back(): void {
 		try {
-			EndpointRoute::pathForModel( 'minimax-m3', 'zen' );
-			self::fail( 'Expected an unsupported model route exception.' );
+			EndpointRoute::pathForEndpointKind( \OpenCodeConnector\Metadata\ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED );
+			self::fail( 'Expected an unsupported endpoint kind exception.' );
 		} catch ( UnsupportedEndpointFamilyException $exception ) {
 			self::assertStringNotContainsString(
 				'"unsupported"',

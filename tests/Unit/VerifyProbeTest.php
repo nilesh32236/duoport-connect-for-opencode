@@ -96,6 +96,51 @@ namespace OpenCodeConnector\Tests\Unit {
 	}
 
 	/**
+	 * Transporter double replaying a queue of outcomes and recording requests.
+	 *
+	 * @since 0.1.8
+	 */
+	final class VerifyQueueingTransporter {
+		/**
+		 * Queued outcomes, consumed in order.
+		 *
+		 * @var list<mixed>
+		 */
+		private array $queue;
+
+		/**
+		 * Requests seen so far.
+		 *
+		 * @var list<mixed>
+		 */
+		public array $seen = array();
+
+		/**
+		 * Constructor.
+		 *
+		 * @param list<mixed> $queue Outcomes to replay in order.
+		 */
+		public function __construct( array $queue ) {
+			$this->queue = $queue;
+		}
+
+		/**
+		 * Replay the next queued outcome.
+		 *
+		 * @param mixed $request Request to record.
+		 * @return mixed
+		 */
+		public function send( mixed $request ): mixed {
+			$this->seen[] = $request;
+			$next         = array_shift( $this->queue );
+			if ( $next instanceof \Throwable ) {
+				throw $next;
+			}
+			return $next;
+		}
+	}
+
+	/**
 	 * One-token verification probe specs.
 	 *
 	 * @package OpenCodeConnector
@@ -341,6 +386,81 @@ namespace OpenCodeConnector\Tests\Unit {
 			self::assertStringNotContainsString( 'get_option( \'connectors_ai_', $probe_source );
 			self::assertStringNotContainsString( 'get_option( "connectors_ai_', $probe_source );
 			self::assertStringNotContainsString( 'update_option( \'connectors_ai_', $probe_source );
+		}
+
+		/**
+		 * verify() and the availability probe send the same Go headers.
+		 *
+		 * The Go catalog rejects requests without `x-opencode-session`
+		 * (400 MissingSessionID) and OpenCode asks clients to identify
+		 * themselves with their own User-Agent, so both probes must carry the
+		 * shared Go header pair; otherwise the verification request is the one
+		 * Go request that violates the documented client contract.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_verify_sends_the_same_go_headers_as_the_availability_probe(): void {
+			$this->boot();
+			$ttls = array();
+			$this->stub_transients_stateless( $ttls );
+
+			list( $verify_availability, $verify_transporter ) = $this->make_availability( new Response( 200, null ), 'go' );
+			$verify_availability->verify();
+			$verify_headers = $verify_transporter->seen->getHeaders();
+
+			$store = array();
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( &$store ): mixed {
+					return $store[ $key ] ?? false;
+				}
+			);
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ) use ( &$store ): bool {
+					$store[ $key ] = $value;
+					return true;
+				}
+			);
+
+			$probe_transporter  = new VerifyQueueingTransporter( array( new Response( 200, null ) ) );
+			$probe_availability = new OpenCodeProviderAvailability( 'go' );
+			$probe_availability->setHttpTransporter( $probe_transporter );
+			$probe_availability->setRequestAuthentication( new VerifyPassthroughAuthentication() );
+			$probe_availability->diagnose();
+			$probe_headers = $probe_transporter->seen[0]->getHeaders();
+
+			self::assertArrayHasKey( \OpenCodeConnector\Http\SessionHeader::HEADER_NAME, $verify_headers );
+			self::assertArrayHasKey( \OpenCodeConnector\Http\ClientUserAgent::HEADER_NAME, $verify_headers );
+			self::assertSame( $probe_headers, $verify_headers );
+		}
+
+		/**
+		 * A model-side 401 verifies as could-not-be-checked, not invalid_key.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_model_side_401_is_not_a_verification_failure(): void {
+			$this->boot();
+			$ttls = array();
+			$this->stub_transients_stateless( $ttls );
+
+			$transporter = new VerifyQueueingTransporter(
+				array(
+					new Response( 401, array( 'error' => array( 'type' => 'ModelError' ) ) ),
+					new Response( 401, array( 'error' => array( 'type' => 'ModelError' ) ) ),
+				)
+			);
+			$availability = new OpenCodeProviderAvailability( 'zen' );
+			$availability->setHttpTransporter( $transporter );
+			$availability->setRequestAuthentication( new VerifyPassthroughAuthentication() );
+
+			$verdict = $availability->verify();
+			self::assertSame( 'could-not-be-checked', $verdict['state'] );
+			self::assertSame( 'probe_model_unavailable', $verdict['diagnosis']['state'] );
+			self::assertCount( 2, $transporter->seen, 'Both probe models are tried before giving up.' );
 		}
 	}
 }

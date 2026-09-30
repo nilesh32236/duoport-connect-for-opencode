@@ -141,7 +141,11 @@ final class CatalogWatch {
 				$states[] = 'allowlisted';
 				$status   = 'allowlisted';
 				$record   = $baseline[ $key ];
-				if ( 'needs-adapter' === ( $record['verification_status'] ?? '' ) ) {
+				// Any record that is not reviewed support (unimplemented family
+				// or family pending re-verification) needs a human decision
+				// before it counts as covered. ModelRegistry::isReviewed() is
+				// the shared definition.
+				if ( ! ModelRegistry::isReviewed( $record ) ) {
 					$states[] = 'verification_required';
 					$status   = 'verification_required';
 				}

@@ -25,13 +25,6 @@ final class CapabilityAwareFallback {
 	private const MAX_CANDIDATES = 8;
 
 	/**
-	 * Verification states accepted for fallback.
-	 *
-	 * @var list<string>
-	 */
-	private const VERIFIED_STATUSES = array( 'legacy-verified', 'verified' );
-
-	/**
 	 * Only the complete transport family currently implemented.
 	 */
 	private const IMPLEMENTED_ENDPOINT = 'chat';
@@ -212,13 +205,20 @@ final class CapabilityAwareFallback {
 	}
 
 	/**
-	 * Whether a record has a known verification state.
+	 * Whether a record may be routed.
+	 *
+	 * Routable is wider than reviewed on purpose: a record whose family is
+	 * pending re-verification is allowlisted and served on the implemented
+	 * family, so denying it here would remove a working model from the picker
+	 * and turn every request for it into "no verified model candidate". The
+	 * reviewed/pending distinction is reported by ModelRegistry::isReviewed()
+	 * (Model Radar, catalog watch) instead of here.
 	 *
 	 * @param array<string, mixed> $record Model record.
 	 * @return bool
 	 */
 	private function is_verified( array $record ): bool {
-		return in_array( $record['verification_status'] ?? '', self::VERIFIED_STATUSES, true );
+		return in_array( (string) ( $record['verification_status'] ?? '' ), ModelRegistry::ROUTABLE_STATUSES, true );
 	}
 
 	/**

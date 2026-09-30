@@ -49,9 +49,13 @@ final class ModelRadarTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Unsupported reviewed records remain visible without becoming routable.
+	 * Documented chat records are reported as reviewed support.
+	 *
+	 * The Zen MiniMax records used to be reported unsupported/needs-adapter
+	 * while OpenCode documents them on the Zen chat/completions endpoint; the
+	 * registry now records that family, so they count as reviewed.
 	 */
-	public function test_report_preserves_unsupported_registry_records(): void {
+	public function test_report_counts_documented_chat_records_as_supported(): void {
 		$report = ( new ModelRadar() )->report(
 			array(
 				'go'  => array( array( 'id' => 'glm-5.3' ) ),
@@ -69,10 +73,38 @@ final class ModelRadarTest extends MonkeyTestCase {
 
 		self::assertIsArray( $change );
 		self::assertTrue( $change['registry_candidate'] );
-		self::assertFalse( $change['supported'] );
-		self::assertSame( 1, $report['catalogs']['zen']['summary']['unsupported'] );
-		self::assertSame( 1, $report['catalogs']['zen']['summary']['verification_required'] );
+		self::assertTrue( $change['supported'] );
+		self::assertSame( 0, $report['catalogs']['zen']['summary']['unsupported'] );
 		self::assertFalse( $change['promotable'] );
+	}
+
+	/**
+	 * Allowlisted models whose family still needs review stay visible without
+	 * being counted as reviewed support.
+	 */
+	public function test_report_keeps_pending_records_visible_and_unreviewed(): void {
+		$report = ( new ModelRadar() )->report(
+			array(
+				'go'  => array( array( 'id' => 'glm-5' ) ),
+				'zen' => array( array( 'id' => 'big-pickle' ) ),
+			),
+			'2026-09-25T00:00:00+00:00'
+		);
+		$change = null;
+		foreach ( $report['catalogs']['go']['changes'] as $candidate ) {
+			if ( 'glm-5' === $candidate['id'] ) {
+				$change = $candidate;
+				break;
+			}
+		}
+
+		self::assertIsArray( $change );
+		self::assertTrue( $change['registry_candidate'] );
+		self::assertFalse( $change['supported'], 'A pending family is not reviewed support.' );
+		self::assertSame( 1, $report['catalogs']['go']['summary']['verification_required'] );
+		self::assertSame( 0, $report['catalogs']['go']['summary']['unsupported'] );
+		self::assertFalse( $change['promotable'] );
+		self::assertSame( 1, $report['catalogs']['zen']['summary']['free_supported'], 'A reviewed free record still counts as free support.' );
 	}
 
 	/**

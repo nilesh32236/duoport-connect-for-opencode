@@ -42,11 +42,24 @@ final class ToolCapabilityTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Unimplemented Zen endpoint records are not tool-capable.
+	 * Documented Zen chat routes advertise tools like any other paid model.
 	 */
-	public function test_unimplemented_zen_routes_are_not_tool_capable(): void {
+	public function test_documented_zen_routes_are_tool_capable(): void {
 		foreach ( array( 'minimax-m3', 'minimax-m2.7', 'minimax-m2.5' ) as $id ) {
-			self::assertFalse( \OpenCodeConnector\Metadata\ModelRegistry::supports( $id, 'zen', 'tools' ) );
+			self::assertTrue( \OpenCodeConnector\Metadata\ModelRegistry::supports( $id, 'zen', 'tools' ) );
+		}
+	}
+
+	/**
+	 * A family pending re-verification keeps its reviewed capabilities.
+	 *
+	 * The pending status is about provenance in the registry report, not a
+	 * capability downgrade: these models are served on the implemented family
+	 * and must keep working for callers that already select them.
+	 */
+	public function test_pending_family_models_keep_their_capabilities(): void {
+		foreach ( array( 'glm-5.1', 'kimi-k2.5', 'mimo-v2-pro', 'hy3-preview' ) as $id ) {
+			self::assertTrue( \OpenCodeConnector\Metadata\ModelRegistry::supports( $id, 'go', 'tools' ), $id );
 		}
 	}
 

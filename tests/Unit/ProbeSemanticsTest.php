@@ -78,6 +78,51 @@ namespace OpenCodeConnector\Tests\Unit {
 	}
 
 	/**
+	 * Transporter double replaying a queue of outcomes and recording requests.
+	 *
+	 * @since 0.1.8
+	 */
+	final class QueueingProbeTransporter {
+		/**
+		 * Queued outcomes, consumed in order.
+		 *
+		 * @var list<mixed>
+		 */
+		private array $queue;
+
+		/**
+		 * Requests seen so far.
+		 *
+		 * @var list<mixed>
+		 */
+		public array $seen = array();
+
+		/**
+		 * Constructor.
+		 *
+		 * @param list<mixed> $queue Outcomes to replay in order.
+		 */
+		public function __construct( array $queue ) {
+			$this->queue = $queue;
+		}
+
+		/**
+		 * Replay the next queued outcome.
+		 *
+		 * @param mixed $request Request to record.
+		 * @return mixed
+		 */
+		public function send( mixed $request ): mixed {
+			$this->seen[] = $request;
+			$next         = array_shift( $this->queue );
+			if ( $next instanceof \Throwable ) {
+				throw $next;
+			}
+			return $next;
+		}
+	}
+
+	/**
 	 * Probe semantics matrix specs.
 	 *
 	 * @package OpenCodeConnector
@@ -370,6 +415,191 @@ namespace OpenCodeConnector\Tests\Unit {
 			$availability = new OpenCodeProviderAvailability( 'go' );
 
 			self::assertFalse( $availability->isConfigured(), 'Without authentication the provider is not configured.' );
+		}
+
+		/**
+		 * No unexpected upstream answer clears the last-known-good flag.
+		 *
+		 * A 401 ModelError (a model-side refusal), an unrecognised response,
+		 * and a non-auth 4xx such as the documented Go 400 MissingSessionID or
+		 * a 402/403 account limit all say nothing about the key, so they must
+		 * preserve last-known-good instead of locking a valid key out.
+		 *
+		 * @since 0.1.8
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_unexpected_upstream_states_preserve_last_known_good(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			$cases = array(
+				'model-side 401'   => array( 401, array( 'error' => array( 'type' => 'ModelError' ) ), 'probe_model_unavailable' ),
+				'body-less 401'    => array( 401, null, 'probe_model_unavailable' ),
+				'400 missing sid'  => array( 400, array( 'error' => array( 'type' => 'MissingSessionID' ) ), 'unknown' ),
+				'402 account'     => array( 402, null, 'unknown' ),
+				'403 account'     => array( 403, null, 'unknown' ),
+			);
+
+			foreach ( $cases as $label => $case ) {
+				list( $code, $data, $expected_state ) = $case;
+				$store = array( 'opencode_connector_avail_go_last_good' => 1 );
+
+				Functions\when( 'get_transient' )->alias(
+					static function ( string $key ) use ( &$store ): mixed {
+						return $store[ $key ] ?? false;
+					}
+				);
+				Functions\when( 'set_transient' )->alias(
+					static function ( string $key, mixed $value, int $ttl ) use ( &$store ): bool {
+						$store[ $key ] = $value;
+						return true;
+					}
+				);
+				$deleted = array();
+				Functions\when( 'delete_transient' )->alias(
+					static function ( string $key ) use ( &$deleted ): bool {
+						$deleted[] = $key;
+						return true;
+					}
+				);
+				Functions\when( 'wp_rand' )->justReturn( 0 );
+
+				$availability = new OpenCodeProviderAvailability( 'go' );
+				$availability->setHttpTransporter( new FakeProbeTransporter( new Response( $code, $data ) ) );
+				$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+
+				self::assertTrue( $availability->isConfigured(), $label . ' must stay connected through last-known-good.' );
+				self::assertSame( $expected_state, $availability->getLastResult()['state'], $label );
+				self::assertNotContains( 'opencode_connector_avail_go_last_good', $deleted, $label . ' must not clear last-known-good.' );
+				self::assertSame( 1, $store['opencode_connector_avail_go_last_good'] ?? null, $label );
+			}
+		}
+
+		/**
+		 * A rejected credential is still the only definitive negative.
+		 *
+		 * @since 0.1.8
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_rejected_credential_clears_last_known_good(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			$store   = array( 'opencode_connector_avail_go_last_good' => 1 );
+			$deleted = array();
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( &$store ): mixed {
+					return $store[ $key ] ?? false;
+				}
+			);
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ) use ( &$store ): bool {
+					$store[ $key ] = $value;
+					return true;
+				}
+			);
+			Functions\when( 'delete_transient' )->alias(
+				static function ( string $key ) use ( &$deleted ): bool {
+					$deleted[] = $key;
+					return true;
+				}
+			);
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			$availability->setHttpTransporter(
+				new FakeProbeTransporter( new Response( 401, array( 'error' => array( 'type' => 'AuthError' ) ) ) )
+			);
+			$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+
+			self::assertFalse( $availability->isConfigured() );
+			self::assertSame( 'invalid_key', $availability->getLastResult()['state'] );
+			self::assertContains( 'opencode_connector_avail_go_last_good', $deleted, 'A rejected credential clears last-known-good.' );
+		}
+
+		/**
+		 * Probe-model drift is retried with another reviewed, paid model.
+		 *
+		 * @since 0.1.8
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_probe_model_drift_retries_with_another_paid_model(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			Functions\when( 'get_transient' )->justReturn( false );
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$transporter = new QueueingProbeTransporter(
+				array(
+					new Response( 401, array( 'error' => array( 'type' => 'ModelError' ) ) ),
+					new Response( 401, array( 'error' => array( 'type' => 'CreditsError' ) ) ),
+				)
+			);
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			$availability->setHttpTransporter( $transporter );
+			$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+
+			self::assertTrue( $availability->isConfigured(), 'A retired probe model must not read as an invalid key.' );
+			self::assertSame( 'no_credits', $availability->getLastResult()['state'] );
+			self::assertCount( 2, $transporter->seen );
+			self::assertSame( OpenCodeProviderAvailability::PROBE_MODEL, $transporter->seen[0]->getData()['model'] );
+			self::assertNotSame(
+				OpenCodeProviderAvailability::PROBE_MODEL,
+				$transporter->seen[1]->getData()['model'],
+				'The retry must use a different reviewed, paid allowlisted model.'
+			);
+		}
+
+		/**
+		 * When every candidate model is refused, the verdict is the distinct
+		 * probe-model-unavailable state, not an invalid key.
+		 *
+		 * @since 0.1.8
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_persistent_model_drift_reports_probe_model_unavailable(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			Functions\when( 'get_transient' )->justReturn( false );
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$refusal = new Response( 401, array( 'error' => array( 'type' => 'ModelError' ) ) );
+			$availability = new OpenCodeProviderAvailability( 'zen' );
+			$availability->setHttpTransporter( new FakeProbeTransporter( $refusal ) );
+			$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+
+			self::assertFalse( $availability->isConfigured(), 'With no last-known-good there is nothing to fall back to.' );
+			self::assertSame( 'probe_model_unavailable', $availability->getLastResult()['state'] );
 		}
 	}
 }

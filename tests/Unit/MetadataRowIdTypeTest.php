@@ -524,41 +524,39 @@ namespace OpenCodeConnector\Tests\Unit {
 		 * Every consumer of ModelRegistry::record() must share the constant.
 		 *
 		 * The guard above reads a single file, so a bare literal reintroduced
-		 * in any other endpoint-family consumer is invisible to it. ModelRadar
-		 * compares the same `$record['endpoint_family']` field in two places —
-		 * a positive match in buildChangeRow() and a negative match in
-		 * is_supported() — and both must track the constant, or they keep
-		 * matching the old value after the constant changes and the
-		 * unsupported-family counters fail OPEN.
+		 * in any other endpoint-family consumer is invisible to it. The single
+		 * reviewed-support comparison now lives in ModelRegistry::isReviewed()
+		 * (ModelRadar and the catalog watch both delegate to it), and it must
+		 * track the constant or the unsupported-family counters fail OPEN.
 		 *
-		 * The remaining 'unsupported' tokens in that file are array keys and a
+		 * The remaining 'unsupported' tokens in ModelRadar are array keys and a
 		 * summary counter, not endpoint-family comparisons, so the patterns
 		 * below are anchored on the comparison to leave them alone.
 		 */
 		public function test_model_radar_endpoint_family_comparisons_use_shared_constant(): void {
-			$source = (string) file_get_contents(
-				dirname( __DIR__, 2 ) . '/src/Metadata/ModelRadar.php'
-			);
+			$root   = dirname( __DIR__, 2 );
+			$source = (string) file_get_contents( $root . '/src/Metadata/ModelRadar.php' );
+			$shared = (string) file_get_contents( $root . '/src/Metadata/ModelRegistry.php' );
 
 			self::assertStringContainsString(
-				'ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === ( $record[\'endpoint_family\'] ?? \'\' )',
+				'ModelRegistry::isReviewed( $record )',
 				$source,
-				'The positive endpoint-family comparison in ModelRadar must use the shared constant, or it silently stops matching when the constant changes.'
+				'ModelRadar must delegate the reviewed-support decision to the shared registry gate.'
 			);
 			self::assertStringContainsString(
-				'ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED !== ( $record[\'endpoint_family\'] ?? \'\' )',
-				$source,
-				'The negative endpoint-family comparison in ModelRadar must use the shared constant, or is_supported() fails OPEN when the constant changes.'
+				'self::ENDPOINT_FAMILY_UNSUPPORTED !== ( $record[\'endpoint_family\'] ?? \'\' )',
+				$shared,
+				'The negative endpoint-family comparison must use the shared constant, or isReviewed() fails OPEN when the constant changes.'
 			);
 			self::assertStringNotContainsString(
 				"'unsupported' === ( \$record['endpoint_family']",
 				$source,
-				'A bare literal in ModelRadar\'s positive endpoint-family comparison goes stale the moment ENDPOINT_FAMILY_UNSUPPORTED changes.'
+				'A bare literal in ModelRadar\'s endpoint-family comparison goes stale the moment ENDPOINT_FAMILY_UNSUPPORTED changes.'
 			);
 			self::assertStringNotContainsString(
 				"'unsupported' !== ( \$record['endpoint_family']",
 				$source,
-				'A bare literal in ModelRadar\'s negative endpoint-family comparison goes stale the moment ENDPOINT_FAMILY_UNSUPPORTED changes.'
+				'A bare literal in ModelRadar\'s endpoint-family comparison goes stale the moment ENDPOINT_FAMILY_UNSUPPORTED changes.'
 			);
 		}
 	}

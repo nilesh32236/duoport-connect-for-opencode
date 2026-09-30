@@ -127,9 +127,10 @@ final class ToolPassthroughTest extends MonkeyTestCase {
 		self::assertSame( array(), ( new ToolPassthroughTestModel( 'no-such-model', 'go' ) )->expose_prepare_tools( $decls ) );
 		self::assertSame( array(), ( new ToolPassthroughTestModel( '', 'go' ) )->expose_prepare_tools( $decls ) );
 		self::assertSame( array(), ( new ToolPassthroughTestModel( 'gpt-4', 'zen' ) )->expose_prepare_tools( $decls ) );
-		foreach ( array( 'minimax-m3', 'minimax-m2.7', 'minimax-m2.5' ) as $id ) {
-			self::assertSame( array(), ( new ToolPassthroughTestModel( $id, 'zen' ) )->expose_prepare_tools( $decls ) );
-		}
+		// Cross-catalog and non-allowlisted IDs stay gated.
+		self::assertSame( array(), ( new ToolPassthroughTestModel( 'hy3', 'zen' ) )->expose_prepare_tools( $decls ) );
+		// A family pending re-verification keeps passing tools through.
+		self::assertNotSame( array(), ( new ToolPassthroughTestModel( 'glm-5', 'go' ) )->expose_prepare_tools( $decls ) );
 	}
 
 	/**

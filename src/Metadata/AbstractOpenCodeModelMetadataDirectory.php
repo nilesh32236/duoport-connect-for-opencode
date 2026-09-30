@@ -148,7 +148,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 			return null;
 		}
 		$name = (string) ( $record['display_name'] ?? ModelAllowlist::displayName( $id ) );
-		if ( (bool) ( $record['free'] ?? ModelAllowlist::isFree( $id ) ) ) {
+		if ( (bool) ( $record['free'] ?? ModelAllowlist::isFree( $id, $this->catalogKey() ) ) ) {
 			$name .= ' ' . __( '(Free)', 'duoport-connect-for-opencode' );
 		}
 		if ( $is_image ) {
@@ -193,11 +193,12 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	 * @return void
 	 */
 	private function sortByFreeFirst( array &$metadata ): void {
+		$catalog = $this->catalogKey();
 		usort(
 			$metadata,
-			static function ( ModelMetadata $a, ModelMetadata $b ): int {
-				$af = ModelAllowlist::isFree( $a->getId() ) ? 0 : 1;
-				$bf = ModelAllowlist::isFree( $b->getId() ) ? 0 : 1;
+			static function ( ModelMetadata $a, ModelMetadata $b ) use ( $catalog ): int {
+				$af = ModelAllowlist::isFree( $a->getId(), $catalog ) ? 0 : 1;
+				$bf = ModelAllowlist::isFree( $b->getId(), $catalog ) ? 0 : 1;
 				if ( $af !== $bf ) {
 					return $af <=> $bf;
 				}

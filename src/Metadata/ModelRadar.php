@@ -53,13 +53,6 @@ final class ModelRadar {
 	);
 
 	/**
-	 * Verification states that can support a reviewed route.
-	 *
-	 * @var list<string>
-	 */
-	private const SUPPORTED_STATUSES = array( 'legacy-verified', 'verified' );
-
-	/**
 	 * Build a safe, machine-readable report from public discovery rows.
 	 *
 	 * @param array<string, list<array<string, mixed>>|null> $catalogs    Public rows or null for unreachable.
@@ -365,8 +358,8 @@ final class ModelRadar {
 	private function buildChangeRow( string $catalog, array $result, string $id, array $explicit_free ): array {
 		$states         = is_array( $result['states'] ?? null ) ? $result['states'] : array();
 		$record         = ModelRegistry::record( $id, $catalog );
-		$supported      = $this->is_supported( $record );
-		$free_reviewed  = null !== $record && ModelAllowlist::isFree( $id );
+		$supported      = ModelRegistry::isReviewed( $record );
+		$free_reviewed  = null !== $record && ModelAllowlist::isFree( $id, $catalog );
 		$free_name      = $this->looks_free_name( $id );
 		$free_explicit  = isset( $explicit_free[ $id ] );
 		$free_candidate = $free_name || $free_explicit;
@@ -458,18 +451,6 @@ final class ModelRadar {
 				++$summary['free_candidates'];
 			}
 		}
-	}
-
-	/**
-	 * Whether a reviewed record has a supported endpoint and verification.
-	 *
-	 * @param array<string, mixed>|null $record Registry record.
-	 * @return bool
-	 */
-	private function is_supported( ?array $record ): bool {
-		return null !== $record
-			&& ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED !== ( $record['endpoint_family'] ?? '' )
-			&& in_array( $record['verification_status'] ?? '', self::SUPPORTED_STATUSES, true );
 	}
 
 	/**

@@ -141,14 +141,41 @@ final class CapabilityAwareFallbackTest extends MonkeyTestCase {
 	 * Unsupported and unknown primary records never fall back silently.
 	 */
 	public function test_unsupported_or_unknown_primary_is_denied(): void {
-		$fallback    = new CapabilityAwareFallback();
-		$unsupported = $fallback->select( 'zen', 'minimax-m3', 'text', array( 'glm-5.2' ) );
-		$unknown     = $fallback->select( 'go', 'not-a-model', 'text', array( 'glm-5.3' ) );
+		$records = array(
+			'non-chat' => array(
+				'id'                  => 'non-chat',
+				'catalog'             => 'zen',
+				'endpoint_family'     => 'responses',
+				'verification_status' => 'legacy-verified',
+				'capabilities'        => array( 'text' => true ),
+			),
+		);
+		$resolver = static fn( string $id, string $catalog ): ?array => $records[ $id ] ?? null;
+
+		$unsupported = ( new CapabilityAwareFallback( $resolver ) )->select( 'zen', 'non-chat', 'text', array( 'glm-5.2' ) );
+		$unknown     = ( new CapabilityAwareFallback() )->select( 'go', 'not-a-model', 'text', array( 'glm-5.3' ) );
 
 		self::assertNull( $unsupported['selected'] );
 		self::assertSame( 'unsupported_primary_endpoint', $unsupported['rejected'][0]['reason'] );
 		self::assertNull( $unknown['selected'] );
 		self::assertSame( 'unknown_primary', $unknown['rejected'][0]['reason'] );
+	}
+
+	/**
+	 * A record whose family still needs review stays routable.
+	 *
+	 * Denying it here would remove a working model from the picker and turn
+	 * every request for it into "no verified model candidate"; the pending
+	 * status is reported by the Model Radar instead.
+	 */
+	public function test_pending_record_is_still_routable(): void {
+		$fallback = new CapabilityAwareFallback();
+
+		$primary = $fallback->select( 'go', 'glm-5', 'text' );
+		$tools   = $fallback->select( 'go', 'kimi-k2.5', 'tools', array( 'glm-5.3' ) );
+
+		self::assertSame( 'glm-5', $primary['selected_id'] );
+		self::assertSame( 'kimi-k2.5', $tools['selected_id'] );
 	}
 
 	/**

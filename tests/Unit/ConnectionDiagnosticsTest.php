@@ -63,6 +63,7 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 		$diagnostics = new ConnectionDiagnostics();
 		$invalid     = $diagnostics->classify( 401, array( 'error' => array( 'type' => 'InvalidAPIKey' ) ) );
 		$credits     = $diagnostics->classify( 401, array( 'error' => array( 'type' => 'CreditsError' ) ) );
+		$auth        = $diagnostics->classify( 401, array( 'error' => array( 'type' => 'AuthError' ) ) );
 
 		self::assertFalse( $invalid['configured'] );
 		self::assertTrue( $invalid['verified'] );
@@ -71,6 +72,31 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 		self::assertTrue( $credits['verified'] );
 		self::assertFalse( $credits['usable'] );
 		self::assertSame( 'no_credits', $credits['state'] );
+		self::assertSame( 'invalid_key', $auth['state'], 'The live gateway names a bad key AuthError.' );
+	}
+
+	/**
+	 * A model-side 401 is not a credential verdict.
+	 *
+	 * Verified live: an unsupported model ID answers 401 ModelError with the
+	 * same status as a bad key, so keying the verdict on the status alone
+	 * reported a valid key as invalid whenever the probe model drifted.
+	 */
+	public function test_model_side_401_is_not_an_invalid_key(): void {
+		$diagnostics = new ConnectionDiagnostics();
+		$model_error = $diagnostics->classify( 401, array( 'error' => array( 'type' => 'ModelError' ) ) );
+		$empty       = $diagnostics->classify( 401 );
+		$future      = $diagnostics->classify( 401, array( 'error' => array( 'type' => 'SomeFutureError' ) ) );
+
+		foreach ( array( 'model_error' => $model_error, 'empty' => $empty, 'future' => $future ) as $label => $result ) {
+			self::assertSame( 'probe_model_unavailable', $result['state'], $label );
+			self::assertTrue( $result['configured'], $label );
+			self::assertFalse( $result['usable'], $label );
+			self::assertSame( 401, $result['status'], $label );
+			// Nothing about the credential can be concluded, so verification
+			// reports could-not-be-checked and keeps last-known-good state.
+			self::assertSame( 'could-not-be-checked', $diagnostics->verify_state( $result ), $label );
+		}
 	}
 
 	/**

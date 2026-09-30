@@ -20,11 +20,13 @@ The machine-readable snapshot is [model-radar-snapshot.json](<model-radar-snapsh
 - <https://opencode.ai/zen/go/v1/models>
 - <https://opencode.ai/zen/v1/models>
 
-The current Zen MiniMax records are intentionally reported as unsupported/needs-adapter: official documentation identifies a chat endpoint, while the reviewed adapter has not yet completed the full contract verification. The current docs also expose Responses and Messages families; those remain future transport work, not automatic chat fallbacks.
+Endpoint-family evidence comes from the published OpenCode tables (<https://opencode.ai/docs/zen/>, <https://opencode.ai/docs/go/>), never from `/models` membership alone: the live catalog carries no endpoint or pricing field, and OpenCode documents Responses, Messages, and chat families side by side. The Zen MiniMax records were previously reported as unsupported/needs-adapter; OpenCode documents all three on the Zen chat/completions endpoint, so they are now reviewed records. The docs also expose Responses and Messages families; those remain future transport work, not automatic chat fallbacks.
+
+An allowlisted model whose family is not in the current published tables stays routable but is reported as `verification-required` with no verification date, so the weekly lane re-checks it instead of inheriting someone else's review. Re-check a pending record by sending one `chat/completions` request with that model and moving it into `ModelRegistry::ENDPOINT_FAMILIES` with the date.
 
 ## Free-model fast lane
 
-A public `free` field is treated as explicit evidence. IDs with a free-looking name are reported separately as `unverified_name` candidates. Neither form changes `ModelRegistry` or makes a model routable.
+A public `free` field is treated as explicit evidence. IDs with a free-looking name are reported separately as `unverified_name` candidates. Neither form changes `ModelRegistry` or makes a model routable. The `(Free)` label in the model picker is the reviewed counterpart: it is only applied to IDs confirmed in OpenCode's published Zen pricing table, with the source and access date recorded on `ModelAllowlist::FREE`.
 
 Current observations include `space-bunny-free` in Go and Zen plus Zen candidates such as `jev-1.13-free`, `mimo-v2.6-flash-free`, and the Muse Spark contributor-free IDs. The report is a queue for verification, not a promise of free pricing or availability. Free status can change at any time.
 
@@ -34,7 +36,7 @@ The radar distinguishes:
 
 - new, retired, endpoint-changed, capability-changed, free-changed, and metadata-changed observations;
 - API unreachable versus malformed/duplicate/invalid evidence;
-- reviewed support versus registry candidates needing an adapter;
+- reviewed support versus allowlisted records whose family still needs re-verification;
 - explicit free evidence versus unverified free-name candidates.
 
 Malformed evidence fails closed. An unreachable catalog is skipped rather than interpreted as mass retirement. A short API outage therefore does not create a false catalog update.

@@ -19,13 +19,60 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * The registry is intentionally conservative: unknown IDs and capabilities
  * are denied, and live catalog discovery never creates records automatically.
+ *
+ * Each catalog carries its own endpoint-family evidence. An allowlisted ID
+ * routes only when a family is recorded for that catalog, and membership in
+ * the live `/models` catalog is never treated as that evidence: `/models`
+ * carries no endpoint or pricing field, and OpenCode documents Responses,
+ * Messages, and chat families side by side. Families that are recorded but
+ * not re-confirmed stay routable without a verification date, and are reported
+ * as verification-required instead of as reviewed support.
  */
 final class ModelRegistry {
 
 	/**
-	 * Verification status for the existing curated compatibility set.
+	 * Verification status for a record with a dated endpoint-family review.
 	 */
-	private const VERIFICATION_STATUS = 'legacy-verified';
+	public const VERIFICATION_STATUS_REVIEWED = 'legacy-verified';
+
+	/**
+	 * Verification status for an allowlisted record whose endpoint family has
+	 * not been re-confirmed against the current published table.
+	 *
+	 * Such a record stays routable (it is allowlisted and its family is the
+	 * implemented one) but is NOT counted as reviewed support: the Model Radar
+	 * and the catalog watch report it as verification-required so it is
+	 * re-checked instead of inheriting someone else's verification date.
+	 */
+	public const VERIFICATION_STATUS_PENDING = 'verification-required';
+
+	/**
+	 * Verification status for a record whose documented family is not
+	 * implemented by this adapter.
+	 */
+	public const VERIFICATION_STATUS_NEEDS_ADAPTER = 'needs-adapter';
+
+	/**
+	 * Statuses that count as reviewed support for a routed model.
+	 *
+	 * Single source of truth for the vocabulary so the registry, the Model
+	 * Radar, and the fallback selector cannot drift on what "reviewed" means.
+	 *
+	 * @var list<string>
+	 */
+	public const REVIEWED_STATUSES = array( 'legacy-verified', 'verified' );
+
+	/**
+	 * Statuses whose chat route may be used.
+	 *
+	 * Wider than REVIEWED_STATUSES on purpose: a pending record is allowlisted
+	 * and served on the implemented family, so hiding it would remove a
+	 * working model from the picker and break generation for callers that
+	 * already select it. It is reported as unreviewed instead.
+	 *
+	 * @var list<string>
+	 */
+	public const ROUTABLE_STATUSES = array( 'legacy-verified', 'verified', 'verification-required' );
 
 	/**
 	 * Date of the last reviewed compatibility mapping.
@@ -38,14 +85,80 @@ final class ModelRegistry {
 	private const ENDPOINT_FAMILY = 'chat';
 
 	/**
-	 * Zen IDs whose documented family is not implemented by this adapter.
+	 * Reviewed endpoint family per allowlisted model ID, per catalog.
 	 *
-	 * @var list<string>
+	 * Membership is the evidence: an ID appears only after its family was
+	 * confirmed for that catalog (a chat/completions request that returned
+	 * 2xx, or the current published endpoint table). Presence in the live
+	 * `/models` catalog is deliberately NOT enough — that catalog carries no
+	 * endpoint or pricing field, and OpenCode documents Responses, Messages,
+	 * and chat families side by side. An allowlisted ID missing from both
+	 * this map and PENDING_FAMILIES therefore fails closed instead of being
+	 * assumed chat.
+	 *
+	 * @var array<string, array<string, string>>
 	 */
-	private const UNSUPPORTED_ZEN_MODELS = array(
-		'minimax-m3',
-		'minimax-m2.7',
-		'minimax-m2.5',
+	private const ENDPOINT_FAMILIES = array(
+		Catalog::GO  => array(
+			'deepseek-v4-flash'   => self::ENDPOINT_FAMILY,
+			'deepseek-v4-pro'     => self::ENDPOINT_FAMILY,
+			'deepseek-v4.1-flash' => self::ENDPOINT_FAMILY,
+			'glm-5.3'             => self::ENDPOINT_FAMILY,
+			'glm-5.2'             => self::ENDPOINT_FAMILY,
+			'kimi-k3'             => self::ENDPOINT_FAMILY,
+			'kimi-k2.7-code'      => self::ENDPOINT_FAMILY,
+			'kimi-k2.6'           => self::ENDPOINT_FAMILY,
+			'mimo-v2.5-pro'       => self::ENDPOINT_FAMILY,
+			'mimo-v2.5'           => self::ENDPOINT_FAMILY,
+			'hy3'                 => self::ENDPOINT_FAMILY,
+		),
+		Catalog::ZEN => array(
+			'deepseek-v4-pro'             => self::ENDPOINT_FAMILY,
+			'deepseek-v4-flash'           => self::ENDPOINT_FAMILY,
+			'minimax-m3'                  => self::ENDPOINT_FAMILY,
+			'minimax-m2.7'                => self::ENDPOINT_FAMILY,
+			'minimax-m2.5'                => self::ENDPOINT_FAMILY,
+			'glm-5.2'                     => self::ENDPOINT_FAMILY,
+			'glm-5.1'                     => self::ENDPOINT_FAMILY,
+			'glm-5'                       => self::ENDPOINT_FAMILY,
+			'kimi-k3'                     => self::ENDPOINT_FAMILY,
+			'kimi-k2.7-code'              => self::ENDPOINT_FAMILY,
+			'kimi-k2.6'                   => self::ENDPOINT_FAMILY,
+			'kimi-k2.5'                   => self::ENDPOINT_FAMILY,
+			'big-pickle'                  => self::ENDPOINT_FAMILY,
+			'mimo-v2.5-free'              => self::ENDPOINT_FAMILY,
+			'nemotron-3-ultra-free'       => self::ENDPOINT_FAMILY,
+			'nemotron-3.5-lightning-free' => self::ENDPOINT_FAMILY,
+		),
+	);
+
+	/**
+	 * Allowlisted IDs per catalog whose family has not been re-confirmed.
+	 *
+	 * These stay routable (the implemented family is the only sane assumption
+	 * for an allowlisted ID, and OpenCode's docs tables are not exhaustive)
+	 * but they carry no individual verification date, so they are reported as
+	 * verification-required rather than as reviewed support. Each one returns
+	 * to ENDPOINT_FAMILIES with a dated 2xx chat/completions probe.
+	 *
+	 * @var array<string, list<string>>
+	 */
+	private const PENDING_FAMILIES = array(
+		// Dropped from the current Go endpoint table (checked 2026-09-29):
+		// present in the live catalog, not documented as any other family.
+		Catalog::GO  => array(
+			'glm-5.1',
+			'glm-5',
+			'kimi-k2.5',
+			'mimo-v2-pro',
+			'mimo-v2-omni',
+			'hy3-preview',
+		),
+		// Absent from the current Zen endpoint and pricing tables (checked
+		// 2026-09-29) even though `/models` still serves it.
+		Catalog::ZEN => array(
+			'deepseek-v4-flash-free',
+		),
 	);
 
 	/**
@@ -86,17 +199,52 @@ final class ModelRegistry {
 	}
 
 	/**
-	 * Resolve the reviewed endpoint family for a model.
+	 * Resolve the recorded endpoint family for a model.
+	 *
+	 * Fail-closed: an allowlisted ID with no recorded family returns the
+	 * unsupported sentinel instead of being assumed chat, so adding an ID to
+	 * `ModelAllowlist::ALLOW` can never silently widen the transport surface.
 	 *
 	 * @param string $id      Model ID.
 	 * @param string $catalog Catalog slug.
 	 * @return string
 	 */
 	private static function endpointFamily( string $id, string $catalog ): string {
-		if ( 'zen' === $catalog && in_array( $id, self::UNSUPPORTED_ZEN_MODELS, true ) ) {
-			return self::ENDPOINT_FAMILY_UNSUPPORTED;
+		$families = self::ENDPOINT_FAMILIES[ $catalog ] ?? array();
+		if ( isset( $families[ $id ] ) ) {
+			return (string) $families[ $id ];
 		}
-		return self::ENDPOINT_FAMILY;
+		if ( self::isPending( $id, $catalog ) ) {
+			return self::ENDPOINT_FAMILY;
+		}
+		return self::ENDPOINT_FAMILY_UNSUPPORTED;
+	}
+
+	/**
+	 * Whether an allowlisted model's family still needs an individual review.
+	 *
+	 * @param string $id      Model ID.
+	 * @param string $catalog Catalog slug.
+	 * @return bool
+	 */
+	public static function isPending( string $id, string $catalog ): bool {
+		return in_array( $id, self::PENDING_FAMILIES[ $catalog ] ?? array(), true );
+	}
+
+	/**
+	 * Whether a record is a reviewed, routable chat record.
+	 *
+	 * Shared gate for the Model Radar and the catalog watch so "reviewed
+	 * support" means the same thing everywhere. A pending record routes today
+	 * but is not counted as reviewed support.
+	 *
+	 * @param array<string, mixed>|null $record Registry record.
+	 * @return bool
+	 */
+	public static function isReviewed( ?array $record ): bool {
+		return null !== $record
+			&& self::ENDPOINT_FAMILY_UNSUPPORTED !== ( $record['endpoint_family'] ?? '' )
+			&& in_array( (string) ( $record['verification_status'] ?? '' ), self::REVIEWED_STATUSES, true );
 	}
 
 	/**
@@ -113,6 +261,7 @@ final class ModelRegistry {
 
 		$endpoint_family = self::endpointFamily( $id, $catalog );
 		$route_supported = self::ENDPOINT_FAMILY_UNSUPPORTED !== $endpoint_family;
+		$pending         = $route_supported && self::isPending( $id, $catalog );
 		$capabilities    = array(
 			'text'       => $route_supported,
 			'tools'      => $route_supported && ModelAllowlist::isToolCapable( $id, $catalog ),
@@ -120,15 +269,25 @@ final class ModelRegistry {
 			'image'      => $route_supported && ModelAllowlist::isImageCapable( $id, $catalog ),
 		);
 
+		if ( ! $route_supported ) {
+			$verification_status = self::VERIFICATION_STATUS_NEEDS_ADAPTER;
+		} elseif ( $pending ) {
+			$verification_status = self::VERIFICATION_STATUS_PENDING;
+		} else {
+			$verification_status = self::VERIFICATION_STATUS_REVIEWED;
+		}
+
 		return array(
 			'id'                  => $id,
 			'catalog'             => $catalog,
 			'display_name'        => ModelAllowlist::displayName( $id ),
-			'free'                => ModelAllowlist::isFree( $id ),
+			'free'                => ModelAllowlist::isFree( $id, $catalog ),
 			'endpoint_family'     => $endpoint_family,
 			'capabilities'        => $capabilities,
-			'verification_status' => self::ENDPOINT_FAMILY_UNSUPPORTED === $endpoint_family ? 'needs-adapter' : self::VERIFICATION_STATUS,
-			'last_verified'       => self::LAST_VERIFIED,
+			'verification_status' => $verification_status,
+			// Split per record: an unreviewed entry carries no date instead of
+			// inheriting the reviewed set's date.
+			'last_verified'       => self::VERIFICATION_STATUS_REVIEWED === $verification_status ? self::LAST_VERIFIED : '',
 		);
 	}
 

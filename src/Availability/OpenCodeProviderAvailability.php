@@ -19,6 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 use OpenCodeConnector\Http\GoRequestHeaders;
 use OpenCodeConnector\Http\SessionHeader;
 use OpenCodeConnector\Metadata\Catalog;
+use OpenCodeConnector\Metadata\ModelRegistry;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
 use WordPress\AiClient\Providers\Contracts\ProviderAvailabilityInterface;
@@ -43,14 +44,48 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * Probe model used to discriminate authentication state.
 	 *
 	 * A paid model is probed deliberately: a valid but empty-balance key
-	 * answers 401 CreditsError (configured) versus other 401s for a bad key.
+	 * answers 401 CreditsError (configured) versus a rejected credential.
 	 * Probing a free model instead would fail closed whenever that model is
 	 * transiently unavailable upstream. The same model backs the opt-in
-	 * verification probe.
+	 * verification probe, and both fall back to a second reviewed, paid
+	 * allowlisted model when the gateway refuses this one model-side, so a
+	 * retired probe model can never read as an invalid key.
 	 *
 	 * @since 0.1.6
 	 */
 	const PROBE_MODEL = 'deepseek-v4-flash';
+
+	/**
+	 * States that prove the key was accepted by the gateway.
+	 *
+	 * `free_tier_limit` is a Zen free-tier quota stop, which is still a valid
+	 * key, so it counts as configured even though nothing is usable.
+	 *
+	 * @var list<string>
+	 */
+	private const KEYED_STATES = array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' );
+
+	/**
+	 * States that say nothing about the credential.
+	 *
+	 * 5xx, transport failures, concurrent probes, a response that matched no
+	 * known rule (`unknown`), and a 401 that names no credential error
+	 * (`probe_model_unavailable`) all preserve last-known-good state instead of
+	 * flipping a valid key to not-connected.
+	 *
+	 * @var list<string>
+	 */
+	private const COULD_NOT_BE_CHECKED_STATES = array( 'uncheckable', 'network_error', 'server_error', 'unknown', 'probe_model_unavailable' );
+
+	/**
+	 * States that are a definitive negative for the credential.
+	 *
+	 * Only these clear the 30-day last-known-good flag; an unexpected upstream
+	 * status must never destroy good state.
+	 *
+	 * @var list<string>
+	 */
+	private const DEFINITIVE_NEGATIVE_STATES = array( 'not_configured', 'invalid_key' );
 
 	/**
 	 * Constructor.
@@ -75,11 +110,12 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Whether the provider is configured, preserving the legacy boolean contract.
 	 *
-	 * Fail-open: quota exhaustion, rate limiting, and previously cached
-	 * server errors read as configured; could-not-be-checked verdicts (5xx,
-	 * transport failures, concurrent probes) preserve last-known-good state
-	 * instead of flipping valid keys to not-connected. Unkeyed installs
-	 * still read as not configured.
+	 * Follows the diagnosis instead of re-deriving truth from the state name:
+	 * a state the gateway accepted stays configured; every could-not-be-checked
+	 * state (5xx, transport failure, concurrent probe, an unrecognised
+	 * response, or a model-side 401) falls back to last-known-good; only
+	 * `not_configured` and `invalid_key` are definitive negatives. Unkeyed
+	 * installs still read as not configured.
 	 *
 	 * @since 0.1.0
 	 *
@@ -87,18 +123,20 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 */
 	public function isConfigured(): bool {
 		$result = $this->probe();
-		$state  = isset( $result['state'] ) && is_string( $result['state'] ) ? $result['state'] : '';
-		// Definitive, keyed outcomes stay configured. `free_tier_limit` is a
-		// Zen free-tier quota stop, which is still a valid key.
-		if ( in_array( $state, array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' ), true ) ) {
+		$state  = $this->stateOf( $result );
+		// Definitive, keyed outcomes stay configured.
+		if ( in_array( $state, self::KEYED_STATES, true ) ) {
 			return true;
 		}
 		// Could-not-be-checked outcomes fall back to last-known-good instead of
 		// flipping a valid key to not-connected during an outage.
-		if ( in_array( $state, array( 'uncheckable', 'network_error', 'server_error' ), true ) ) {
+		if ( in_array( $state, self::COULD_NOT_BE_CHECKED_STATES, true ) ) {
 			return $this->readLastGood();
 		}
-		return false;
+		// A state this plugin does not know is not a credential verdict. Trust
+		// the diagnosis when it says the gateway accepted the key, and let only
+		// last-known-good answer.
+		return true === ( $result['configured'] ?? false ) && $this->readLastGood();
 	}
 
 	/**
@@ -134,7 +172,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return array<string, mixed>
 	 */
 	public function verify(): array {
-		$diagnostics = class_exists( ConnectionDiagnostics::class ) ? $this->diagnostics() : null;
+		$diagnostics = $this->diagnostics();
 		$tkey        = Catalog::VERIFY_PREFIX . $this->catalog;
 		$lock_key    = $tkey . '_lock';
 
@@ -175,65 +213,16 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 
 		$diagnosis = null;
-		$cls       = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
-		// HttpMethodEnum::POST() is a magic factory: the SDK declares it as an
-		// `@method static` annotation and serves it from AbstractEnum::__callStatic,
-		// so method_exists() cannot see it and is permanently false against the
-		// shipped SDK. Probe the backing constant instead, the same rule
-		// AbstractOpenCodeProvider::createProviderMetadata() applies to
-		// ProviderTypeEnum and RequestAuthenticationMethod. `url` is a real
-		// static method on AbstractApiProvider, so method_exists() is correct
-		// for it.
-		$surface_ok = class_exists( $cls ) && method_exists( $cls, 'url' )
-			&& class_exists( Request::class ) && class_exists( HttpMethodEnum::class ) && defined( HttpMethodEnum::class . '::POST' );
-		if ( ! $surface_ok && null !== $diagnostics ) {
-			try {
-				$diagnosis = $diagnostics->classify( 0, null, new \RuntimeException( 'verify surface unavailable' ) );
-			} catch ( \Throwable $surface_exception ) {
-				unset( $surface_exception );
-				$diagnosis = null;
-			}
-		} elseif ( $surface_ok ) {
-			try {
-				$probe_data   = array(
-					'model'      => self::PROBE_MODEL,
-					'messages'   => array(
-						array(
-							'role'    => 'user',
-							'content' => 'ping',
-						),
-					),
-					'max_tokens' => 1,
-				);
-				$base_headers = array( 'Content-Type' => 'application/json' );
-				if ( class_exists( SessionHeader::class ) && method_exists( SessionHeader::class, 'inject_into_headers' ) ) {
-					$probe_headers = SessionHeader::inject_into_headers( $base_headers, $probe_data );
-				} else {
-					$probe_headers = $base_headers;
-				}
-				$req       = new Request(
-					HttpMethodEnum::POST(),
-					$cls::url( 'chat/completions' ),
-					$probe_headers,
-					$probe_data
-				);
-				$req       = $this->getRequestAuthentication()->authenticateRequest( $req );
-				$res       = $this->getHttpTransporter()->send( $req );
-				$diagnosis = null !== $diagnostics ? $diagnostics->classify( $res->getStatusCode(), $res->getData() ) : null;
-			} catch ( \Throwable $exception ) {
-				unset( $exception );
-				if ( null !== $diagnostics ) {
-					try {
-						$diagnosis = $diagnostics->classify( 0, null, new \RuntimeException( 'verify transport failure' ) );
-					} catch ( \Throwable $classify_exception ) {
-						unset( $classify_exception );
-						$diagnosis = null;
-					}
-				}
-			}
+		$cls       = $this->providerClassName();
+		if ( ! $this->sdkSurfaceAvailable( $cls ) ) {
+			$diagnosis = $diagnostics->classify( 0, null, new \RuntimeException( 'verify surface unavailable' ) );
+		} else {
+			// Same guarded send, headers, and probe-model fallback as the
+			// availability probe, so the two paths cannot drift.
+			$diagnosis = $this->sendProbe( $diagnostics, $cls, $this->probeModels() );
 		}
 
-		$state = null !== $diagnostics && null !== $diagnosis ? $diagnostics->verify_state( $diagnosis ) : 'could-not-be-checked';
+		$state = null !== $diagnosis ? $diagnostics->verify_state( $diagnosis ) : 'could-not-be-checked';
 		// Explicit fail-open: transport/server/unknown outcomes already map to
 		// `could-not-be-checked` via verify_state(); never fatal here.
 		$verdict = $this->verify_result( $state, $diagnosis, $diagnostics );
@@ -356,70 +345,237 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		// Set lock before network I/O (10s).
 		$this->setCached( $lock_key, 1, 10 );
 
-		$cls = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
-		// Probe models are chosen to discriminate AUTHENTICATION, not model
-		// availability: paid models answer 401 CreditsError for a valid but
-		// empty-balance key (configured) versus other 401s for a bad key.
-		// Probing a free model instead would fail closed whenever that model
-		// is transiently unavailable upstream (observed live).
-		$probe_model = self::PROBE_MODEL;
-		$probe_data  = array(
-			'model'      => $probe_model,
-			'messages'   => array(
-				array(
-					'role'    => 'user',
-					'content' => 'ping',
-				),
-			),
-			'max_tokens' => 1,
-		);
-		// The Go catalog rejects requests without x-opencode-session (400
-		// MissingSessionID), so the probe carries a stable session value
-		// derived from its own payload. Zen ignores the extra header. The Go
-		// probe additionally carries the plugin User-Agent via the shared Go
-		// header pair; the opencode user agent is never spoofed.
-		$base_headers  = array( 'Content-Type' => 'application/json' );
-		$probe_headers = 'go' === $this->catalog && class_exists( GoRequestHeaders::class )
-			? GoRequestHeaders::for_go( $base_headers, $probe_data )
-			: SessionHeader::inject_into_headers( $base_headers, $probe_data );
-		$req           = new Request(
-			HttpMethodEnum::POST(),
-			$cls::url( 'chat/completions' ),
-			$probe_headers,
-			$probe_data
-		);
-		try {
-			$req               = $this->getRequestAuthentication()->authenticateRequest( $req );
-			$res               = $this->getHttpTransporter()->send( $req );
-			$data              = $res->getData();
-			$this->last_result = $diagnostics->classify( $res->getStatusCode(), is_array( $data ) ? $data : null );
-		} catch ( \Throwable $exception ) {
-			$this->last_result = $diagnostics->classify( 0, null, $exception );
-		}
+		// The whole SDK touch (class_exists(), Request construction, url()) is
+		// inside the guarded send, so a missing DTO or enum degrades to
+		// could-not-be-checked instead of escaping probe() with the lock held.
+		$this->last_result = $this->sendProbe( $diagnostics, $this->providerClassName(), $this->probeModels() );
 		$this->deleteCached( $lock_key );
-		$state = isset( $this->last_result['state'] ) && is_string( $this->last_result['state'] ) ? $this->last_result['state'] : '';
-		// Could-not-be-checked (5xx, transport failure, concurrent probe):
-		// never write the failure to last-known-good. The verdict is cached
-		// briefly so a persistent outage costs one probe per window instead
-		// of one per call, while isConfigured() keeps failing open.
-		if ( in_array( $state, array( 'uncheckable', 'network_error', 'server_error' ), true ) ) {
+		$state = $this->stateOf( $this->last_result );
+		// Could-not-be-checked (5xx, transport failure, concurrent probe, or a
+		// response that says nothing about the key): never write the failure to
+		// last-known-good. The verdict is cached briefly so a persistent
+		// upstream problem costs one probe per window instead of one per call,
+		// while isConfigured() keeps failing open.
+		if ( in_array( $state, self::COULD_NOT_BE_CHECKED_STATES, true ) ) {
 			$second = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
 			$this->setCached( $tkey, $this->last_result, $second );
 			return $this->last_result;
 		}
 		// Definitive keyed outcomes refresh last-known-good. A Zen free-tier
 		// quota stop proves the key is valid, so it counts as a good result.
-		if ( in_array( $state, array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' ), true ) ) {
-			$this->writeLastGood( true );
-		} else {
-			$this->writeLastGood( false );
-		}
+		// Only a definitive negative (unkeyed, rejected credential) clears it:
+		// an unexpected upstream answer must never destroy good state.
+		$this->writeLastGood( ! in_array( $state, self::DEFINITIVE_NEGATIVE_STATES, true ) );
 		// Stagger expiry ±60s to avoid synchronized stampedes.
 		$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
 		$jitter = function_exists( 'wp_rand' ) ? wp_rand( -60, 60 ) : 0;
 		$ttl    = 5 * $minute + (int) $jitter;
 		$this->setCached( $tkey, $this->last_result, max( 60, $ttl ) );
 		return $this->last_result;
+	}
+
+	/**
+	 * Send the one-token probe for each candidate model and classify the last.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param ConnectionDiagnostics $diagnostics Classifier.
+	 * @param string                $cls        Provider class.
+	 * @param string[]              $models     Probe models to try, in order.
+	 * @return array<string, mixed>
+	 */
+	private function sendProbe( ConnectionDiagnostics $diagnostics, string $cls, array $models ): array {
+		if ( ! $this->sdkSurfaceAvailable( $cls ) ) {
+			return $diagnostics->classify( 0, null, new \RuntimeException( 'probe surface unavailable' ) );
+		}
+		$result     = null;
+		$last_index = count( $models ) - 1;
+		foreach ( $models as $index => $probe_model ) {
+			$result = $this->sendProbeOnce( $diagnostics, $cls, (string) $probe_model );
+			// Probe-model drift (OpenCode retires or renames a model): a
+			// model-side 401 is not a credential verdict, so retry once with the
+			// next candidate instead of reporting a valid key as invalid.
+			if ( 'probe_model_unavailable' !== $this->stateOf( $result ) || $index >= $last_index ) {
+				break;
+			}
+		}
+		return $result ?? $diagnostics->classify( 0, null, new \RuntimeException( 'probe transport failure' ) );
+	}
+
+	/**
+	 * Send one one-token chat/completions probe and classify the response.
+	 *
+	 * Never throws: any failure (missing DTO, unavailable provider class,
+	 * transport error) becomes a could-not-be-checked verdict.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param ConnectionDiagnostics $diagnostics Classifier.
+	 * @param string                $cls        Provider class.
+	 * @param string                $probe_model Model ID to probe.
+	 * @return array<string, mixed>
+	 */
+	private function sendProbeOnce( ConnectionDiagnostics $diagnostics, string $cls, string $probe_model ): array {
+		try {
+			$probe_data    = array(
+				'model'      => $probe_model,
+				'messages'   => array(
+					array(
+						'role'    => 'user',
+						'content' => 'ping',
+					),
+				),
+				'max_tokens' => 1,
+			);
+			$probe_headers = $this->probeHeaders( array( 'Content-Type' => 'application/json' ), $probe_data );
+			$req           = new Request(
+				HttpMethodEnum::POST(),
+				$cls::url( 'chat/completions' ),
+				$probe_headers,
+				$probe_data
+			);
+			$req           = $this->getRequestAuthentication()->authenticateRequest( $req );
+			$res           = $this->getHttpTransporter()->send( $req );
+			$data          = $res->getData();
+			return $diagnostics->classify( $res->getStatusCode(), is_array( $data ) ? $data : null );
+		} catch ( \Throwable $exception ) {
+			return $diagnostics->classify( 0, null, $exception );
+		}
+	}
+
+	/**
+	 * Build the probe request headers for this catalog.
+	 *
+	 * One helper for both the availability probe and the verification probe so
+	 * the two paths cannot fingerprint differently to the gateway: the Go
+	 * catalog rejects requests without `x-opencode-session` (400
+	 * MissingSessionID) and OpenCode asks clients to identify themselves with
+	 * their own User-Agent, so the Go pair (session + client User-Agent) is
+	 * applied here. The opencode user agent is never spoofed. Never throws.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param array $base_headers Base request headers.
+	 * @param array $probe_data   Probe payload.
+	 * @return array
+	 */
+	private function probeHeaders( array $base_headers, array $probe_data ): array {
+		try {
+			if ( Catalog::GO === $this->catalog && class_exists( GoRequestHeaders::class ) && method_exists( GoRequestHeaders::class, 'for_go' ) ) {
+				return GoRequestHeaders::for_go( $base_headers, $probe_data );
+			}
+			if ( class_exists( SessionHeader::class ) && method_exists( SessionHeader::class, 'inject_into_headers' ) ) {
+				return SessionHeader::inject_into_headers( $base_headers, $probe_data );
+			}
+		} catch ( \Throwable ) {
+			// Fail-open: an unmapped header is not a reason to fail the probe.
+			return $base_headers;
+		}
+		return $base_headers;
+	}
+
+	/**
+	 * Probe models to try, in order.
+	 *
+	 * The first entry is the curated paid model, which discriminates
+	 * authentication (a valid but empty-balance key answers 401
+	 * CreditsError). The second is a different reviewed, paid allowlisted
+	 * model, used only when the first is refused model-side, so a retired
+	 * PROBE_MODEL cannot present itself as a credential failure. Probing a
+	 * free model is never the answer: it would fail closed whenever that model
+	 * is transiently unavailable upstream (observed live).
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return list<string>
+	 */
+	private function probeModels(): array {
+		$models   = array( self::PROBE_MODEL );
+		$fallback = $this->fallbackProbeModel();
+		if ( '' !== $fallback ) {
+			$models[] = $fallback;
+		}
+		return $models;
+	}
+
+	/**
+	 * Resolve a different reviewed, paid allowlisted model for this catalog.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return string Empty string when the registry cannot supply one.
+	 */
+	private function fallbackProbeModel(): string {
+		if ( ! class_exists( ModelRegistry::class ) || ! method_exists( ModelRegistry::class, 'records' ) ) {
+			return '';
+		}
+		try {
+			$records = ModelRegistry::records( $this->catalog );
+		} catch ( \Throwable ) {
+			return '';
+		}
+		if ( ! is_array( $records ) ) {
+			return '';
+		}
+		foreach ( $records as $record ) {
+			if ( ! is_array( $record ) ) {
+				continue;
+			}
+			$id = (string) ( $record['id'] ?? '' );
+			if ( '' === $id || self::PROBE_MODEL === $id ) {
+				continue;
+			}
+			// Paid and reviewed only: a free model cannot discriminate a valid
+			// key from an empty balance, and an unreviewed one would spread
+			// unproven assumptions.
+			if ( true === ( $record['free'] ?? false ) || ! ModelRegistry::isReviewed( $record ) ) {
+				continue;
+			}
+			return $id;
+		}
+		return '';
+	}
+
+	/**
+	 * Provider class for this catalog.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return string
+	 */
+	private function providerClassName(): string {
+		return Catalog::GO === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
+	}
+
+	/**
+	 * Whether the SDK surface both probes depend on is available.
+	 *
+	 * HttpMethodEnum::POST() is a magic factory served from
+	 * AbstractEnum::__callStatic, so method_exists() cannot see it: probe the
+	 * backing constant instead, the same rule
+	 * AbstractOpenCodeProvider::createProviderMetadata() applies to
+	 * ProviderTypeEnum and RequestAuthenticationMethod. `url` is a real static
+	 * method on AbstractApiProvider, so method_exists() is correct for it.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $cls Provider class.
+	 * @return bool
+	 */
+	private function sdkSurfaceAvailable( string $cls ): bool {
+		return class_exists( $cls ) && method_exists( $cls, 'url' )
+			&& class_exists( Request::class ) && class_exists( HttpMethodEnum::class )
+			&& defined( HttpMethodEnum::class . '::POST' );
+	}
+
+	/**
+	 * Read the state name from a diagnosis.
+	 *
+	 * @param array<string, mixed> $result Diagnosis.
+	 * @return string Empty string when absent.
+	 */
+	private function stateOf( array $result ): string {
+		return isset( $result['state'] ) && is_string( $result['state'] ) ? $result['state'] : '';
 	}
 
 	/**

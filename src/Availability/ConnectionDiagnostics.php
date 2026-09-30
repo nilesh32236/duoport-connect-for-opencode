@@ -23,14 +23,35 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class ConnectionDiagnostics {
 
 	/**
+	 * 401 error types that are a definitive credential rejection.
+	 *
+	 * Verified against the live gateway: a bad key answers 401 AuthError,
+	 * while a model the gateway will not serve answers 401 ModelError with the
+	 * same status. The verdict therefore keys on the error type, never on the
+	 * status alone, so a model-side rejection is never reported as an invalid
+	 * key. Compared case-insensitively because gateway type casing is not
+	 * contractual.
+	 *
+	 * @var list<string>
+	 */
+	private const CREDENTIAL_ERROR_TYPES = array(
+		'autherror',
+		'authenticationerror',
+		'invalidapikey',
+		'unauthorizederror',
+	);
+
+	/**
 	 * Classify one backend response or transport exception.
 	 *
 	 * Only the error type is inspected; response bodies are never returned.
 	 *
 	 * Fail-open contract: quota exhaustion (401 CreditsError), rate limiting
 	 * (429), and Zen free-tier quota stops (429 FreeUsageLimitError) report a
-	 * configured key; 5xx and transport failures report a distinct
-	 * could-not-be-checked verdict so callers can preserve last-known-good
+	 * configured key; a 401 that names no credential error (401 ModelError,
+	 * or any type this plugin has not seen) reports a distinct
+	 * probe-model-unavailable verdict; 5xx and transport failures report a
+	 * could-not-be-checked verdict. All of those preserve last-known-good
 	 * state instead of flipping to not-connected.
 	 *
 	 * @param int                       $status    HTTP status code, or zero for a transport failure.
@@ -46,10 +67,14 @@ final class ConnectionDiagnostics {
 			return $this->verified( $status );
 		}
 		if ( 401 === $status ) {
-			if ( 'CreditsError' === $this->errorType( $data ) ) {
+			$error_type = $this->errorType( $data );
+			if ( 'CreditsError' === $error_type ) {
 				return $this->noCredits( $status );
 			}
-			return $this->invalidKey( $status );
+			if ( $this->isCredentialError( $error_type ) ) {
+				return $this->invalidKey( $status );
+			}
+			return $this->probeModelUnavailable( $status );
 		}
 		if ( 429 === $status ) {
 			if ( 'FreeUsageLimitError' === $this->errorType( $data ) ) {
@@ -69,6 +94,9 @@ final class ConnectionDiagnostics {
 	 * Returns one of `valid`, `invalid_key`, or `could-not-be-checked` so the
 	 * settings page can report genuine credential verification, distinct from
 	 * the lightweight availability probe.
+	 *
+	 * `probe_model_unavailable` and `unknown` deliberately fall through to
+	 * `could-not-be-checked`: neither is evidence about the credential.
 	 *
 	 * @param array<string, mixed> $diagnosis Detailed result from classify().
 	 * @return string
@@ -92,6 +120,34 @@ final class ConnectionDiagnostics {
 	 */
 	private function errorType( ?array $data ): string {
 		return is_array( $data ) ? (string) ( $data['error']['type'] ?? '' ) : '';
+	}
+
+	/**
+	 * Whether a 401 error type names a rejected credential.
+	 *
+	 * An absent or unrecognised type is not a credential verdict: the gateway
+	 * also answers 401 ModelError when it will not serve the requested model.
+	 *
+	 * @param string $error_type Backend error type.
+	 * @return bool
+	 */
+	private function isCredentialError( string $error_type ): bool {
+		return in_array( strtolower( $error_type ), self::CREDENTIAL_ERROR_TYPES, true );
+	}
+
+	/**
+	 * Build a result for a 401 that names no credential error.
+	 *
+	 * The gateway reached, read the key, and refused the *model* (401
+	 * ModelError, verified live) or refused for a reason this plugin has not
+	 * seen. The key is not proven bad, so callers keep last-known-good state
+	 * and may retry with a different probe model.
+	 *
+	 * @param int $status HTTP status.
+	 * @return array<string, mixed>
+	 */
+	public function probeModelUnavailable( int $status ): array {
+		return $this->result( 'probe_model_unavailable', true, true, false, $status, 'probe_model_unavailable' );
 	}
 
 	/**

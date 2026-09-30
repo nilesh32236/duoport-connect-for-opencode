@@ -4,7 +4,7 @@ Tags: ai, artificial-intelligence, connector, opencode, zen
 Requires at least: 7.0
 Tested up to: 7.1.2
 Requires PHP: 8.2
-Stable tag: 0.1.7
+Stable tag: 0.1.8
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -33,17 +33,17 @@ Use the Go subscription catalog for its reviewed text-generation models. Go avai
 
 = OpenCode Zen =
 
-Use the Zen pay-as-you-go catalog for reviewed text-generation models, including records explicitly identified as free. Free availability is supplied by OpenCode and can change; a free-looking model name is only a verification candidate, not a promise of free access.
+Use the Zen pay-as-you-go catalog for reviewed text-generation models, including records confirmed as free in OpenCode's published Zen pricing table. Free availability is supplied by OpenCode and can change; a free-looking model name is only a verification candidate, not a promise of free access.
 
 == Current OpenCode models ==
 
-Model lists change over time. By default, DuoPort presents the reviewed chat/completions records for each catalog and labels Zen free records. The credential-free Model Radar compares current public Go and Zen `/models` evidence with that registry and reports new, retired, unsupported, and verification-required changes in one aggregate issue.
+Model lists change over time. By default, DuoPort presents the reviewed chat/completions records for each catalog and labels the Zen records that OpenCode's published pricing table confirms as free. The credential-free Model Radar compares current public Go and Zen `/models` evidence with that registry and reports new, retired, unsupported, and verification-required changes in one aggregate issue. A model that is allowlisted but whose endpoint family has not been re-confirmed stays available and is reported as verification-required instead of being counted as reviewed support.
 
 Enable **Show all models** only when you want to inspect the complete live catalog. Unknown models, unknown endpoint families, unsupported capabilities, and unverified free-name candidates remain default-deny; discovering a model is not the same as making it routable.
 
 == Free OpenCode models ==
 
-Zen records with explicit free evidence are marked `(Free)` in the model picker when they are part of the reviewed registry. Free models still require an API key and may have limits, availability changes, or catalog retirement. DuoPort does not promise that every free-looking ID is free or supported.
+Zen models confirmed as Free in OpenCode's published Zen pricing table are marked `(Free)` in the model picker when they are part of the reviewed registry. The live `/models` catalog carries no free or pricing field, so a free-looking model name on its own is only a verification candidate, not a promise of free access; DuoPort labels no model free without a dated source. Free models still require an API key and may have limits, availability changes, or catalog retirement.
 
 == WordPress AI Client integration ==
 
@@ -51,13 +51,13 @@ DuoPort uses the native WordPress AI Client provider registry. It does not creat
 
 == Verified model support ==
 
-Only reviewed chat/completions records are advertised by default. The current adapter does not claim Responses, Messages, image, tool, or web-search support unless the corresponding contract is explicitly present in the registry. Unknown or unresolved routes fail clearly instead of silently falling back.
+Only reviewed chat/completions records are advertised by default, and each catalog is reviewed on its own evidence: a model ID is offered for a catalog only when that catalog's reviewed registry records the chat/completions endpoint. The current adapter does not claim Responses, Messages, image, tool, or web-search support unless the corresponding contract is explicitly present in the registry. Unknown or unresolved routes fail clearly instead of silently falling back.
 
 = Features =
 
 * Two providers (`opencode-go` / `opencode-zen`) auto-discovered by the Connectors screen.
-* Allowlisted chat/completions models per catalog — verified against the OpenCode `/models` API.
-* Explicitly reviewed free models labeled `(Free)` in the model picker (Zen catalog).
+* Allowlisted chat/completions models per catalog — present in the live `/models` catalog and recorded as chat/completions-routable in the reviewed registry.
+* Free models confirmed in OpenCode's published Zen pricing table, labeled `(Free)` in the model picker (Zen catalog).
 * Credential-free Model Radar and catalog watch for fast-follow verification work.
 * Availability probe with transient caching — validates key without calling `/models`.
 * **Show all models** toggle on Settings → DuoPort Connector (off by default).
@@ -109,6 +109,15 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 == Changelog ==
 
+= 0.1.8 =
+* Fixed: the Zen MiniMax models (`minimax-m3`, `minimax-m2.7`, `minimax-m2.5`) are routable again. They are documented on OpenCode's Zen chat/completions endpoint, so blocking them had hidden them from the model picker and then thrown "endpoint family is not implemented" if one was selected.
+* Fixed: key validation now branches on the gateway error type instead of the status code. A 401 that names no credential error (for example `ModelError` for a model OpenCode will not serve) is reported as "could not be checked" instead of "Invalid API key", and no longer clears the 30-day last known good state.
+* Improved: the availability probe is resilient to probe-model drift — when the probe model is refused model-side it retries once with a different reviewed paid model, and both the availability probe and the verification probe now send the same Go session and User-Agent headers.
+* Improved: an allowlisted model whose endpoint family is not re-confirmed in OpenCode's current tables stays available but is reported as verification-required by the Model Radar, with no inherited verification date, instead of being stamped as reviewed.
+* Fixed: free labels are per catalog and sourced from OpenCode's published Zen pricing table. `deepseek-v4-flash-free` is no longer labeled `(Free)` while it is absent from the current published tables; the other four Zen free models are unchanged.
+* Fixed: a network uninstall now clears the settings row and plugin transients on every site instead of only the current one.
+* Docs: model counts now state the routable per-catalog totals (Go: 17, Zen: 17) and the test suite derives them from the registry.
+
 = 0.1.7 =
 * Fixed: credential verification now detects the WordPress AI Client HTTP method enum correctly, so valid keys are no longer treated as unverifiable because of a dynamic SDK method.
 * Improved: temporary server, transport, and rate-limit outcomes preserve the last known good configuration state; Zen free-tier limits are still recognized as a valid key.
@@ -141,6 +150,9 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 * Initial release: Go and Zen providers, allowlisted models with free labels, probe availability, shared-key sync, and Show all models toggle.
 
 == Upgrade Notice ==
+
+= 0.1.8 =
+No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. The three Zen MiniMax models become selectable again, the Zen free label now follows OpenCode's published pricing table (so `deepseek-v4-flash-free` is no longer marked `(Free)`), and connection checks report a retired probe model as a temporary, retryable condition instead of an invalid key.
 
 = 0.1.7 =
 No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release improves key verification, preserves the last known good state during temporary provider failures, and safely ignores malformed model-list entries.

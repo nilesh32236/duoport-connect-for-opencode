@@ -11,7 +11,7 @@ Once connected, any plugin that uses the WordPress AI Client (for example the of
 ## Features
 
 - **Two providers** — OpenCode Go (subscription catalog) and OpenCode Zen (pay-as-you-go catalog including free models), auto-discovered on Settings → Connectors.
-- **Curated model list** — only verified chat/completions models per catalog; free Zen models are labeled `(Free)` in the picker.
+- **Curated model list** — per-catalog chat/completions models only; Zen models confirmed free in OpenCode's published pricing table are labeled `(Free)` in the picker.
 - **Show all models toggle** — optional full catalog exposure on Settings → DuoPort Connector.
 - **Key validation with caching** — connection status is probed and cached, and shown on the settings page.
 
@@ -41,7 +41,7 @@ Visit https://opencode.ai/auth and sign up for Go or Zen. The same key works for
 Yes. OpenCode uses a unified auth domain — paste the same key into both fields. Each catalog keeps its own field so WordPress can validate them independently.
 
 **Which models are available?**
-By default only allowlisted chat/completions models are shown (Go: 17, Zen: 17 including free models). Enable **Show all models** to expose every model from the API, including non-chat models that may fail.
+By default only allowlisted chat/completions models are shown (Go: 17, Zen: 17, four of the Zen models labeled `(Free)`). Each catalog is reviewed separately: a model appears only when the registry records the chat/completions endpoint for *that* catalog, and an allowlisted model whose endpoint family has not been re-confirmed is reported as verification-required by the Model Radar instead of being counted as reviewed. Enable **Show all models** to expose every model from the API, including non-chat models that may fail.
 
 **Does it work without WordPress 7.0?**
 No. It requires WordPress 7.0+ and PHP 8.2+. On older installs an admin notice is shown and registration is skipped.

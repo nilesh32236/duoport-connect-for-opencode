@@ -123,18 +123,36 @@ final class ModelAllowlist {
 	);
 
 	/**
-	 * Free model IDs.
+	 * Free model IDs per catalog.
+	 *
+	 * Mirrors the ALLOW shape (per-catalog, never shared between Go and Zen)
+	 * because billing is a per-catalog fact: a free-named ID served by the Go
+	 * catalog says nothing about Zen pricing, and a flat list would label it
+	 * `(Free)` and sort it to the top of the Go picker.
+	 *
+	 * Every ID below is confirmed Free in OpenCode's published Zen pricing
+	 * table (https://opencode.ai/docs/zen/, accessed 2026-09-29). The live
+	 * `/models` payload carries no free or pricing field, so that table is the
+	 * only free evidence available; an ID that is not confirmed there stays a
+	 * free-name candidate (Model Radar reports it) and is NOT listed here.
+	 * `deepseek-v4-flash-free` is the current example: it is still served by
+	 * `/models`, but it is absent from the current published tables, so it is
+	 * no longer a reviewed free record.
 	 *
 	 * @since 0.1.0
+	 * @since 0.1.8 Reshaped per catalog and re-sourced from the published
+	 *              Zen pricing table.
 	 *
-	 * @var list<string>
+	 * @var array<string, list<string>>
 	 */
 	private const FREE = array(
-		'deepseek-v4-flash-free',
-		'mimo-v2.5-free',
-		'nemotron-3-ultra-free',
-		'nemotron-3.5-lightning-free',
-		'big-pickle',
+		Catalog::GO  => array(),
+		Catalog::ZEN => array(
+			'big-pickle',
+			'mimo-v2.5-free',
+			'nemotron-3-ultra-free',
+			'nemotron-3.5-lightning-free',
+		),
 	);
 
 	/**
@@ -179,15 +197,21 @@ final class ModelAllowlist {
 	}
 
 	/**
-	 * Whether a model is billed as free.
+	 * Whether a model is billed as free in a catalog.
+	 *
+	 * Per-catalog by design: the free label, the free-first sort order, and the
+	 * free-model tool gate all read this value, so a cross-catalog lookup
+	 * would mislabel a model and silently drop its function-calling support.
 	 *
 	 * @since 0.1.0
+	 * @since 0.1.8 Added the required catalog argument.
 	 *
-	 * @param string $id Model ID.
+	 * @param string $id      Model ID.
+	 * @param string $catalog Catalog slug.
 	 * @return bool
 	 */
-	public static function isFree( string $id ): bool {
-		return in_array( $id, self::FREE, true );
+	public static function isFree( string $id, string $catalog ): bool {
+		return in_array( $id, self::FREE[ $catalog ] ?? array(), true );
 	}
 
 	/**
@@ -211,7 +235,7 @@ final class ModelAllowlist {
 		if ( ! self::isAllowed( $id, $catalog ) ) {
 			return false;
 		}
-		if ( self::isFree( $id ) ) {
+		if ( self::isFree( $id, $catalog ) ) {
 			return false;
 		}
 		if ( str_starts_with( $id, 'deepseek' ) ) {
