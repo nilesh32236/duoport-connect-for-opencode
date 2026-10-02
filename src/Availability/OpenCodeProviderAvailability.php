@@ -77,9 +77,9 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 *
 	 * Fail-open: quota exhaustion, rate limiting, and previously cached
 	 * server errors read as configured; could-not-be-checked verdicts (5xx,
-	 * transport failures, concurrent probes) preserve last-known-good state
-	 * instead of flipping valid keys to not-connected. Unkeyed installs
-	 * still read as not configured.
+	 * transport failures, concurrent probes, and any UNRECOGNISED response)
+	 * preserve last-known-good state instead of flipping valid keys to
+	 * not-connected. Unkeyed installs still read as not configured.
 	 *
 	 * @since 0.1.0
 	 *
@@ -90,12 +90,12 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		$state  = isset( $result['state'] ) && is_string( $result['state'] ) ? $result['state'] : '';
 		// Definitive, keyed outcomes stay configured. `free_tier_limit` is a
 		// Zen free-tier quota stop, which is still a valid key.
-		if ( in_array( $state, array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' ), true ) ) {
+		if ( in_array( $state, ConnectionDiagnostics::KEYED_STATES, true ) ) {
 			return true;
 		}
 		// Could-not-be-checked outcomes fall back to last-known-good instead of
 		// flipping a valid key to not-connected during an outage.
-		if ( in_array( $state, array( 'uncheckable', 'network_error', 'server_error' ), true ) ) {
+		if ( in_array( $state, ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES, true ) ) {
 			return $this->readLastGood();
 		}
 		return false;
@@ -402,14 +402,14 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		// never write the failure to last-known-good. The verdict is cached
 		// briefly so a persistent outage costs one probe per window instead
 		// of one per call, while isConfigured() keeps failing open.
-		if ( in_array( $state, array( 'uncheckable', 'network_error', 'server_error' ), true ) ) {
+		if ( in_array( $state, ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES, true ) ) {
 			$second = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
 			$this->setCached( $tkey, $this->last_result, $second );
 			return $this->last_result;
 		}
 		// Definitive keyed outcomes refresh last-known-good. A Zen free-tier
 		// quota stop proves the key is valid, so it counts as a good result.
-		if ( in_array( $state, array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' ), true ) ) {
+		if ( in_array( $state, ConnectionDiagnostics::KEYED_STATES, true ) ) {
 			$this->writeLastGood( true );
 		} else {
 			$this->writeLastGood( false );

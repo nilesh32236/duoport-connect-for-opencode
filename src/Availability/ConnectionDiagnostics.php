@@ -23,6 +23,45 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class ConnectionDiagnostics {
 
 	/**
+	 * States that prove the key was accepted by the gateway.
+	 *
+	 * `free_tier_limit` is a Zen free-tier quota stop, which is still a valid
+	 * key, so it counts as configured even though nothing is usable.
+	 *
+	 * @var list<string>
+	 */
+	public const KEYED_STATES = array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' );
+
+	/**
+	 * States that say nothing about the credential.
+	 *
+	 * Every member falls back to last-known-good instead of reporting a working
+	 * key as not connected.
+	 *
+	 * `unknown` is the load-bearing member, and its absence is the bug this
+	 * constant documents. It is what every unrecognised response classifies to:
+	 * a 400, a 402, a 403, any status the gateway introduces that this plugin
+	 * has no rule for. Such a response reached the gateway, so it is evidence
+	 * that the request was made and never evidence about the key — which is
+	 * why `unknown()` reports `configured = true`. It was missing from the
+	 * fallback list, so a 400/404 — the shape OpenCode returns after it renames
+	 * or retires a model — missed the bucket and was reported as not
+	 * configured, on the default branch, to sites whose keys were fine.
+	 *
+	 * @var list<string>
+	 */
+	public const COULD_NOT_BE_CHECKED_STATES = array( 'uncheckable', 'network_error', 'server_error', 'unknown' );
+
+	/**
+	 * States that are a definitive negative for the credential.
+	 *
+	 * Only these clear the last-known-good flag.
+	 *
+	 * @var list<string>
+	 */
+	public const DEFINITIVE_NEGATIVE_STATES = array( 'not_configured', 'invalid_key' );
+
+	/**
 	 * Classify one backend response or transport exception.
 	 *
 	 * Only the error type is inspected; response bodies are never returned.
