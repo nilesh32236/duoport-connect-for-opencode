@@ -129,10 +129,16 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Return the most recent safe detailed result.
 	 *
+	 * Before any probe has run the answer is `uncheckable()`, not
+	 * `unknown()`: nothing has been sent, and `unknown()` reports
+	 * `verified = true`, which asserts the backend was reached and identified.
+	 * A caller reading this before the first probe would otherwise be told a
+	 * gateway had been contacted when the request had not left the process.
+	 *
 	 * @return array<string, mixed>
 	 */
 	public function getLastResult(): array {
-		return $this->last_result ?? $this->diagnostics()->unknown();
+		return $this->last_result ?? $this->diagnostics()->uncheckable();
 	}
 
 	/**
@@ -263,6 +269,20 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * Stores only the safe state plus the safe diagnosis; never request
 	 * headers, payloads, or key material.
 	 *
+	 * A null diagnosis means no response exists, and it therefore projects
+	 * `uncheckable()`, never `unknown()`. `unknown()` carries
+	 * `verified = true`, which asserts the backend was reached and identified —
+	 * and every path that arrives here with no diagnosis reached nothing: a
+	 * concurrent probe holds the stampede lock, the SDK's request surface is
+	 * unavailable, or the classifier itself threw. Substituting `unknown()`
+	 * there claimed a request had arrived at OpenCode and been understood. It
+	 * had not been sent. `uncheckable()` is the verdict that means exactly this,
+	 * and it reports `verified = false`.
+	 *
+	 * `invalid_key` is the one branch that keeps a verdict of its own: the
+	 * probe never got as far as sending because the key could not be read at
+	 * all, which is a statement about the credential rather than about reach.
+	 *
 	 * @since 0.1.6
 	 *
 	 * @param string                     $state       Verification state.
@@ -274,17 +294,20 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		if ( null === $diagnosis ) {
 			if ( null !== $diagnostics ) {
 				try {
-					if ( 'invalid_key' === $state ) {
-						$diagnosis = $diagnostics->notConfigured();
-					} else {
-						$diagnosis = $diagnostics->unknown();
-					}
+					$diagnosis = 'invalid_key' === $state
+						? $diagnostics->notConfigured()
+						: $diagnostics->uncheckable();
 				} catch ( \Throwable $verdict_exception ) {
 					unset( $verdict_exception );
-					$diagnosis = array( 'state' => 'unknown' );
+					// The helper itself could not be called. This is
+					// belt-and-braces — its factories are pure array literals —
+					// but the fallback must not reintroduce the claim this method
+					// was fixed to stop making, so it carries the same verdict
+					// name rather than the "reached and identified" one.
+					$diagnosis = array( 'state' => 'uncheckable' );
 				}
 			} else {
-				$diagnosis = array( 'state' => 'unknown' );
+				$diagnosis = array( 'state' => 'uncheckable' );
 			}
 		}
 		return array(
@@ -579,6 +602,11 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Guarded transient read with a cache-miss fallback.
 	 *
+	 * Guards the function being ABSENT and being BROKEN. A persistent object
+	 * cache that throws is a cache that cannot be read, which is a miss — and a
+	 * miss costs one probe, where the exception costs the page. Same rule
+	 * verify() already applies to its own get_transient() call.
+	 *
 	 * @since 0.1.6
 	 *
 	 * @param string $key Transient key.
@@ -588,11 +616,23 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		if ( ! function_exists( 'get_transient' ) ) {
 			return false;
 		}
-		return get_transient( $key );
+		try {
+			return get_transient( $key );
+		} catch ( \Throwable $read_exception ) {
+			unset( $read_exception );
+			// Fail-open: an unreadable cache is a miss, never a fatal.
+			return false;
+		}
 	}
 
 	/**
 	 * Guarded transient write.
+	 *
+	 * A write that fails loses the cache, not the verdict: the caller has
+	 * already adjudicated the credential by the time it gets here, and the cost
+	 * is the next request re-probing. This is the guard the rolling
+	 * last-known-good write in particular needs — its whole value is that it
+	 * cannot turn a storage problem into a fatal one.
 	 *
 	 * @since 0.1.6
 	 *
@@ -605,11 +645,23 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		if ( ! function_exists( 'set_transient' ) ) {
 			return false;
 		}
-		return (bool) set_transient( $key, $value, $ttl );
+		try {
+			return (bool) set_transient( $key, $value, $ttl );
+		} catch ( \Throwable $write_exception ) {
+			unset( $write_exception );
+			// Fail-open: caching must never be fatal.
+			return false;
+		}
 	}
 
 	/**
 	 * Guarded transient delete.
+	 *
+	 * Two call sites, both on paths that have already decided something. It
+	 * releases the stampede lock after a completed probe, and it clears the
+	 * last-known-good flag on the first definitive negative. Neither may let a
+	 * broken cache turn a proven revoked key into an uncaught throwable, and
+	 * neither may stop the verdict that was just reached from being reported.
 	 *
 	 * @since 0.1.6
 	 *
@@ -620,7 +672,13 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		if ( ! function_exists( 'delete_transient' ) ) {
 			return false;
 		}
-		return (bool) delete_transient( $key );
+		try {
+			return (bool) delete_transient( $key );
+		} catch ( \Throwable $delete_exception ) {
+			unset( $delete_exception );
+			// Fail-open: the entry expires on its own TTL.
+			return false;
+		}
 	}
 
 	/**

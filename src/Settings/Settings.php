@@ -119,26 +119,50 @@ final class Settings {
 	}
 
 	/**
-	 * Clear every transient this plugin owns, for all catalogs.
+	 * Clear the stale availability verdicts a plugin-settings change invalidates.
 	 *
 	 * Credential-blind by design: only transient deletes, never reads or
 	 * writes any `connectors_ai_*` option value. Keys come from the
-	 * dependency-free Catalog::allTransientKeys() so renames stay in one
-	 * place without loading any SDK-trait-dependent class.
+	 * dependency-free Catalog so renames stay in one place without loading any
+	 * SDK-trait-dependent class.
 	 *
-	 * Covers the availability result, its stampede lock, the last-known-good
-	 * flag, and the opt-in verification verdict with its lock, so a settings
-	 * or key change can never leave a stale verdict behind.
+	 * Covers the availability result, its stampede lock, and the opt-in
+	 * verification verdict with its lock, so a settings change can never leave a
+	 * stale verdict behind.
+	 *
+	 * It deliberately does NOT delete the last-known-good flags. The delete list
+	 * used to be Catalog::allTransientKeys(), which is every key for both
+	 * catalogs — correct for uninstall.php, wrong here, and the same
+	 * cross-catalog shape the entry-file key bust had just been scoped away from.
+	 * This option holds `show_all_models` and nothing else, so saving, adding or
+	 * deleting it adjudicates no credential; it cannot invalidate what either
+	 * catalog's flag asserts. Both flags are independent 30-day fail-open
+	 * fallbacks and `unknown` never re-arms one, so deleting them here meant a
+	 * site that merely toggled a display setting lost its fallback until a
+	 * *keyed* response arrived — after which, with the gateway answering
+	 * 400/402/403/404, both connectors reported not-configured with no error to
+	 * explain it. That is this PR's defect reached by saving a preference.
+	 *
+	 * A cache must be cleared by the event that invalidates what it describes.
+	 * A key change does (see the entry-file bust, which still clears its own
+	 * catalog's flag); a display setting does not. Uninstall still wants the
+	 * flags gone, and still gets the full set from Catalog::allTransientKeys().
 	 *
 	 * @since 0.1.6
 	 *
 	 * @return void
 	 */
 	public static function clearAvailabilityCaches(): void {
-		foreach ( \OpenCodeConnector\Metadata\Catalog::allTransientKeys() as $key ) {
-			delete_transient( $key );
-			if ( function_exists( 'delete_site_transient' ) ) {
-				delete_site_transient( $key );
+		foreach ( \OpenCodeConnector\Metadata\Catalog::ALL as $catalog ) {
+			$keys = array_merge(
+				\OpenCodeConnector\Metadata\Catalog::availabilityResultKeys( $catalog ),
+				\OpenCodeConnector\Metadata\Catalog::verifyKeys( $catalog )
+			);
+			foreach ( $keys as $key ) {
+				delete_transient( $key );
+				if ( function_exists( 'delete_site_transient' ) ) {
+					delete_site_transient( $key );
+				}
 			}
 		}
 	}

@@ -242,10 +242,37 @@ final class SlimBustHooksTest extends MonkeyTestCase {
 			$deleted,
 			'Zen’s own cached verdict describes Zen, not the Go key that was deleted.'
 		);
+
+		// The verification verdict is per-catalog too, and it is the one family
+		// this suite never asserted on the entry-file bust at all. Before the
+		// per-catalog refactor a source scan for the literal verify keys was
+		// doing that job, and when the refactor derived the keys from the catalog
+		// slug that scan was rewritten to assert the deriving property instead.
+		// That rewrite is satisfiable by a comment: swapping allKeys() for
+		// availabilityKeys() drops both catalogs’ verification verdicts from the
+		// delete list and leaves the whole suite green, because the comment above
+		// the loop still contains the string the rewritten guard looks for. This
+		// is the behavioural half of that guard — the delete list is exercised,
+		// not read.
+		self::assertContains(
+			'opencode_connector_verify_go',
+			$deleted,
+			'The go verification verdict describes the go credential, so deleting the go key must invalidate it.'
+		);
+		self::assertContains(
+			'opencode_connector_verify_go_lock',
+			$deleted,
+			'The go verification stampede lock must not outlive the go key it serialises.'
+		);
 		self::assertNotContains(
 			'opencode_connector_verify_zen',
 			$deleted,
 			'Zen’s verification verdict is unrelated to the Go key.'
+		);
+		self::assertNotContains(
+			'opencode_connector_verify_zen_lock',
+			$deleted,
+			'Zen’s verification stampede lock is unrelated to the Go key.'
 		);
 
 		// Symmetric: the zen hook must not reach into the go catalog.
@@ -263,6 +290,16 @@ final class SlimBustHooksTest extends MonkeyTestCase {
 			'opencode_connector_avail_go_last_good',
 			$deleted,
 			'Deleting the Zen key must not destroy Go’s independent 30-day fail-open fallback.'
+		);
+		self::assertContains(
+			'opencode_connector_verify_zen',
+			$deleted,
+			'The zen verification verdict must be invalidated by the zen key.'
+		);
+		self::assertNotContains(
+			'opencode_connector_verify_go',
+			$deleted,
+			'Deleting the Zen key must not invalidate Go’s verification verdict.'
 		);
 	}
 }

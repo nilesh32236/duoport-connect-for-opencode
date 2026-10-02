@@ -16,7 +16,7 @@ This document is the current architecture source of truth. `class-inventory.json
 
 The plugin is a small WordPress provider adapter. It registers `opencode-go` and `opencode-zen`, discovers a curated model list, creates WordPress AI Client model objects, and performs the smallest safe availability probe. It does not own a chat UI, conversation store, prompt library, RAG system, vector database, agent runtime, or analytics dashboard.
 
-The WordPress Connectors screen remains the credential owner. The plugin never reads, writes, aliases, or logs `connectors_ai_*` option values. The only permitted connector-option interaction is subscribing to add/update hooks in order to delete plugin-owned transients.
+The WordPress Connectors screen remains the credential owner. The plugin never reads, writes, aliases, or logs `connectors_ai_*` option values. The only permitted connector-option interaction is subscribing to add/update/delete hooks in order to delete plugin-owned transients.
 
 ## Current runtime flow
 

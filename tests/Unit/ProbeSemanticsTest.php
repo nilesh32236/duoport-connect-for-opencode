@@ -926,5 +926,115 @@ namespace OpenCodeConnector\Tests\Unit {
 
 			self::assertFalse( $availability->isConfigured(), 'Without authentication the provider is not configured.' );
 		}
+
+		/**
+		 * A broken object cache must not escape the probe.
+		 *
+		 * The transient helpers guard for the function being ABSENT but not for
+		 * it THROWING, and the three private helpers are the only place in this
+		 * file that calls get/set/delete_transient() unguarded — verify() and
+		 * store_verify_verdict() both wrap the same three functions. The cache is
+		 * an optimisation: a dead one must cost a probe, not the request. These
+		 * three specs cover each helper separately, because the call sites differ
+		 * — delete runs on the path that clears a revoked key and releases the
+		 * stampede lock, set runs inside the rolling last-known-good write, and
+		 * get runs before every probe.
+		 *
+		 * @since 0.1.7
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_a_throwing_delete_transient_does_not_break_the_probe(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			Functions\when( 'get_transient' )->justReturn( false );
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->alias(
+				static function ( string $key ): bool {
+					unset( $key );
+					throw new \RuntimeException( 'object cache is down' );
+				}
+			);
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			$availability->setHttpTransporter(
+				new FakeProbeTransporter( new Response( 401, array( 'error' => array( 'type' => 'InvalidApiKey' ) ) ) )
+			);
+			$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+
+			self::assertSame( 'invalid_key', $availability->diagnose()['state'] );
+			self::assertFalse(
+				$availability->isConfigured(),
+				'A dead cache must not turn a proven revoked key into an exception, and must not stop the probe reporting it.'
+			);
+		}
+
+		/**
+		 * The rolling last-known-good write must not be fatal when the cache is.
+		 *
+		 * @since 0.1.7
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_a_throwing_set_transient_does_not_break_the_probe(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			Functions\when( 'get_transient' )->justReturn( false );
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ): bool {
+					unset( $key, $value, $ttl );
+					throw new \RuntimeException( 'object cache is down' );
+				}
+			);
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			$availability->setHttpTransporter( new FakeProbeTransporter( new Response( 200, null ) ) );
+			$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+
+			self::assertTrue(
+				$availability->isConfigured(),
+				'Losing the cache write costs the fallback, not the verdict: a 200 already proved the key works.'
+			);
+		}
+
+		/**
+		 * A cache read that throws must degrade to a miss, never to an exception.
+		 *
+		 * @since 0.1.7
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_a_throwing_get_transient_does_not_break_the_probe(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ): mixed {
+					unset( $key );
+					throw new \RuntimeException( 'object cache is down' );
+				}
+			);
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			$availability->setHttpTransporter( new FakeProbeTransporter( new Response( 200, null ) ) );
+			$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+
+			self::assertSame( 'verified', $availability->diagnose()['state'] );
+			self::assertTrue(
+				$availability->isConfigured(),
+				'An unreadable cache is a miss. Re-probing costs a request; throwing costs the page.'
+			);
+		}
 	}
 }
