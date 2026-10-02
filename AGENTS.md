@@ -31,8 +31,16 @@ No Node, no build step. `vendor/` is git-ignored and never ships.
 - snake_case methods in WP-hook-facing code; WPCS enforced via `phpcs.xml` (PSR-4 filenames in `src/`/`tests/` excluded from FileName sniffs).
 - `declare(strict_types=1)` + `ABSPATH` guard in every PHP file.
 - All user-facing strings use text domain `duoport-connect-for-opencode`.
-- Availability probe: 2xx → true; 401 + `CreditsError` → true (valid key, no credits);
-  429 → true (throttled: must not lock out valid users); other 4xx/5xx + exceptions → false.
+- Availability probe (fail-open): 2xx → true; 401 + `CreditsError` → true (valid key,
+  no credits); 429 → true (throttled: must not lock out valid users). Every
+  could-not-be-checked verdict falls back to the 30-day last-known-good flag instead
+  of reporting false — that is 5xx, transport exceptions, a model-side 401, and any
+  *unrecognised* response (`unknown`), which proves nothing about the key. Only an
+  unrecognised 401 (`invalid_key`) and a missing key report not configured.
+  A model-side 401 or an `unknown` at 400/404 is probe-model drift: it retries with a
+  second reviewed paid model instead of reporting the key invalid. The drift statuses
+  live in exactly one place, `ConnectionDiagnostics::PROBE_MODEL_DRIFT_STATUSES`, read by
+  both the retry decision and the cache-window decision.
 
 ## Release
 

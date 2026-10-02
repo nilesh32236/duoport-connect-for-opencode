@@ -133,6 +133,40 @@ final class ModelRegistry {
 	}
 
 	/**
+	 * Get the second probe candidate for a catalog.
+	 *
+	 * The availability probe retries with this model when the primary probe model
+	 * is refused model-side, so that a RETIRED model cannot present itself as a
+	 * credential failure. It is resolved from the registry rather than hardcoded,
+	 * so it is always an allowlisted, endpoint-reviewed model of that catalog.
+	 *
+	 * A free model is never returned: the primary probe model is deliberately
+	 * paid, because a paid model discriminates authentication (401
+	 * CreditsError for a valid key with an empty balance) while a free model
+	 * fails closed whenever it is transiently unavailable upstream.
+	 *
+	 * @param string $catalog Catalog slug.
+	 * @param string $exclude Model id to skip (the primary probe model).
+	 * @return string|null Model id, or null when the catalog has no alternative.
+	 */
+	public static function fallbackProbeModel( string $catalog, string $exclude ): string {
+		foreach ( self::records( $catalog ) as $record ) {
+			$id = (string) ( $record['id'] ?? '' );
+			if ( '' === $id || $id === $exclude ) {
+				continue;
+			}
+			if ( true === ( $record['free'] ?? false ) ) {
+				continue;
+			}
+			if ( self::VERIFICATION_STATUS !== ( $record['verification_status'] ?? '' ) ) {
+				continue;
+			}
+			return $id;
+		}
+		return null;
+	}
+
+	/**
 	 * Get all canonical records for a catalog.
 	 *
 	 * @param string $catalog Catalog slug.
