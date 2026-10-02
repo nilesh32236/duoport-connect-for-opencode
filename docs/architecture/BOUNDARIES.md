@@ -95,10 +95,11 @@ configured
 verified
 usable
 state: not_configured | verified | invalid_key | no_credits |
-       rate_limited | free_tier_limit | uncheckable | network_error |
-       server_error | unsupported_model | unsupported_endpoint |
-       unsupported_capability | unknown
+       rate_limited | free_tier_limit | uncheckable | unknown |
+       network_error | server_error
 ```
+
+`classify()` produces `verified`, `invalid_key`, `no_credits`, `rate_limited`, `free_tier_limit`, `uncheckable`, and `unknown`; `not_configured` comes from the separate `notConfigured()` factory. `network_error` and `server_error` are retained so a legacy cached value still resolves fail-open, but the classifier produces neither — a 5xx and a transport failure are both `uncheckable`. The three `unsupported_*` names this list used to carry are not states at all and are gone: nothing in the plugin emits any of them as a `state` (`CapabilityAwareFallback` uses `unsupported_endpoint` as a model-record rejection *reason*, which is a different vocabulary entirely). A list naming a value no code can produce is a contract that cannot be kept, so it is kept to what `ConnectionDiagnostics` actually builds.
 
 `isConfigured()` may remain a compatibility projection. Settings may simplify the value for display, but must not collapse diagnostics before the backend result is produced. Probe responses must be cached briefly, must use the smallest safe request, and must never log the request authorization header.
 

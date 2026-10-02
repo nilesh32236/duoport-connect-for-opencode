@@ -19,8 +19,13 @@ No Node, no build step. `vendor/` is git-ignored and never ships.
    first one's masked placeholder, the save is reverted, and valid keys are
    rejected. Each catalog keeps its own key (`connectors_ai_opencode_{go,zen}_api_key`).
 2. **Never read or write any `connectors_ai_*` option value.** Cache-bust
-   hooks may subscribe to `update_option_`/`add_option_` hooks but must stay
-   credential-blind (transient deletes only). This was a wp.org review finding.
+   hooks may subscribe to the option-scoped `update_option_`/`add_option_`/
+   `delete_option_` trio but must stay credential-blind (transient deletes
+   only). All three, because deleting an option fires neither of the other two:
+   a handler set missing `delete_option_` lets its caches outlive the thing they
+   describe and wait out a TTL instead. `delete_option_{option}` passes the
+   option name alone, so its callback takes no arguments. This was a wp.org
+   review finding.
 3. **Keep versions in sync**: main-file `Version:` header, `VERSION` const,
    `readme.txt` Stable tag + Changelog + Upgrade Notice.
 4. **Keep the non-affiliation disclaimer** in `readme.txt` (trademark rule).
