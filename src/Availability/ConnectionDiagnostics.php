@@ -23,6 +23,58 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class ConnectionDiagnostics {
 
 	/**
+	 * The state every response the classifier has no rule for falls to.
+	 *
+	 * Named so the probe can single this state out without spelling the string
+	 * twice. It deliberately does NOT come with a companion "persistent states"
+	 * list: it is the one persistent member of
+	 * `COULD_NOT_BE_CHECKED_STATES`, and a set of its own would be a third
+	 * hand-maintained list in a class whose whole point is that the state
+	 * lists have exactly one home.
+	 */
+	public const UNKNOWN_STATE = 'unknown';
+
+	/**
+	 * States that prove the key was accepted by the gateway.
+	 *
+	 * `free_tier_limit` is a Zen free-tier quota stop, which is still a valid
+	 * key, so it counts as configured even though nothing is usable.
+	 *
+	 * @var list<string>
+	 */
+	public const KEYED_STATES = array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' );
+
+	/**
+	 * States that say nothing about the credential.
+	 *
+	 * Every member falls back to last-known-good instead of reporting a working
+	 * key as not connected.
+	 *
+	 * `unknown` is the load-bearing member, and its absence is the bug this
+	 * constant documents. It is what every unrecognised response classifies to:
+	 * a 400, a 402, a 403, any status the gateway introduces that this plugin
+	 * has no rule for. Such a response reached the gateway, so it is evidence
+	 * that the request was made and never evidence about the key — which is
+	 * why membership here is what makes the caller fall back to last-known-good
+	 * instead of reporting a working key as not configured. It was missing from
+	 * the fallback list, so a 400/404 — the shape OpenCode returns after it renames
+	 * or retires a model — missed the bucket and was reported as not
+	 * configured, on the default branch, to sites whose keys were fine.
+	 *
+	 * @var list<string>
+	 */
+	public const COULD_NOT_BE_CHECKED_STATES = array( 'uncheckable', 'network_error', 'server_error', self::UNKNOWN_STATE );
+
+	/**
+	 * States that are a definitive negative for the credential.
+	 *
+	 * Only these clear the last-known-good flag.
+	 *
+	 * @var list<string>
+	 */
+	public const DEFINITIVE_NEGATIVE_STATES = array( 'not_configured', 'invalid_key' );
+
+	/**
 	 * Classify one backend response or transport exception.
 	 *
 	 * Only the error type is inspected; response bodies are never returned.
@@ -75,10 +127,14 @@ final class ConnectionDiagnostics {
 	 */
 	public function verify_state( array $diagnosis ): string {
 		$state = isset( $diagnosis['state'] ) && is_string( $diagnosis['state'] ) ? $diagnosis['state'] : '';
-		if ( in_array( $state, array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' ), true ) ) {
+		// Read the published buckets rather than a second copy of each list.
+		// The probe defect this class documents was one missing entry in one of
+		// two hand-maintained lists, so any list spelled out again here is the
+		// same hazard wearing a different hat.
+		if ( in_array( $state, self::KEYED_STATES, true ) ) {
 			return 'valid';
 		}
-		if ( in_array( $state, array( 'invalid_key', 'not_configured' ), true ) ) {
+		if ( in_array( $state, self::DEFINITIVE_NEGATIVE_STATES, true ) ) {
 			return 'invalid_key';
 		}
 		return 'could-not-be-checked';
@@ -120,15 +176,22 @@ final class ConnectionDiagnostics {
 	/**
 	 * Build an unknown result for a response that matched no known rule.
 	 *
-	 * The backend was reached and the key was read, so this is configured and
-	 * verified, but it is not a usable connection. Callers must not treat it
-	 * as a positive result.
+	 * The backend was reached and identified — that is what separates this from
+	 * `uncheckable()`, where it was never reached — but the response says
+	 * nothing about the credential, so `configured` is false: this result must
+	 * not assert a credential is set up when the probe could not determine it.
+	 *
+	 * `isConfigured()` is the surface that applies the fail-open: it resolves an
+	 * unrecognised response through last-known-good, which is false on a cold
+	 * cache. A consumer keying on `['configured']` must not get an
+	 * unconditional fail-open that the boolean projection deliberately withholds.
+	 * Callers must not treat this as a positive result.
 	 *
 	 * @param int $status HTTP status (defaults to 0 when no response exists).
 	 * @return array<string, mixed>
 	 */
 	public function unknown( int $status = 0 ): array {
-		return $this->result( 'unknown', true, true, false, $status, 'unknown' );
+		return $this->result( 'unknown', false, true, false, $status, 'unknown' );
 	}
 
 	/**
@@ -205,11 +268,17 @@ final class ConnectionDiagnostics {
 	 * The classifier no longer produces this state; it is retained so a
 	 * legacy cached value can still be interpreted fail-open by callers.
 	 *
+	 * Every member of COULD_NOT_BE_CHECKED_STATES resolves through the same
+	 * last-known-good path, so they must project the same credential flags:
+	 * none of them adjudicated the credential, so none may report
+	 * `configured = true`. That is the same shape as `uncheckable()`, which
+	 * is what a 5xx actually classifies to today.
+	 *
 	 * @param int $status HTTP status.
 	 * @return array<string, mixed>
 	 */
 	public function serverError( int $status ): array {
-		return $this->result( 'server_error', true, true, false, $status, 'server_error' );
+		return $this->result( 'server_error', false, false, false, $status, 'server_error' );
 	}
 
 	/**
