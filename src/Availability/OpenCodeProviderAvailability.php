@@ -466,30 +466,39 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Record or clear the last-known-good configured flag for this catalog.
 	 *
-	 * BEHAVIOUR CHANGE: the 30-day window is ABSOLUTE, not rolling. It is
-	 * measured from the last genuine transition into a good state and is NOT
-	 * refreshed by subsequent successful probes. Before this change a keyed
-	 * probe re-wrote the flag on every success, so the TTL was extended every
-	 * five minutes and could never lapse while the upstream kept answering.
+	 * THE WINDOW IS ROLLING AND MUST STAY ROLLING. Every keyed success
+	 * re-writes the flag and pushes its 30-day TTL forward. Do not "optimise"
+	 * the redundant write away — that was tried in this PR and reverted, and
+	 * the optimisation is a bug.
 	 *
-	 * What that changes, stated concretely: a site whose last confirmed good
-	 * probe was on day 1 and whose upstream then starts failing unrecognisably
-	 * — 400/402/403/404, which classify to `unknown` — loses its fallback on
-	 * day 31 rather than holding it indefinitely. `isConfigured()` reads this
-	 * flag for every could-not-be-checked outcome, so on day 31 it starts
-	 * reporting that working key as not connected, and keeps doing so until a
-	 * keyed probe re-arms it. The rolling form meant a credential that had been
-	 * silently failing for a month still reported connected; this form means a
-	 * stale fallback lapses on a bounded, stated interval instead. The flag is
-	 * still cleared outright by the first definitive negative, which is the
-	 * fast path for a genuinely revoked key — the window only governs the
-	 * ambiguous ones.
+	 * Why it must roll. This flag is the entire mechanism by which a working
+	 * key keeps looking working when the gateway answers something the plugin
+	 * cannot interpret. The defect this PR fixes is precisely that a 400/404
+	 * made `isConfigured()` report a perfectly valid key as unconfigured; the
+	 * fallback flag is the fix for that. If the window were absolute — set
+	 * once and left to count down — then a site whose last confirmed good
+	 * probe was on day 1 and whose upstream starts answering unrecognisably
+	 * on day 29 loses its fallback on day 31, and `isConfigured()` starts
+	 * reporting that valid key as not connected again. That is not a subtler
+	 * version of the fix; it is the original defect returning on a 30-day
+	 * horizon, with a good key and no upstream error to explain it.
 	 *
-	 * The DB-write saving is a side effect of the same change, not the reason
-	 * for it: `set_transient()` has no equality short-circuit in WP core, so
-	 * rewriting an unchanged flag is an unconditional options-row UPDATE on
-	 * every keyed probe, about every five minutes per catalog for the life of
-	 * the install.
+	 * Rolling is what makes the guarantee hold for as long as the credential
+	 * keeps working: each keyed success says "still good, today", so the
+	 * fallback cannot lapse while the key is genuinely healthy, and it starts
+	 * counting down only from the last real confirmation.
+	 *
+	 * The cost is one options-row UPDATE per keyed probe, about every five
+	 * minutes per catalog for the life of the install, because WP core's
+	 * `set_transient()` has no equality short-circuit. That write is the
+	 * accepted price of the guarantee above, not an oversight. If it ever
+	 * needs to be avoided, the fix belongs at the storage layer (an
+	 * equality check that still extends the TTL), never at the cost of the
+	 * rolling behaviour.
+	 *
+	 * Clearing is unaffected: the first definitive negative deletes the flag
+	 * outright and immediately, so a genuinely revoked key is never held open
+	 * by any of this.
 	 *
 	 * @since 0.1.6
 	 *
@@ -502,14 +511,8 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			$this->deleteCached( $key );
 			return;
 		}
-		// Absolute window: an already-good flag is left exactly as it is, so
-		// the TTL counts down from the last genuine transition into a good
-		// state instead of being pushed forward by every subsequent success.
-		// See the method docblock for what that means when the upstream goes
-		// quiet. The DB-write saving is a side effect of the same change.
-		if ( $this->readLastGood() ) {
-			return;
-		}
+		// Rewritten unconditionally, and deliberately so: this is what pushes
+		// the TTL forward. See the docblock before changing it.
 		$day = defined( 'DAY_IN_SECONDS' ) ? (int) DAY_IN_SECONDS : 86400;
 		$this->setCached( $key, 1, 30 * $day );
 	}

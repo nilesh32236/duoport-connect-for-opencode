@@ -527,29 +527,28 @@ namespace OpenCodeConnector\Tests\Unit {
 		/**
 		 * The last-known-good window is absolute, not rolling.
 		 *
-		 * This pins the SEMANTICS, not the write count. The earlier
-		 * `writeLastGood()` test only asserted that no extra options-row write
-		 * happened, which is invisible: a reviewer reading it could not tell an
-		 * absolute TTL from a rolling one, which is exactly why the change went
-		 * out undocumented. Here the expiry timestamp itself is the assertion.
+		 * This pins the SEMANTICS, not the write count. A write count cannot
+		 * tell a rolling window from an absolute one, which is how an absolute
+		 * window shipped in this PR and survived two review rounds before anyone
+		 * read it as a regression rather than an optimisation.
 		 *
-		 * Absolute: a good flag set at day 0 expires at day 30. A keyed probe
-		 * at day 29 does not push that expiry out, so the window closes on day
-		 * 30 as originally issued. Rolling would have moved the expiry to
-		 * day 59.
+		 * Rolling: every keyed success pushes the 30-day expiry forward. A flag
+		 * armed on day 0 and confirmed good again on day 29 expires on day 59,
+		 * not day 30. That is what makes the guarantee hold for as long as the
+		 * credential keeps working.
 		 *
-		 * The consequence, stated because it is the reason this needs pinning:
-		 * a site whose last confirmed good probe was on day 1, and whose
-		 * upstream then starts answering unrecognisably (400/402/403/404,
-		 * which classify to `unknown`), loses its fail-open fallback on day 31
-		 * and reports that working key as not connected until a keyed probe
-		 * re-arms it.
+		 * Why it has to. The defect this PR fixes is that a 400/404 made
+		 * `isConfigured()` report a perfectly valid key as unconfigured. This flag
+		 * is the fix for exactly that. An absolute window reintroduces it on a
+		 * 30-day horizon: a site whose upstream starts answering unrecognisably
+		 * on day 29 loses its fallback on day 31 and starts reporting that valid
+		 * key as not connected again, with no upstream error to explain it.
 		 *
 		 * @return void
 		 */
 		#[RunInSeparateProcess]
 		#[PreserveGlobalState( false )]
-		public function test_last_known_good_window_is_absolute_not_rolling(): void {
+		public function test_last_known_good_window_is_refreshed_while_the_key_keeps_working(): void {
 			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
 
 			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
@@ -594,34 +593,50 @@ namespace OpenCodeConnector\Tests\Unit {
 			$first->diagnose();
 
 			self::assertArrayHasKey( $lastgood, $expiry, 'A keyed probe must arm the flag.' );
-			$absolute_expiry = $expiry[ $lastgood ];
-			self::assertSame( $day_zero + 30 * 86400, $absolute_expiry, 'The window is 30 days from arming.' );
+			$first_expiry = $expiry[ $lastgood ];
+			self::assertSame( $day_zero + 30 * 86400, $first_expiry, 'The window is 30 days from arming.' );
 
-			// Day 29: another keyed success must NOT push the expiry out.
-			$now = $day_zero + 29 * 86400;
+			// Day 29: another keyed success MUST push the expiry out to day 59.
+			$now    = $day_zero + 29 * 86400;
 			$second = new OpenCodeProviderAvailability( 'go' );
 			$second->setHttpTransporter( new FakeProbeTransporter( new Response( 200, null ) ) );
 			$second->setRequestAuthentication( new FakeProbeAuthentication() );
 			self::assertTrue( $second->isConfigured(), 'A keyed probe stays connected.' );
 
 			self::assertSame(
-				$absolute_expiry,
+				$day_zero + 59 * 86400,
 				$expiry[ $lastgood ],
-				'A later success must not extend the window; that would be a rolling TTL.'
+				'A keyed success must push the window out. An absolute window lapses on day 30 and reinstates the original defect.'
 			);
 
-			// Day 31: past the original expiry, the fallback has lapsed.
-			$now   = $absolute_expiry + 1;
+			// Day 59 — the ORIGINAL expiry, under the old absolute semantics this
+			// would already be gone. The refreshed window still covers it.
+			$now   = $first_expiry + 1;
 			$later = new OpenCodeProviderAvailability( 'go' );
 			$later->setHttpTransporter( new FakeProbeTransporter( new Response( 404, null ) ) );
 			$later->setRequestAuthentication( new FakeProbeAuthentication() );
 
-			self::assertFalse(
+			self::assertTrue(
 				$later->isConfigured(),
-				'A stale fallback must lapse on its stated 30-day bound rather than rolling forward forever.'
+				'The fallback must survive past the originally-armed expiry while the key keeps working.'
 			);
 		}
 
+		/**
+		 * A keyed success refreshes an already-set last-known-good flag.
+		 *
+		 * This looks like a wasteful rewrite and is not: `set_transient()` has no
+		 * equality short-circuit in WP core, so writing the flag on every keyed
+		 * probe is an options-row UPDATE about every five minutes per catalog.
+		 * That UPDATE is what pushes the 30-day window forward, and rolling is the
+		 * guarantee the whole fail-open rests on — see the inverted
+		 * `test_last_known_good_window_is_refreshed_while_the_key_keeps_working`
+		 * and the docblock on `writeLastGood()`.
+		 *
+		 * An earlier version of this test asserted the OPPOSITE, that the rewrite
+		 * was skipped. It was measuring the right thing about the wrong behaviour,
+		 * which is how an absolute window passed for two review rounds.
+		 *
 		/**
 		 * An already-set last-known-good flag is not rewritten on every probe.
 		 *
@@ -639,7 +654,7 @@ namespace OpenCodeConnector\Tests\Unit {
 		 */
 		#[RunInSeparateProcess]
 		#[PreserveGlobalState( false )]
-		public function test_last_known_good_is_not_rewritten_when_already_set(): void {
+		public function test_last_known_good_is_rewritten_on_every_keyed_success(): void {
 			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
 
 			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
@@ -678,7 +693,9 @@ namespace OpenCodeConnector\Tests\Unit {
 				'The first keyed success must arm the last-known-good flag.'
 			);
 
-			// Warm flag: an unchanged value must not be written again.
+			// Warm flag: it must be written again, because that write is what
+			// pushes the 30-day window forward. Skipping it is the absolute-TTL
+			// regression this PR reverted.
 			$warm_writes = array();
 			Functions\when( 'get_transient' )->alias(
 				static function ( string $key ) use ( $last_good ): mixed {
@@ -696,10 +713,15 @@ namespace OpenCodeConnector\Tests\Unit {
 			$warm->setHttpTransporter( new FakeProbeTransporter( new Response( 200, null ) ) );
 			$warm->setRequestAuthentication( new FakeProbeAuthentication() );
 			self::assertTrue( $warm->isConfigured(), 'A keyed probe is still connected.' );
-			self::assertNotContains(
+			self::assertContains(
 				$last_good,
 				array_column( $warm_writes, 0 ),
-				'An already-true flag must not be rewritten; set_transient() has no equality short-circuit.'
+				'An already-set flag must be rewritten: that write extends the rolling window.'
+			);
+			self::assertContains(
+				30 * 86400,
+				array_column( $warm_writes, 2 ),
+				'The refresh must carry the full 30-day TTL, not a remainder.'
 			);
 		}
 
