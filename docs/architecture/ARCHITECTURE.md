@@ -10,7 +10,7 @@
 
 **Runtime evidence (snapshot only, plugin 0.1.6 - predates PR #135):** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1, plugin 0.1.6; exact release artifact deactivate/reactivate passes, both providers register, image capabilities remain default-deny, settings render 1301 bytes with no secret markers, and authenticated Playwright reaches Plugins, settings persistence, Connectors, and the public site with no network/console errors. WordPress.org API serves 0.1.6 and both verified screenshots; only unrelated `ai-provider-for-*` connector-card 404s remain from earlier runs. No equivalent runtime pass has been run against PR #135, so none is claimed here.
 
-This document is the current architecture source of truth. `class-inventory.json`, `DEPENDENCY-GRAPH.json`, `BOUNDARIES.md`, and `refactor-queue.yaml` are companion artifacts. `PROBE-VERDICT-BOUNDARY.md` records six standing constraints on the availability probe's verdict handling (§§1–5, §3 holding two) plus a §6 process note, and is not a plan. Older files under `AUDIT/` are historical evidence, not a competing plan.
+This document is the current architecture source of truth. `class-inventory.json`, `DEPENDENCY-GRAPH.json`, `BOUNDARIES.md`, and `refactor-queue.yaml` are companion artifacts. `PROBE-VERDICT-BOUNDARY.md` records six standing constraints on the availability probe's verdict handling (§§1–5, §3 holding two) plus a §6 process note, and is not a plan. `PROBE-DENY-POSTURE-CONSTRAINT.md` is a standing design constraint on the availability probe, not a plan. Older files under `AUDIT/` are historical evidence, not a competing plan.
 
 ## Product boundary
 
