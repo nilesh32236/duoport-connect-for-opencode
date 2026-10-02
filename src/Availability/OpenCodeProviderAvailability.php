@@ -53,6 +53,20 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	const PROBE_MODEL = 'deepseek-v4-flash';
 
 	/**
+	 * Optional diagnostics collaborator (test seam; defaults to canonical).
+	 *
+	 * @var ConnectionDiagnostics|null
+	 */
+	private ?ConnectionDiagnostics $diagnostics_override = null;
+
+	/**
+	 * Last safe result retained for a caller.
+	 *
+	 * @var array<string, mixed>|null
+	 */
+	private ?array $last_result = null;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 0.1.0
@@ -64,13 +78,6 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		// Catalog is go or zen.
 		$this->diagnostics_override = $diagnostics;
 	}
-
-	/**
-	 * Optional diagnostics collaborator (test seam; defaults to canonical).
-	 *
-	 * @var ConnectionDiagnostics|null
-	 */
-	private ?ConnectionDiagnostics $diagnostics_override = null;
 
 	/**
 	 * Whether the provider is configured, preserving the legacy boolean contract.
@@ -104,6 +111,8 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Run or reuse the detailed, credential-blind probe result.
 	 *
+	 * @since 0.1.5
+	 *
 	 * @return array<string, mixed>
 	 */
 	public function diagnose(): array {
@@ -112,6 +121,8 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 
 	/**
 	 * Return the most recent safe detailed result.
+	 *
+	 * @since 0.1.5
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -134,27 +145,16 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return array<string, mixed>
 	 */
 	public function verify(): array {
-		$diagnostics = class_exists( ConnectionDiagnostics::class ) ? $this->diagnostics() : null;
+		$diagnostics = $this->diagnostics();
 		$tkey        = Catalog::VERIFY_PREFIX . $this->catalog;
 		$lock_key    = $tkey . '_lock';
 
-		if ( function_exists( 'get_transient' ) ) {
-			try {
-				$cached = get_transient( $tkey );
-			} catch ( \Throwable ) {
-				$cached = false;
-			}
-			if ( is_array( $cached ) && isset( $cached['state'] ) && is_string( $cached['state'] ) ) {
-				return $cached;
-			}
-			try {
-				$locked = get_transient( $lock_key );
-			} catch ( \Throwable ) {
-				$locked = false;
-			}
-			if ( false !== $locked ) {
-				return $this->verify_result( 'could-not-be-checked', null, $diagnostics );
-			}
+		$cached = $this->read_cached( $tkey );
+		if ( is_array( $cached ) && isset( $cached['state'] ) && is_string( $cached['state'] ) ) {
+			return $cached;
+		}
+		if ( false !== $this->read_cached( $lock_key ) ) {
+			return $this->verify_result( 'could-not-be-checked', null, $diagnostics );
 		}
 
 		try {
@@ -165,17 +165,11 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			return $verdict;
 		}
 
-		if ( function_exists( 'set_transient' ) ) {
-			try {
-				set_transient( $lock_key, 1, 10 );
-			} catch ( \Throwable $lock_exception ) {
-				unset( $lock_exception );
-				// Fail-open: proceed without the lock.
-			}
-		}
+		// Fail-open: a storage failure just means the probe runs unlocked.
+		$this->write_cached( $lock_key, 1, 10 );
 
 		$diagnosis = null;
-		$cls       = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
+		$cls       = $this->provider_class_for_catalog();
 		// HttpMethodEnum::POST() is a magic factory: the SDK declares it as an
 		// `@method static` annotation and serves it from AbstractEnum::__callStatic,
 		// so method_exists() cannot see it and is permanently false against the
@@ -184,16 +178,15 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		// ProviderTypeEnum and RequestAuthenticationMethod. `url` is a real
 		// static method on AbstractApiProvider, so method_exists() is correct
 		// for it.
-		$surface_ok = class_exists( $cls ) && method_exists( $cls, 'url' )
+		$surface_ok = null !== $cls && class_exists( $cls ) && method_exists( $cls, 'url' )
 			&& class_exists( Request::class ) && class_exists( HttpMethodEnum::class ) && defined( HttpMethodEnum::class . '::POST' );
-		if ( ! $surface_ok && null !== $diagnostics ) {
+		if ( ! $surface_ok ) {
 			try {
 				$diagnosis = $diagnostics->classify( 0, null, new \RuntimeException( 'verify surface unavailable' ) );
-			} catch ( \Throwable $surface_exception ) {
-				unset( $surface_exception );
+			} catch ( \Throwable ) {
 				$diagnosis = null;
 			}
-		} elseif ( $surface_ok ) {
+		} else {
 			try {
 				$probe_data   = array(
 					'model'      => self::PROBE_MODEL,
@@ -219,21 +212,17 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 				);
 				$req       = $this->getRequestAuthentication()->authenticateRequest( $req );
 				$res       = $this->getHttpTransporter()->send( $req );
-				$diagnosis = null !== $diagnostics ? $diagnostics->classify( $res->getStatusCode(), $res->getData() ) : null;
-			} catch ( \Throwable $exception ) {
-				unset( $exception );
-				if ( null !== $diagnostics ) {
-					try {
-						$diagnosis = $diagnostics->classify( 0, null, new \RuntimeException( 'verify transport failure' ) );
-					} catch ( \Throwable $classify_exception ) {
-						unset( $classify_exception );
-						$diagnosis = null;
-					}
+				$diagnosis = $diagnostics->classify( $res->getStatusCode(), $res->getData() );
+			} catch ( \Throwable ) {
+				try {
+					$diagnosis = $diagnostics->classify( 0, null, new \RuntimeException( 'verify transport failure' ) );
+				} catch ( \Throwable ) {
+					$diagnosis = null;
 				}
 			}
 		}
 
-		$state = null !== $diagnostics && null !== $diagnosis ? $diagnostics->verify_state( $diagnosis ) : 'could-not-be-checked';
+		$state = null !== $diagnosis ? $diagnostics->verify_state( $diagnosis ) : 'could-not-be-checked';
 		// Explicit fail-open: transport/server/unknown outcomes already map to
 		// `could-not-be-checked` via verify_state(); never fatal here.
 		$verdict = $this->verify_result( $state, $diagnosis, $diagnostics );
@@ -249,25 +238,16 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 *
 	 * @since 0.1.6
 	 *
-	 * @param string                     $state       Verification state.
-	 * @param array<string,mixed>|null   $diagnosis   Safe diagnosis, if any.
-	 * @param ConnectionDiagnostics|null $diagnostics Diagnostics helper, if available.
+	 * @param string                    $state       Verification state.
+	 * @param array<string, mixed>|null $diagnosis   Safe diagnosis, if any.
+	 * @param ConnectionDiagnostics     $diagnostics Diagnostics helper.
 	 * @return array<string, mixed>
 	 */
-	private function verify_result( string $state, ?array $diagnosis, ?ConnectionDiagnostics $diagnostics ): array {
+	private function verify_result( string $state, ?array $diagnosis, ConnectionDiagnostics $diagnostics ): array {
 		if ( null === $diagnosis ) {
-			if ( null !== $diagnostics ) {
-				try {
-					if ( 'invalid_key' === $state ) {
-						$diagnosis = $diagnostics->notConfigured();
-					} else {
-						$diagnosis = $diagnostics->unknown();
-					}
-				} catch ( \Throwable $verdict_exception ) {
-					unset( $verdict_exception );
-					$diagnosis = array( 'state' => 'unknown' );
-				}
-			} else {
+			try {
+				$diagnosis = 'invalid_key' === $state ? $diagnostics->notConfigured() : $diagnostics->unknown();
+			} catch ( \Throwable ) {
 				$diagnosis = array( 'state' => 'unknown' );
 			}
 		}
@@ -289,43 +269,45 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return void
 	 */
 	private function store_verify_verdict( string $tkey, string $lock_key, array $verdict ): void {
-		if ( function_exists( 'delete_transient' ) ) {
-			try {
-				delete_transient( $lock_key );
-			} catch ( \Throwable $delete_exception ) {
-				unset( $delete_exception );
-				// Fail-open: caching must never be fatal.
-			}
-		}
-		if ( ! function_exists( 'set_transient' ) ) {
-			return;
-		}
-		$base = defined( 'MINUTE_IN_SECONDS' ) ? 5 * MINUTE_IN_SECONDS : 300;
-		$ttl  = (int) $base;
+		$this->delete_cached( $lock_key );
+		$minutes = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
+		$this->write_cached( $tkey, $verdict, $this->jittered_ttl( 5 * $minutes ) );
+	}
+
+	/**
+	 * Stagger a cache lifetime by up to a minute either way.
+	 *
+	 * Prevents every install that probed in the same second from re-probing
+	 * in lockstep. One implementation for both probe families, so the two
+	 * paths cannot drift apart on the fail-open rules.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param int $base Base lifetime in seconds.
+	 * @return int
+	 */
+	private function jittered_ttl( int $base ): int {
+		$ttl = $base;
 		if ( function_exists( 'wp_rand' ) ) {
 			try {
-				$ttl = (int) $base + wp_rand( -60, 60 );
-			} catch ( \Throwable $rand_exception ) {
-				unset( $rand_exception );
-				$ttl = (int) $base;
+				$ttl = $base + (int) wp_rand( -60, 60 );
+			} catch ( \Throwable ) {
+				$ttl = $base;
 			}
 		}
-		try {
-			set_transient( $tkey, $verdict, max( 60, $ttl ) );
-		} catch ( \Throwable $store_exception ) {
-			unset( $store_exception );
-			// Fail-open: caching must never be fatal.
-		}
+		return max( 60, $ttl );
 	}
 
 	/**
 	 * Probe, classify, and briefly cache the safe result.
 	 *
+	 * @since 0.1.5
+	 *
 	 * @return array<string, mixed>
 	 */
 	private function probe(): array {
 		$tkey   = Catalog::AVAIL_PREFIX . $this->catalog;
-		$cached = $this->getCached( $tkey );
+		$cached = $this->read_cached( $tkey );
 		if ( is_array( $cached ) && isset( $cached['state'] ) ) {
 			$this->last_result = $cached;
 			return $cached;
@@ -337,7 +319,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 
 		// Stampede protection: short lock so concurrent requests share one probe.
 		$lock_key = $tkey . '_lock';
-		if ( false !== $this->getCached( $lock_key ) ) {
+		if ( false !== $this->read_cached( $lock_key ) ) {
 			// Concurrent probe: surface could-not-be-checked so isConfigured()
 			// can fail open on last-known-good instead of flipping to false.
 			$this->last_result = $this->diagnostics()->uncheckable();
@@ -345,18 +327,24 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 
 		$diagnostics = $this->diagnostics();
+		$cls         = $this->provider_class_for_catalog();
+		if ( null === $cls ) {
+			// Fail closed: an unknown slug has no provider to probe, and must
+			// never borrow the Zen endpoint by default.
+			$this->last_result = $diagnostics->notConfigured();
+			return $this->last_result;
+		}
 		try {
 			$this->getRequestAuthentication();
-		} catch ( \Throwable $exception ) {
+		} catch ( \Throwable ) {
 			$this->last_result = $diagnostics->notConfigured();
 			$this->writeLastGood( false );
 			return $this->last_result;
 		}
 
 		// Set lock before network I/O (10s).
-		$this->setCached( $lock_key, 1, 10 );
+		$this->write_cached( $lock_key, 1, 10 );
 
-		$cls = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
 		// Probe models are chosen to discriminate AUTHENTICATION, not model
 		// availability: paid models answer 401 CreditsError for a valid but
 		// empty-balance key (configured) versus other 401s for a bad key.
@@ -379,7 +367,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		// probe additionally carries the plugin User-Agent via the shared Go
 		// header pair; the opencode user agent is never spoofed.
 		$base_headers  = array( 'Content-Type' => 'application/json' );
-		$probe_headers = 'go' === $this->catalog && class_exists( GoRequestHeaders::class )
+		$probe_headers = Catalog::GO === $this->catalog && class_exists( GoRequestHeaders::class )
 			? GoRequestHeaders::for_go( $base_headers, $probe_data )
 			: SessionHeader::inject_into_headers( $base_headers, $probe_data );
 		$req           = new Request(
@@ -396,7 +384,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		} catch ( \Throwable $exception ) {
 			$this->last_result = $diagnostics->classify( 0, null, $exception );
 		}
-		$this->deleteCached( $lock_key );
+		$this->delete_cached( $lock_key );
 		$state = isset( $this->last_result['state'] ) && is_string( $this->last_result['state'] ) ? $this->last_result['state'] : '';
 		// Could-not-be-checked (5xx, transport failure, concurrent probe):
 		// never write the failure to last-known-good. The verdict is cached
@@ -404,7 +392,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		// of one per call, while isConfigured() keeps failing open.
 		if ( in_array( $state, array( 'uncheckable', 'network_error', 'server_error' ), true ) ) {
 			$second = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
-			$this->setCached( $tkey, $this->last_result, $second );
+			$this->write_cached( $tkey, $this->last_result, $second );
 			return $this->last_result;
 		}
 		// Definitive keyed outcomes refresh last-known-good. A Zen free-tier
@@ -416,9 +404,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 		// Stagger expiry ±60s to avoid synchronized stampedes.
 		$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
-		$jitter = function_exists( 'wp_rand' ) ? wp_rand( -60, 60 ) : 0;
-		$ttl    = 5 * $minute + (int) $jitter;
-		$this->setCached( $tkey, $this->last_result, max( 60, $ttl ) );
+		$this->write_cached( $tkey, $this->last_result, $this->jittered_ttl( 5 * $minute ) );
 		return $this->last_result;
 	}
 
@@ -433,8 +419,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return bool
 	 */
 	private function readLastGood(): bool {
-		$value = $this->getCached( Catalog::AVAIL_PREFIX . $this->catalog . Catalog::LAST_GOOD_SUFFIX );
-		return ! empty( $value );
+		return ! empty( $this->read_cached( Catalog::AVAIL_PREFIX . $this->catalog . Catalog::LAST_GOOD_SUFFIX ) );
 	}
 
 	/**
@@ -448,11 +433,11 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	private function writeLastGood( bool $good ): void {
 		$key = Catalog::AVAIL_PREFIX . $this->catalog . Catalog::LAST_GOOD_SUFFIX;
 		if ( ! $good ) {
-			$this->deleteCached( $key );
+			$this->delete_cached( $key );
 			return;
 		}
 		$day = defined( 'DAY_IN_SECONDS' ) ? (int) DAY_IN_SECONDS : 86400;
-		$this->setCached( $key, 1, 30 * $day );
+		$this->write_cached( $key, 1, 30 * $day );
 	}
 
 	/**
@@ -503,6 +488,61 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	}
 
 	/**
+	 * Transient read that treats a storage failure as a cache miss.
+	 *
+	 * One fail-open rule for every cached value this class owns: a broken
+	 * option API must never turn a probe into a fatal error.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $key Transient key.
+	 * @return mixed Stored value, or false for a miss or an unreadable store.
+	 */
+	private function read_cached( string $key ): mixed {
+		try {
+			return $this->getCached( $key );
+		} catch ( \Throwable ) {
+			return false;
+		}
+	}
+
+	/**
+	 * Transient write that swallows storage failures.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $key   Transient key.
+	 * @param mixed  $value Value.
+	 * @param int    $ttl   Time to live in seconds.
+	 * @return void
+	 */
+	private function write_cached( string $key, mixed $value, int $ttl ): void {
+		try {
+			$this->setCached( $key, $value, $ttl );
+		} catch ( \Throwable ) {
+			// Fail-open: caching is an optimization, never a precondition.
+			return;
+		}
+	}
+
+	/**
+	 * Transient delete that swallows storage failures.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $key Transient key.
+	 * @return void
+	 */
+	private function delete_cached( string $key ): void {
+		try {
+			$this->deleteCached( $key );
+		} catch ( \Throwable ) {
+			// Fail-open: a stale key expires on its own; never fatal.
+			return;
+		}
+	}
+
+	/**
 	 * Diagnostics collaborator (canonical instance unless overridden).
 	 *
 	 * @since 0.1.6
@@ -514,9 +554,24 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	}
 
 	/**
-	 * Last safe result retained for a caller.
+	 * Provider class for this catalog, or null when the slug is unknown.
 	 *
-	 * @var array<string, mixed>|null
+	 * One mapping, validated through Catalog: an unrecognised slug returns
+	 * null instead of silently falling through to the Zen provider, so a
+	 * future third catalog can never borrow Zen's endpoint and credentials
+	 * path.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return class-string|null Provider class name, or null for an unknown catalog.
 	 */
-	private ?array $last_result = null;
+	private function provider_class_for_catalog(): ?string {
+		if ( Catalog::GO === $this->catalog ) {
+			return OpenCodeGoProvider::class;
+		}
+		if ( Catalog::ZEN === $this->catalog ) {
+			return OpenCodeZenProvider::class;
+		}
+		return null;
+	}
 }

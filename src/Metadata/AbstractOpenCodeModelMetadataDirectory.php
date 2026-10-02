@@ -16,6 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Media\ImageMime;
 use WordPress\AiClient\Messages\Enums\ModalityEnum;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\DTO\Response;
@@ -34,6 +35,15 @@ use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCo
  * @since 0.1.0
  */
 abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadataDirectory {
+	/**
+	 * Shared option name the JSON schema is anchored to.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @var string
+	 */
+	private const OPTION_OUTPUT_MIME_TYPE = 'output_mime_type';
+
 	/**
 	 * Provider class FQCN.
 	 *
@@ -89,7 +99,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 		$common_opts = $this->buildCommonOptions();
 
 		$list = array();
-		foreach ( (array) $data['data'] as $row ) {
+		foreach ( $data['data'] as $row ) {
 			$metadata = $this->metadataForRow( $row, $show_all, $common_opts );
 			if ( null !== $metadata ) {
 				$list[] = $metadata;
@@ -100,24 +110,53 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	}
 
 	/**
-	 * Build the shared text-model option set.
+	 * Build the shared text-model option set, keyed by option name.
+	 *
+	 * Keys make the set addressable by name, so an option that has to sit next
+	 * to a specific entry (the JSON schema next to the output MIME type) can
+	 * be placed relative to it instead of at a hardcoded index.
 	 *
 	 * @since 0.1.6
 	 *
-	 * @return array
+	 * @return array<string, SupportedOption>
 	 */
 	private function buildCommonOptions(): array {
 		return array(
-			new SupportedOption( OptionEnum::systemInstruction() ),
-			new SupportedOption( OptionEnum::maxTokens() ),
-			new SupportedOption( OptionEnum::temperature() ),
-			new SupportedOption( OptionEnum::topP() ),
-			new SupportedOption( OptionEnum::stopSequences() ),
-			new SupportedOption( OptionEnum::outputMimeType(), array( 'text/plain', 'application/json' ) ),
-			new SupportedOption( OptionEnum::customOptions() ),
-			new SupportedOption( OptionEnum::inputModalities(), array( array( ModalityEnum::text() ) ) ),
-			new SupportedOption( OptionEnum::outputModalities(), array( array( ModalityEnum::text() ) ) ),
+			'system_instruction' => new SupportedOption( OptionEnum::systemInstruction() ),
+			'max_tokens'         => new SupportedOption( OptionEnum::maxTokens() ),
+			'temperature'        => new SupportedOption( OptionEnum::temperature() ),
+			'top_p'              => new SupportedOption( OptionEnum::topP() ),
+			'stop_sequences'     => new SupportedOption( OptionEnum::stopSequences() ),
+			'output_mime_type'   => new SupportedOption( OptionEnum::outputMimeType(), array( 'text/plain', 'application/json' ) ),
+			'custom_options'     => new SupportedOption( OptionEnum::customOptions() ),
+			'input_modalities'   => new SupportedOption( OptionEnum::inputModalities(), array( array( ModalityEnum::text() ) ) ),
+			'output_modalities'  => new SupportedOption( OptionEnum::outputModalities(), array( array( ModalityEnum::text() ) ) ),
 		);
+	}
+
+	/**
+	 * Flatten the shared options into one model's list.
+	 *
+	 * The JSON-schema option is emitted directly after the named
+	 * `output_mime_type` entry — the pair that describes the response shape —
+	 * so adding, dropping, or reordering entries in buildCommonOptions() can
+	 * never silently relocate it into the wrong slot.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param array<string, SupportedOption> $common_opts  Shared options keyed by name.
+	 * @param bool                           $json_capable Whether the model can honor a strict schema.
+	 * @return list<SupportedOption>
+	 */
+	private function buildTextOptions( array $common_opts, bool $json_capable ): array {
+		$opts = array();
+		foreach ( $common_opts as $name => $option ) {
+			$opts[] = $option;
+			if ( self::OPTION_OUTPUT_MIME_TYPE === $name && $json_capable ) {
+				$opts[] = new SupportedOption( OptionEnum::outputSchema() );
+			}
+		}
+		return $opts;
 	}
 
 	/**
@@ -159,17 +198,14 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 				array(
 					new SupportedOption( OptionEnum::inputModalities(), array( array( ModalityEnum::text() ) ) ),
 					new SupportedOption( OptionEnum::outputModalities(), array( array( ModalityEnum::image() ) ) ),
-					new SupportedOption( OptionEnum::outputMimeType(), \OpenCodeConnector\Media\ImageMime::all() ),
+					new SupportedOption( OptionEnum::outputMimeType(), ImageMime::all() ),
 					new SupportedOption( OptionEnum::customOptions() ),
 				)
 			);
 		}
 		// DeepSeek models return malformed JSON for strict schema; hide outputSchema so JSON tasks pick a capable model.
 		$is_json_capable = ! str_starts_with( $id, 'deepseek' );
-		$opts            = $common_opts;
-		if ( $is_json_capable ) {
-			array_splice( $opts, 5, 0, array( new SupportedOption( OptionEnum::outputSchema() ) ) );
-		}
+		$opts            = $this->buildTextOptions( $common_opts, $is_json_capable );
 		// Function-calling transport is inherited from the OpenAI-compatible
 		// base model (tools param + tool_calls response parsing), so
 		// tool-verified models advertise it and stop being filtered out of

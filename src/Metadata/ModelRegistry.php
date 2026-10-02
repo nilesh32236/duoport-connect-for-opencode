@@ -19,6 +19,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * The registry is intentionally conservative: unknown IDs and capabilities
  * are denied, and live catalog discovery never creates records automatically.
+ *
+ * @package OpenCodeConnector
+ * @since 0.1.5
  */
 final class ModelRegistry {
 
@@ -33,9 +36,18 @@ final class ModelRegistry {
 	private const LAST_VERIFIED = '2026-09-24';
 
 	/**
-	 * Current implemented endpoint family.
+	 * Endpoint families with a complete, verified transport.
+	 *
+	 * Single source of truth for "what this adapter can actually route".
+	 * `EndpointRoute::PATHS` keys its chat-only allowlist on this value and
+	 * `CapabilityAwareFallback` admits only records carrying it, so the
+	 * selector's admission rule can never drift from the router's allowlist.
+	 * Adding a family here is a deliberate act: the payload, parser, and
+	 * authentication contracts must be complete first.
+	 *
+	 * @since 0.1.8
 	 */
-	private const ENDPOINT_FAMILY = 'chat';
+	public const IMPLEMENTED_FAMILY = 'chat';
 
 	/**
 	 * Zen IDs whose documented family is not implemented by this adapter.
@@ -78,11 +90,28 @@ final class ModelRegistry {
 	/**
 	 * Whether an endpoint family is a known, named non-chat family.
 	 *
+	 * @since 0.1.7
+	 *
 	 * @param string $family Endpoint family name.
 	 * @return bool
 	 */
 	public static function isUnsupportedFamily( string $family ): bool {
 		return in_array( $family, self::UNSUPPORTED_FAMILIES, true );
+	}
+
+	/**
+	 * Whether an endpoint family has a complete, verified transport.
+	 *
+	 * Untyped on purpose: callers hand this a record field straight from a
+	 * decoded payload (or from a test resolver) instead of blind-casting it.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param mixed $family Endpoint family name.
+	 * @return bool
+	 */
+	public static function isImplementedFamily( $family ): bool {
+		return is_scalar( $family ) && self::IMPLEMENTED_FAMILY === (string) $family;
 	}
 
 	/**
@@ -93,10 +122,10 @@ final class ModelRegistry {
 	 * @return string
 	 */
 	private static function endpointFamily( string $id, string $catalog ): string {
-		if ( 'zen' === $catalog && in_array( $id, self::UNSUPPORTED_ZEN_MODELS, true ) ) {
+		if ( Catalog::ZEN === $catalog && in_array( $id, self::UNSUPPORTED_ZEN_MODELS, true ) ) {
 			return self::ENDPOINT_FAMILY_UNSUPPORTED;
 		}
-		return self::ENDPOINT_FAMILY;
+		return self::IMPLEMENTED_FAMILY;
 	}
 
 	/**

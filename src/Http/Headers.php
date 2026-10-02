@@ -33,8 +33,7 @@ final class Headers {
 	 * @return bool
 	 */
 	public static function has( array $headers, string $name ): bool {
-		foreach ( $headers as $key => $existing ) {
-			unset( $existing );
+		foreach ( array_keys( $headers ) as $key ) {
 			if ( is_string( $key ) && 0 === strcasecmp( $key, $name ) ) {
 				return true;
 			}

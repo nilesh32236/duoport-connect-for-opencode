@@ -28,7 +28,7 @@ final class ImageMime {
 	 *
 	 * @var list<string>
 	 */
-	const ALL = array( 'image/png', 'image/jpeg', 'image/webp' );
+	public const ALL = array( 'image/png', 'image/jpeg', 'image/webp' );
 
 	/**
 	 * File extension per MIME type.

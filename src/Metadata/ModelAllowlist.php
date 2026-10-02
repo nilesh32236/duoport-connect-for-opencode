@@ -90,6 +90,7 @@ final class ModelAllowlist {
 			'nemotron-3.5-lightning-free',
 		),
 	);
+
 	/**
 	 * Web-search-capable IDs per catalog.
 	 *
@@ -104,6 +105,7 @@ final class ModelAllowlist {
 	 * @var array<string, list<string>>
 	 */
 	private const WEB_SEARCH_CAPABLE = array();
+
 	/**
 	 * Image-capable IDs per catalog.
 	 *
@@ -249,8 +251,6 @@ final class ModelAllowlist {
 	 * @return string
 	 */
 	public static function displayName( string $id ): string {
-		$human = ucwords( str_replace( array( '-', '_' ), ' ', $id ) );
-		// e.g. "Deepseek V4 Flash Free" -> normalize V4 casing left as-is.
-		return $human;
+		return ucwords( str_replace( array( '-', '_' ), ' ', $id ) );
 	}
 }

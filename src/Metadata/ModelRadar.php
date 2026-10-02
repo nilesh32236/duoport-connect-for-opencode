@@ -23,6 +23,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class ModelRadar {
 
 	/**
+	 * Catalog source URLs used by the shipped radar report.
+	 *
+	 * Derived from the Catalog base URLs so host changes stay in one place.
+	 *
+	 * @var array<string, string>
+	 */
+	private const SOURCES = array(
+		Catalog::GO  => Catalog::GO_BASE_URL . '/models',
+		Catalog::ZEN => Catalog::ZEN_BASE_URL . '/models',
+	);
+
+	/**
 	 * Watch collaborator (test seam; defaults to canonical).
 	 *
 	 * @var CatalogWatch|null
@@ -39,18 +51,6 @@ final class ModelRadar {
 	public function __construct( ?CatalogWatch $watch = null ) {
 		$this->watch_override = $watch;
 	}
-
-	/**
-	 * Catalog source URLs used by the shipped radar report.
-	 *
-	 * Derived from the Catalog base URLs so host changes stay in one place.
-	 *
-	 * @var array<string, string>
-	 */
-	private const SOURCES = array(
-		Catalog::GO  => Catalog::GO_BASE_URL . '/models',
-		Catalog::ZEN => Catalog::ZEN_BASE_URL . '/models',
-	);
 
 	/**
 	 * Verification states that can support a reviewed route.
@@ -107,7 +107,7 @@ final class ModelRadar {
 		$lines = array(
 			'# OpenCode Model Radar',
 			'',
-			'Checked at: `' . $this->safe_text( (string) ( $report['checked_at'] ?? '' ) ) . '`',
+			'Checked at: `' . $this->safe_text( $this->text_value( $report['checked_at'] ?? '' ) ) . '`',
 			'',
 			'Public catalog evidence is non-promotable. Unknown models, endpoint families, and capabilities remain default-deny.',
 			'',
@@ -163,7 +163,7 @@ final class ModelRadar {
 			if ( ! is_array( $change ) || empty( $change['id'] ) ) {
 				continue;
 			}
-			$lines[] = '- `' . $this->safe_text( (string) $change['id'] ) . '` — **' . $this->safe_text( (string) ( $change['status'] ?? '' ) ) . '** (' . $this->safe_text( $this->changeStatesText( $change ) ) . '); ' . $this->changeLabel( $change );
+			$lines[] = '- `' . $this->safe_text( $this->text_value( $change['id'] ) ) . '` — **' . $this->safe_text( $this->text_value( $change['status'] ?? '' ) ) . '** (' . $this->safe_text( $this->changeStatesText( $change ) ) . '); ' . $this->changeLabel( $change );
 		}
 		if ( array() === $changes ) {
 			$lines[] = '_No comparable rows._';
@@ -214,7 +214,7 @@ final class ModelRadar {
 			'',
 			'Measurement starts at this implementation. Historical detection, verification, merge, and release timestamps remain null until observed.',
 			'',
-			'- `measurement_started_at`: `' . $this->safe_text( (string) ( $report['metrics']['measurement_started_at'] ?? '' ) ) . '`',
+			'- `measurement_started_at`: `' . $this->safe_text( $this->text_value( $report['metrics']['measurement_started_at'] ?? '' ) ) . '`',
 			'- `detection_to_verification`: ' . $this->metric_text( $report, 'detection_to_verification' ),
 			'- `verification_to_merge`: ' . $this->metric_text( $report, 'verification_to_merge' ),
 			'- `merge_to_release`: ' . $this->metric_text( $report, 'merge_to_release' ),
@@ -227,30 +227,16 @@ final class ModelRadar {
 	/**
 	 * Build a safe report for an unreachable catalog.
 	 *
+	 * The summary shape comes from emptySummary() so the unreachable and the
+	 * reachable branches cannot drift apart: a consumer that branches on key
+	 * presence sees the same keys either way.
+	 *
 	 * @return array<string, mixed>
 	 */
 	private function unreachable_report(): array {
 		return array(
 			'unreachable' => true,
-			'summary'     => array(
-				'discovered'              => 0,
-				'supported'               => 0,
-				'free_supported'          => 0,
-				'registry_candidates'     => 0,
-				'unsupported'             => 0,
-				'verification_required'   => 0,
-				'new'                     => 0,
-				'retired'                 => 0,
-				'free_candidates'         => 0,
-				'retired_free_candidates' => 0,
-				'free_name_candidates'    => 0,
-				'explicit_free_evidence'  => 0,
-				'endpoint_change'         => 0,
-				'capability_change'       => 0,
-				'metadata_change'         => 0,
-				'free_change'             => 0,
-				'malformed'               => 0,
-			),
+			'summary'     => $this->emptySummary(),
 			'changes'     => array(),
 		);
 	}
@@ -274,14 +260,14 @@ final class ModelRadar {
 			if ( ! is_array( $result ) ) {
 				continue;
 			}
-			$id = (string) ( $result['id'] ?? '' );
+			$id = $this->text_value( $result['id'] ?? '' );
 			if ( '' === $id ) {
 				++$summary['malformed'];
 				continue;
 			}
-			$row = $this->buildChangeRow( $catalog, $result, $id, $explicit_free );
-			$this->summarizeResult( $summary, $row );
-			$changes[] = $row;
+			$built = $this->buildChangeRow( $catalog, $result, $id, $explicit_free );
+			$this->summarizeResult( $summary, $built['counters'], $built['row'] );
+			$changes[] = $built['row'];
 		}
 
 		return array(
@@ -354,13 +340,19 @@ final class ModelRadar {
 	/**
 	 * Build one change row for a watch result.
 	 *
+	 * The published row and the summary scaffolding are returned as separate
+	 * structures so a row is valid on its own: the summary needs facts the
+	 * report does not publish (retirement, free evidence), but they must never
+	 * ride along on a public key. `status` and `states` are already published
+	 * on the row, so the counters refer to the row for those.
+	 *
 	 * @since 0.1.6
 	 *
 	 * @param string               $catalog Catalog key.
 	 * @param array<string, mixed> $result Watch result.
 	 * @param string               $id Model ID.
 	 * @param array<string, bool>  $explicit_free Explicit free evidence keyed by ID.
-	 * @return array<string, mixed>
+	 * @return array{row: array<string, mixed>, counters: array<string, mixed>}
 	 */
 	private function buildChangeRow( string $catalog, array $result, string $id, array $explicit_free ): array {
 		$states         = is_array( $result['states'] ?? null ) ? $result['states'] : array();
@@ -372,47 +364,51 @@ final class ModelRadar {
 		$free_candidate = $free_name || $free_explicit;
 		$is_retired     = 'retired' === ( $result['status'] ?? '' );
 		$priority       = $free_candidate || 'allowlisted' !== ( $result['status'] ?? '' ) ? 'high' : 'normal';
+
 		return array(
-			'id'                   => $id,
-			'status'               => (string) ( $result['status'] ?? '' ),
-			'states'               => array_values( array_unique( $states ) ),
-			'allowlisted'          => (bool) ( $result['allowlisted'] ?? false ),
-			'registry_candidate'   => null !== $record,
-			'supported'            => $supported,
-			'free_registry'        => $free_reviewed,
-			'free_candidate'       => $free_candidate,
-			'free_candidate_basis' => $free_explicit ? 'explicit_public_evidence' : ( $free_name ? 'unverified_name' : 'none' ),
-			'priority'             => $priority,
-			'promotable'           => false,
-			'_is_retired'          => $is_retired,
-			'_free_name'           => $free_name,
-			'_free_explicit'       => $free_explicit,
-			'_unsupported'         => null !== $record && ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === ( $record['endpoint_family'] ?? '' ),
-			'_status'              => (string) ( $result['status'] ?? '' ),
-			'_states'              => array_values( array_unique( $states ) ),
+			'row'      => array(
+				'id'                   => $id,
+				'status'               => $this->text_value( $result['status'] ?? '' ),
+				'states'               => array_values( array_unique( $states ) ),
+				'allowlisted'          => (bool) ( $result['allowlisted'] ?? false ),
+				'registry_candidate'   => null !== $record,
+				'supported'            => $supported,
+				'free_registry'        => $free_reviewed,
+				'free_candidate'       => $free_candidate,
+				'free_candidate_basis' => $free_explicit ? 'explicit_public_evidence' : ( $free_name ? 'unverified_name' : 'none' ),
+				'priority'             => $priority,
+				'promotable'           => false,
+			),
+			'counters' => array(
+				'is_retired'    => $is_retired,
+				'free_name'     => $free_name,
+				'free_explicit' => $free_explicit,
+				'unsupported'   => null !== $record && ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === ( $record['endpoint_family'] ?? '' ),
+			),
 		);
 	}
 
 	/**
 	 * Fold one change row into the summary counters.
 	 *
-	 * Reads the private `_`-prefixed scaffolding keys carried by
-	 * buildChangeRow(); they are stripped before the report is returned.
+	 * Reads the summary-only facts returned alongside the row by
+	 * buildChangeRow(); the published row itself is never mutated, so a caller
+	 * that never summarizes still publishes a clean row.
 	 *
 	 * @since 0.1.6
 	 *
 	 * @param array<string, int>   $summary Summary counters (updated in place).
-	 * @param array<string, mixed> $row Change row (scaffolding keys removed in place).
+	 * @param array<string, mixed> $counters Summary-only facts for one row.
+	 * @param array<string, mixed> $row Published change row (read only).
 	 * @return void
 	 */
-	private function summarizeResult( array &$summary, array &$row ): void {
-		$is_retired    = (bool) ( $row['_is_retired'] ?? false );
-		$free_name     = (bool) ( $row['_free_name'] ?? false );
-		$free_explicit = (bool) ( $row['_free_explicit'] ?? false );
-		$unsupported   = (bool) ( $row['_unsupported'] ?? false );
-		$status        = (string) ( $row['_status'] ?? '' );
-		$states        = is_array( $row['_states'] ?? null ) ? $row['_states'] : array();
-		unset( $row['_is_retired'], $row['_free_name'], $row['_free_explicit'], $row['_unsupported'], $row['_status'], $row['_states'] );
+	private function summarizeResult( array &$summary, array $counters, array $row ): void {
+		$is_retired    = (bool) ( $counters['is_retired'] ?? false );
+		$free_name     = (bool) ( $counters['free_name'] ?? false );
+		$free_explicit = (bool) ( $counters['free_explicit'] ?? false );
+		$unsupported   = (bool) ( $counters['unsupported'] ?? false );
+		$status        = $this->text_value( $row['status'] ?? '' );
+		$states        = is_array( $row['states'] ?? null ) ? $row['states'] : array();
 
 		if ( $is_retired ) {
 			++$summary['retired'];
@@ -491,7 +487,7 @@ final class ModelRadar {
 	 */
 	private function metric_text( array $report, string $key ): string {
 		$value = $report['metrics'][ $key ] ?? null;
-		return null === $value ? 'null' : $this->safe_text( (string) $value );
+		return null === $value ? 'null' : $this->safe_text( $this->text_value( $value ) );
 	}
 
 	/**
@@ -502,5 +498,27 @@ final class ModelRadar {
 	 */
 	private function safe_text( string $text ): string {
 		return str_replace( array( '`', "\r", "\n" ), array( '', '', ' ' ), $text );
+	}
+
+	/**
+	 * Read an untrusted value as text without blind-casting it.
+	 *
+	 * Discovery rows are decoded JSON, so any value here can be an array or an
+	 * object; casting those to string emits a warning or throws. Non-scalars
+	 * are described by type instead, matching the rest of src/.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @param mixed $value Untrusted value.
+	 * @return string
+	 */
+	private function text_value( $value ): string {
+		if ( is_string( $value ) ) {
+			return $value;
+		}
+		if ( is_scalar( $value ) ) {
+			return (string) $value;
+		}
+		return is_object( $value ) ? get_class( $value ) : get_debug_type( $value );
 	}
 }

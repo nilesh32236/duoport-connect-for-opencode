@@ -113,6 +113,71 @@ final class ModelRegistryTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * The implemented endpoint family has exactly one owner.
+	 *
+	 * Three classes used to encode `chat` independently: the registry assigned
+	 * it, the fallback selector admitted only it, and the router mapped it to a
+	 * path. They are private constants, so a change to one could drift from the
+	 * others with no test failing — and the divergence would either route a
+	 * model the selector rejects or admit a family with no transport.
+	 *
+	 * @since 0.1.8
+	 */
+	public function test_implemented_endpoint_family_is_owned_in_one_place(): void {
+		$root  = dirname( __DIR__, 2 );
+		$files = array(
+			'src/Metadata/ModelRegistry.php'          => array( 'use' => "const IMPLEMENTED_FAMILY = 'chat';", 'banned' => array( "const ENDPOINT_FAMILY = 'chat'" ) ),
+			'src/Metadata/CapabilityAwareFallback.php' => array( 'use' => 'ModelRegistry::isImplementedFamily(', 'banned' => array( "const IMPLEMENTED_ENDPOINT = 'chat'" ) ),
+			'src/Transport/EndpointRoute.php'          => array( 'use' => 'ModelRegistry::IMPLEMENTED_FAMILY =>', 'banned' => array( "'chat' => 'chat/completions'" ) ),
+		);
+
+		self::assertSame( 'chat', ModelRegistry::IMPLEMENTED_FAMILY, 'The registry owns the implemented family name.' );
+		self::assertTrue( ModelRegistry::isImplementedFamily( 'chat' ) );
+		self::assertFalse( ModelRegistry::isImplementedFamily( 'responses' ) );
+		self::assertFalse( ModelRegistry::isImplementedFamily( ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED ) );
+
+		foreach ( $files as $file => $expect ) {
+			$source = (string) file_get_contents( $root . '/' . $file );
+
+			self::assertStringContainsString(
+				$expect['use'],
+				$source,
+				$file . ' must derive the implemented family from ModelRegistry.'
+			);
+			foreach ( $expect['banned'] as $literal ) {
+				self::assertStringNotContainsString(
+					$literal,
+					$source,
+					$file . ' must not encode the implemented family a second time.'
+				);
+			}
+		}
+	}
+
+	/**
+	 * The Zen deny list must key off the shared catalog slug.
+	 *
+	 * The literal bypasses Catalog, so a slug rename would leave these models
+	 * routed through the implemented chat family instead of being denied.
+	 *
+	 * @since 0.1.8
+	 */
+	public function test_unsupported_zen_list_is_keyed_by_the_catalog_constant(): void {
+		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Metadata/ModelRegistry.php' );
+
+		self::assertStringContainsString(
+			'Catalog::ZEN === $catalog && in_array( $id, self::UNSUPPORTED_ZEN_MODELS, true )',
+			$source,
+			'The Zen deny list must compare against Catalog::ZEN.'
+		);
+		self::assertStringNotContainsString(
+			"'zen' === \$catalog",
+			$source,
+			"A bare 'zen' literal bypasses the single catalog slug owner."
+		);
+	}
+
+	/**
 	 * The route and verification guards must read the shared constant.
 	 *
 	 * These two comparisons decide whether a model is routed or denied, and

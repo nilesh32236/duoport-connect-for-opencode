@@ -77,6 +77,23 @@ namespace OpenCodeConnector\Tests\Unit {
 	final class ProviderCardTest extends MonkeyTestCase {
 
 		/**
+		 * Stub translation for every spec.
+		 *
+		 * The provider card strings go through __() unconditionally: in a
+		 * WordPress plugin the function always exists, so the guard it used to
+		 * carry only existed for SDK-free tests. Brain Monkey supplies it here
+		 * instead.
+		 */
+		protected function setUp(): void {
+			parent::setUp();
+			Functions\when( '__' )->alias(
+				static function ( ...$args ): string {
+					return (string) ( $args[0] ?? '' );
+				}
+			);
+		}
+
+		/**
 		 * Plugin root directory.
 		 *
 		 * @return string

@@ -21,11 +21,17 @@ spl_autoload_register(
 		if ( ! str_starts_with( $class_name, __NAMESPACE__ . '\\' ) ) {
 			return;
 		}
-		$rel  = substr( $class_name, strlen( __NAMESPACE__ ) + 1 );
-		$rel  = str_replace( '\\', '/', $rel );
-		$file = __DIR__ . '/' . $rel . '.php';
-		if ( file_exists( $file ) ) {
-			require $file;
+		$rel   = substr( $class_name, strlen( __NAMESPACE__ ) + 1 );
+		$base  = realpath( __DIR__ );
+		$file  = realpath( __DIR__ . '/' . str_replace( '\\', '/', $rel ) . '.php' );
+		// Containment check: this is the one place in src/ that turns an
+		// external class name into a filesystem path, so a resolved path that
+		// escapes the plugin directory (symlink, widened namespace mapping) is
+		// never required. Both sides are resolved, so a plugin directory that
+		// is itself a symlink still resolves its own classes.
+		if ( false === $base || false === $file || ! str_starts_with( $file, $base . DIRECTORY_SEPARATOR ) ) {
+			return;
 		}
+		require $file;
 	}
 );
