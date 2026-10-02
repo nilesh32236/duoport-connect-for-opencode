@@ -107,13 +107,20 @@ final class ConnectionDiagnostics {
 	 *
 	 * Only the error type is inspected; response bodies are never returned.
 	 *
-	 * Fail-open contract: quota exhaustion (401 CreditsError), rate limiting
-	 * (429), and Zen free-tier quota stops (429 FreeUsageLimitError) report a
-	 * configured key; a 401 the gateway attributes to the requested model
-	 * (401 ModelError) reports a distinct probe-model-unavailable verdict, and
-	 * 5xx and transport failures report a could-not-be-checked verdict. All of
-	 * those preserve last-known-good state instead of flipping to
-	 * not-connected.
+	 * Fail-open contract (Design A, the default): quota exhaustion (401
+	 * CreditsError), rate limiting (429), and Zen free-tier quota stops (429
+	 * FreeUsageLimitError) report a configured key; a 401 the gateway
+	 * attributes to the requested model (401 ModelError) reports a distinct
+	 * probe-model-unavailable verdict, and 5xx and transport failures report a
+	 * could-not-be-checked verdict. All of those preserve last-known-good state
+	 * instead of flipping to not-connected.
+	 *
+	 * Design B is available behind the `duoport_probe_deny_unrecognized`
+	 * filter and is OFF by default. When enabled, the two buckets that are
+	 * credential-blind but still `configured` - a model-side 401 and any other
+	 * unrecognised 4xx - are downgraded to a definitive `invalid_key`, matching
+	 * the documented rule that other 4xx/5xx are not a valid key. See
+	 * denyUnrecognized() for the trade-off and the blast radius of each.
 	 *
 	 * A 401 that is not a recognised model-side refusal is a rejected
 	 * credential, whatever the body says: a gateway that renames its error
@@ -139,6 +146,9 @@ final class ConnectionDiagnostics {
 				return $this->noCredits( $status );
 			}
 			if ( in_array( $error_type, self::MODEL_SIDE_ERROR_TYPES, true ) ) {
+				if ( $this->denyUnrecognized( $status, $error_type, 'probe_model_unavailable' ) ) {
+					return $this->invalidKey( $status );
+				}
 				return $this->probeModelUnavailable( $status );
 			}
 			return $this->invalidKey( $status );
@@ -152,7 +162,44 @@ final class ConnectionDiagnostics {
 		if ( $status >= 500 && $status < 600 ) {
 			return $this->uncheckable( $status );
 		}
+		if ( $this->denyUnrecognized( $status, $error_type, 'unknown' ) ) {
+			return $this->invalidKey( $status );
+		}
 		return $this->unknown( $status );
+	}
+
+	/**
+	 * Whether an unrecognised, non-definitive response should be denied.
+	 *
+	 * Design A (this ships, and is the default): a model-side 401 and any
+	 * other unrecognised 4xx report a could-not-be-checked verdict that is
+	 * still `configured`, so `isConfigured()` falls back to last-known-good
+	 * and a transient upstream change cannot disconnect a working key.
+	 *
+	 * Design B (opt-in): the same responses are treated as a definitive
+	 * negative (`invalid_key`, `configured = false`), which clears
+	 * last-known-good. That matches the documented probe contract - other
+	 * 4xx/5xx -> false - and is the stricter posture.
+	 *
+	 * The filter defaults to false, so shipping this code is NOT the security
+	 * decision: the posture a site runs is unchanged until a human opts in.
+	 *
+	 * @param int    $status     HTTP status code.
+	 * @param string $error_type Normalised upstream error type, possibly empty.
+	 * @param string $state      Fail-open state that would otherwise be returned.
+	 * @return bool
+	 */
+	private function denyUnrecognized( int $status, string $error_type, string $state ): bool {
+		if ( ! function_exists( 'apply_filters' ) ) {
+			return false;
+		}
+		return (bool) apply_filters(
+			'duoport_probe_deny_unrecognized',
+			false,
+			$status,
+			$error_type,
+			$state
+		);
 	}
 
 	/**

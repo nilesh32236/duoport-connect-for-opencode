@@ -9,6 +9,7 @@ declare(strict_types=1);
 
 namespace OpenCodeConnector\Tests\Unit;
 
+use Brain\Monkey;
 use OpenCodeConnector\Availability\ConnectionDiagnostics;
 
 final class ConnectionDiagnosticsTest extends MonkeyTestCase {
@@ -206,5 +207,99 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 			array_keys( $result )
 		);
 		self::assertStringNotContainsString( 'sensitive response', (string) json_encode( $result ) );
+	}
+
+	/**
+	 * Design A is the default: unrecognised, non-definitive responses fail open.
+	 *
+	 * This is the shipped posture. Two buckets are credential-blind yet still
+	 * `configured`, so isConfigured() falls back to last-known-good: a
+	 * model-side 401, and any other unrecognised 4xx (402/403 included).
+	 */
+	public function test_default_posture_fails_open_for_unrecognized_responses(): void {
+		$diagnostics = new ConnectionDiagnostics();
+
+		$model_side = $diagnostics->classify( 401, array( 'error' => array( 'type' => 'ModelError' ) ) );
+		self::assertSame( 'probe_model_unavailable', $model_side['state'], 'A model-side 401 is not a credential verdict by default.' );
+		self::assertTrue( $model_side['configured'], 'Design A keeps a model-side 401 fail-open.' );
+
+		foreach ( array( 402, 403, 404 ) as $status ) {
+			$unknown = $diagnostics->classify( $status );
+			self::assertSame( 'unknown', $unknown['state'], $status . ' is unrecognised by default.' );
+			self::assertTrue( $unknown['configured'], $status . ' stays configured under Design A, which is the 30-day exposure.' );
+		}
+	}
+
+	/**
+	 * Design B is available and reachable: the filter flips both buckets to deny.
+	 *
+	 * Without this the shipped Design A code could be wrong in a way nothing
+	 * would catch, which is the same defect class as the bug being flagged.
+	 */
+	public function test_deny_filter_downgrades_unrecognized_responses_to_invalid_key(): void {
+		Monkey\Filters\expectApplied( 'duoport_probe_deny_unrecognized' )
+			->atLeast()->once()
+			->andReturn( true );
+
+		$diagnostics = new ConnectionDiagnostics();
+
+		$model_side = $diagnostics->classify( 401, array( 'error' => array( 'type' => 'ModelError' ) ) );
+		self::assertSame( 'invalid_key', $model_side['state'], 'Design B denies a model-side 401.' );
+		self::assertFalse( $model_side['configured'], 'Design B clears last-known-good.' );
+
+		foreach ( array( 402, 403, 404 ) as $status ) {
+			$denied = $diagnostics->classify( $status );
+			self::assertSame( 'invalid_key', $denied['state'], $status . ' is denied under Design B.' );
+			self::assertFalse( $denied['configured'], $status . ' clears last-known-good under Design B.' );
+		}
+	}
+
+	/**
+	 * The filter is consulted with the facts a human needs to decide.
+	 *
+	 * The flag is a security control, so an operator switching it on without
+	 * knowing which bucket is being denied would be flying blind.
+	 */
+	public function test_deny_filter_receives_status_type_and_state(): void {
+		Monkey\Filters\expectApplied( 'duoport_probe_deny_unrecognized' )
+			->once()
+			->with( false, 403, 'someunreadtype', 'unknown' )
+			->andReturn( false );
+
+		$diagnostics = new ConnectionDiagnostics();
+		$diagnostics->classify( 403, array( 'error' => array( 'type' => 'Some_Unread-Type' ) ) );
+	}
+
+	/**
+	 * Neither design may swallow a definitive verdict or a quota signal.
+	 *
+	 * The flag only governs buckets that are currently credential-blind. A
+	 * real bad key, an exhausted balance, and a throttle are already
+	 * classified correctly and must be identical under both postures.
+	 */
+	public function test_flag_does_not_disturb_definitive_or_quota_verdicts(): void {
+		$diagnostics = new ConnectionDiagnostics();
+
+		$definitions = array(
+			array( 401, array( 'error' => array( 'type' => 'InvalidAPIKey' ) ), 'invalid_key' ),
+			array( 401, array( 'error' => array( 'type' => 'AuthError' ) ), 'invalid_key' ),
+			array( 401, array( 'error' => array( 'type' => 'CreditsError' ) ), 'no_credits' ),
+			array( 429, array( 'error' => array( 'type' => 'FreeUsageLimitError' ) ), 'free_tier_limit' ),
+			array( 429, array( 'error' => array( 'type' => 'RateLimitError' ) ), 'rate_limited' ),
+			array( 500, null, 'uncheckable' ),
+		);
+
+		foreach ( $definitions as $case ) {
+			list( $status, $data, $expected ) = $case;
+
+			Monkey\Filters\expectApplied( 'duoport_probe_deny_unrecognized' )->andReturn( false );
+			$open = $diagnostics->classify( $status, $data );
+			Monkey\Filters\expectApplied( 'duoport_probe_deny_unrecognized' )->andReturn( true );
+			$denied = $diagnostics->classify( $status, $data );
+
+			self::assertSame( $expected, $open['state'], $status . ' under Design A.' );
+			self::assertSame( $expected, $denied['state'], $status . ' must not change under Design B.' );
+			self::assertSame( $open['configured'], $denied['configured'], $status . ' configured flag must not change.' );
+		}
 	}
 }
