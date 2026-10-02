@@ -480,6 +480,11 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * at least as likely once a model is renamed and classifies as `unknown`.
 	 * No credential verdict is weakened by this predicate.
 	 *
+	 * The status list is read from
+	 * ConnectionDiagnostics::PROBE_MODEL_DRIFT_STATUSES rather than repeated
+	 * here: the classifier's deny flag must exempt exactly these statuses, and
+	 * two copies of the list are how that coupling would silently break.
+	 *
 	 * @since 0.1.8
 	 *
 	 * @param array<string, mixed> $result Diagnosis of one attempt.
@@ -492,7 +497,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		if ( in_array( $state, self::SETTLED_STATES, true ) ) {
 			return true;
 		}
-		return 'unknown' === $state && in_array( (int) ( $result['status'] ?? 0 ), array( 400, 404 ), true );
+		return 'unknown' === $state && in_array( (int) ( $result['status'] ?? 0 ), ConnectionDiagnostics::PROBE_MODEL_DRIFT_STATUSES, true );
 	}
 
 	/**

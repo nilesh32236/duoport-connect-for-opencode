@@ -89,6 +89,25 @@ final class ConnectionDiagnostics {
 	);
 
 	/**
+	 * HTTP statuses the probe treats as recoverable probe-model drift.
+	 *
+	 * OpenCodeProviderAvailability::isProbeModelDrift() matches an `unknown`
+	 * verdict at one of these statuses and retries with a second reviewed paid
+	 * model, because a renamed or removed probe model answers `model_not_found`
+	 * at least as often as a 401. The list is published here, and read from
+	 * here by that predicate, because it is load-bearing in a second place too:
+	 * denyUnrecognized() must never convert one of these statuses into a
+	 * definitive `invalid_key`, or the drift-recovery signal is destroyed by the
+	 * very flag meant to tighten the posture. One list, read by both, is what
+	 * stops that coupling from drifting apart again.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @var list<int>
+	 */
+	public const PROBE_MODEL_DRIFT_STATUSES = array( 400, 404 );
+
+	/**
 	 * 401 error type for a valid key with an empty balance.
 	 *
 	 * @since 0.1.8
@@ -132,9 +151,20 @@ final class ConnectionDiagnostics {
 	 * an unbounded false "Not connected", so the model-side 401 stays exactly
 	 * as it is. tests/Unit/ConnectionDiagnosticsTest.php guards this.
 	 *
-	 * Design B also does not govern 5xx or transport failures: those return
-	 * `uncheckable` above, before the filter is consulted. It makes no claim
-	 * about them in either direction.
+	 * The same reasoning applies by status to `PROBE_MODEL_DRIFT_STATUSES`:
+	 * a 400/404 that classifies as `unknown` is exactly the second shape
+	 * `isProbeModelDrift()` recovers from, so Design B leaves those statuses
+	 * alone too. That exclusion is the same defect class as the model-side one
+	 * above, found a second time, so it too has a permanent test rather than a
+	 * note in a docblock.
+	 *
+	 * Design B's scope is the statuses it is actually reasoned about: a 4xx
+	 * that reached the `unknown` fallthrough, excluding 400/404. 1xx and 3xx
+	 * are outside it — a 3xx behind a gateway is a redirect, not an
+	 * authorization signal, and denying on it is precisely the false disconnect
+	 * the posture change exists to avoid. 5xx and transport failures return
+	 * `uncheckable` before the filter is consulted. Design B makes no claim
+	 * about any of those in either direction.
 	 *
 	 * A 401 that is not a recognised model-side refusal is a rejected
 	 * credential, whatever the body says: a gateway that renames its error
@@ -192,14 +222,18 @@ final class ConnectionDiagnostics {
 	 * Design B (opt-in): that same response becomes a definitive negative
 	 * (`invalid_key`, `configured = false`), clearing last-known-good.
 	 *
-	 * Scope is deliberately limited to the `unknown` bucket. It does not reach
-	 * a model-side 401, which is the drift-recovery signal, nor 5xx and
-	 * transport failures, which return `uncheckable` before this is called.
-	 * See the classify() docblock for why the model-side exclusion is
-	 * load-bearing.
+	 * The filter is never applied outside its scope, so a callback cannot widen
+	 * the posture by accident: `isDenyEligibleStatus()` decides first. Scope is
+	 * the 4xx statuses that reached the `unknown` fallthrough, minus
+	 * `PROBE_MODEL_DRIFT_STATUSES`. It does not reach a model-side 401 or a
+	 * 400/404, which are the drift-recovery signals, nor 1xx, nor 3xx, nor 5xx
+	 * and transport failures, which return `uncheckable` before this is called.
+	 * See the classify() docblock for why the drift exclusions are load-bearing.
 	 *
 	 * The filter defaults to false, so shipping this code is NOT the security
 	 * decision: the posture a site runs is unchanged until a human opts in.
+	 *
+	 * @since 0.1.8
 	 *
 	 * @param int    $status     HTTP status code.
 	 * @param string $error_type Normalised upstream error type, possibly empty.
@@ -207,6 +241,9 @@ final class ConnectionDiagnostics {
 	 * @return bool
 	 */
 	private function denyUnrecognized( int $status, string $error_type, string $state ): bool {
+		if ( ! $this->isDenyEligibleStatus( $status ) ) {
+			return false;
+		}
 		if ( ! function_exists( 'apply_filters' ) ) {
 			return false;
 		}
@@ -217,6 +254,36 @@ final class ConnectionDiagnostics {
 			$error_type,
 			$state
 		);
+	}
+
+	/**
+	 * Whether a status is inside the deny flag's scope.
+	 *
+	 * Two gates, in this order:
+	 *
+	 * 1. The status class. Only 4xx is reasoned about. 401 and 429 have already
+	 *    returned with their own verdicts by the time this runs, and 5xx is
+	 *    caught as `uncheckable`, so what reaches here from 4xx is the
+	 *    unrecognised remainder (402, 403, and the rest). 1xx and 3xx were never
+	 *    an authorization judgement: a redirect surfaced by a gateway says
+	 *    nothing about the credential, and denying on it would produce exactly
+	 *    the false disconnect this posture change exists to prevent.
+	 * 2. The drift exemption. A 400/404 that reached here classified as
+	 *    `unknown`, which is precisely what isProbeModelDrift() recovers from by
+	 *    retrying a second probe model. Denying it would destroy last-known-good
+	 *    with no path back — the same shape as the model-side 401 exclusion,
+	 *    which was a reviewed defect.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param int $status HTTP status code.
+	 * @return bool
+	 */
+	private function isDenyEligibleStatus( int $status ): bool {
+		if ( $status < 400 || $status >= 500 ) {
+			return false;
+		}
+		return ! in_array( $status, self::PROBE_MODEL_DRIFT_STATUSES, true );
 	}
 
 	/**

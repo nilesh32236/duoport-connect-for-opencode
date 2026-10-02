@@ -54,6 +54,9 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 - Found a bug or want a feature? [Open an issue](../../issues).
 - Developers: see [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md).
+- Site operators: [docs/HOOKS.md](docs/HOOKS.md) documents the public filter
+  `duoport_probe_deny_unrecognized`, which changes how the plugin judges whether
+  an API key is valid and is **off by default**.
 
 ## License
 

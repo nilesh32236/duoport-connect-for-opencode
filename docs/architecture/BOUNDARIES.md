@@ -96,13 +96,20 @@ verified
 usable
 state: not_configured | verified | invalid_key | no_credits |
        rate_limited | free_tier_limit | uncheckable | network_error |
-       server_error | unsupported_model | unsupported_endpoint |
-       unsupported_capability | unknown
+       server_error | probe_model_unavailable | unknown
 ```
+
+`network_error` and `server_error` are retained only so a legacy cached value is still interpreted fail-open; `classify()` no longer produces them. The authoritative vocabulary is `ConnectionDiagnostics`, and the three buckets that decide a key's validity are `KEYED_STATES`, `COULD_NOT_BE_CHECKED_STATES`, and `DEFINITIVE_NEGATIVE_STATES`.
 
 `isConfigured()` may remain a compatibility projection. Settings may simplify the value for display, but must not collapse diagnostics before the backend result is produced. Probe responses must be cached briefly, must use the smallest safe request, and must never log the request authorization header.
 
 A could-not-be-checked outcome (5xx, transport failure, concurrent probe) is reported as `uncheckable` with `configured=false` and `verified=false`. It is never cached as the connection result and never clears the transient-only last-known-good flag; a transient fault is cached for one short window only so a persistent outage costs one probe per window instead of one probe per call, while a settled verdict (a probe model the gateway will not serve) uses the same staggered window as a success. Quota outcomes are never `uncheckable`: 429 maps to `rate_limited` or `free_tier_limit`, and 401 with a credits error maps to `no_credits`. A 401 the gateway attributes to the requested model maps to `probe_model_unavailable`, which is also could-not-be-checked and may be retried with another probe model. Every other 401 — including a body-less one — is `invalid_key`: the model-side types are allowlisted rather than the credential types, so an upstream rename cannot turn a definitive rejection into an unverifiable verdict. Only a proven invalid or missing key reports not configured.
+
+Every remaining unrecognised response — another 4xx, or a 1xx or 3xx — classifies as `unknown`, which is could-not-be-checked and keeps last-known-good, so an upstream status the plugin has no rule for cannot disconnect a working key. The status classes are not interchangeable: a 3xx is a redirect and a 1xx is informational, and neither is an authorization judgement.
+
+### Opt-in deny posture
+
+`ConnectionDiagnostics::classify()` applies the `duoport_probe_deny_unrecognized` filter to the unrecognised 4xx fallthrough only, and it defaults to false, so the shipped posture is fail-open and enabling the filter is a deliberate operator decision. Returning true turns that one bucket into `invalid_key`, which clears last-known-good; see [HOOKS.md](../HOOKS.md) for the operator contract and the full list of what the flag does not cover. Three exclusions are load-bearing rather than cosmetic, because each of them protects a recovery path: a model-side 401, a 400/404 (`PROBE_MODEL_DRIFT_STATUSES`, which the probe retries with a second reviewed paid model), and everything outside the 4xx class.
 
 `ConnectionDiagnostics` owns the state vocabulary: `KEYED_STATES`, `COULD_NOT_BE_CHECKED_STATES`, and `DEFINITIVE_NEGATIVE_STATES` are defined there once and read from there by the availability probe and the verification-state mapper, so the two can never disagree about what a state means.
 

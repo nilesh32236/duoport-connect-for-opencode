@@ -235,8 +235,9 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 	 *
 	 * Without this the shipped Design A code could be wrong in a way nothing
 	 * would catch, which is the same defect class as the bug being flagged.
-	 * Scope is the `unknown` fallthrough only; see the next test for what the
-	 * flag must NOT touch.
+	 * Scope is the unrecognised 4xx fallthrough only: 400/404 are excluded as
+	 * drift-recovery signals (see the next test), and 1xx/3xx are excluded as
+	 * outside the status class the flag is reasoned about.
 	 */
 	public function test_deny_filter_downgrades_the_unknown_bucket_to_invalid_key(): void {
 		Monkey\Filters\expectApplied( 'duoport_probe_deny_unrecognized' )
@@ -245,10 +246,100 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 
 		$diagnostics = new ConnectionDiagnostics();
 
-		foreach ( array( 402, 403, 404, 400 ) as $status ) {
+		foreach ( array( 402, 403, 405, 407, 418, 422 ) as $status ) {
 			$denied = $diagnostics->classify( $status );
 			self::assertSame( 'invalid_key', $denied['state'], $status . ' is denied under Design B.' );
 			self::assertFalse( $denied['configured'], $status . ' clears last-known-good under Design B.' );
+		}
+	}
+
+	/**
+	 * Design B must NOT reach the drift statuses: 400/404 are the retry path.
+	 *
+	 * Second instance of the model-side defect class, and the same shape as
+	 * it. isProbeModelDrift() treats an `unknown` verdict at 400/404 as
+	 * recoverable probe-model drift and retries with a second reviewed paid
+	 * model. If Design B denied those statuses it would return `invalid_key`,
+	 * which is not a settled state: last-known-good would be destroyed and the
+	 * probe would have no path back. Same traded failure as the model-side 401
+	 * above, so it gets the same permanent guard rather than a doc note.
+	 *
+	 * The filter is asserted `->never()` as well as the state, so a future edit
+	 * cannot consult the filter for these statuses and then decline to act:
+	 * only an unreachable filter can keep this bucket out of scope.
+	 */
+	public function test_deny_filter_never_reaches_the_drift_statuses(): void {
+		Monkey\Filters\expectApplied( 'duoport_probe_deny_unrecognized' )
+			->never();
+
+		$diagnostics = new ConnectionDiagnostics();
+
+		// Driven by the published list, so a status added to it is covered here
+		// automatically rather than silently becoming denyable.
+		foreach ( ConnectionDiagnostics::PROBE_MODEL_DRIFT_STATUSES as $status ) {
+			$result = $diagnostics->classify( $status, array( 'error' => array( 'type' => 'model_not_found' ) ) );
+
+			self::assertSame(
+				'unknown',
+				$result['state'],
+				$status . ' must stay the drift-retry signal even with Design B enabled.'
+			);
+			self::assertSame(
+				$status,
+				$result['status'],
+				$status . ' must keep its status, which is what isProbeModelDrift() matches on.'
+			);
+			self::assertTrue(
+				$result['configured'],
+				$status . ' must not clear last-known-good; a renamed probe model is not a revoked credential.'
+			);
+			self::assertSame(
+				'could-not-be-checked',
+				$diagnostics->verify_state( $result ),
+				$status . ' must remain unverifiable rather than definitively invalid.'
+			);
+		}
+
+		self::assertSame(
+			array( 400, 404 ),
+			array_values( ConnectionDiagnostics::PROBE_MODEL_DRIFT_STATUSES ),
+			'The exemption list must stay the two statuses the probe actually recovers from.'
+		);
+	}
+
+	/**
+	 * Design B's scope is 4xx only: a 1xx or 3xx is not an authorization signal.
+	 *
+	 * The guard originally fired for any status that reached the `unknown`
+	 * fallthrough, which meant a redirect surfaced by a gateway (302/307) or an
+	 * informational 1xx would be denied and clear last-known-good. Neither
+	 * says anything about the credential, so denying on it is exactly the
+	 * false disconnect the posture change exists to avoid — a site behind a
+	 * redirecting proxy would flap between Connected and Not connected.
+	 */
+	public function test_deny_filter_never_reaches_1xx_or_3xx(): void {
+		Monkey\Filters\expectApplied( 'duoport_probe_deny_unrecognized' )
+			->never();
+
+		$diagnostics = new ConnectionDiagnostics();
+
+		foreach ( array( 100, 101, 301, 302, 303, 304, 307, 308 ) as $status ) {
+			$result = $diagnostics->classify( $status );
+
+			self::assertSame(
+				'unknown',
+				$result['state'],
+				$status . ' is outside the flag scope, so Design B must not deny it.'
+			);
+			self::assertTrue(
+				$result['configured'],
+				$status . ' must not clear last-known-good; a redirect is not a revoked key.'
+			);
+			self::assertSame(
+				$status,
+				$result['status'],
+				$status . ' keeps its status for diagnostics.'
+			);
 		}
 	}
 
@@ -302,6 +393,33 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 			"/const SETTLED_STATES = array\( 'probe_model_unavailable' \);/",
 			$source,
 			'probe_model_unavailable must remain the settled drift state; dropping it removes probe-model retry and therefore the recovery path the deny filter is scoped to protect.'
+		);
+	}
+
+	/**
+	 * isProbeModelDrift() reads the shared status list, not a copy of it.
+	 *
+	 * Closes the loop on the two guards above. They are only equivalent while
+	 * the retry predicate and the deny exemption name the same statuses: a
+	 * second copy of the list would let the exemption cover 400/404 while the
+	 * retry matched something else, which fails open for the worse reason — a
+	 * denied bucket with no recovery path. Source-level ratchet in the style
+	 * of the SETTLED_STATES check above.
+	 */
+	public function test_drift_retry_and_deny_exemption_share_one_status_list(): void {
+		$source = (string) file_get_contents(
+			dirname( __DIR__, 2 ) . '/src/Availability/OpenCodeProviderAvailability.php'
+		);
+
+		self::assertMatchesRegularExpression(
+			'/ConnectionDiagnostics::PROBE_MODEL_DRIFT_STATUSES/',
+			$source,
+			'isProbeModelDrift() must read the published list; a hardcoded copy lets the deny exemption and the retry diverge.'
+		);
+		self::assertDoesNotMatchRegularExpression(
+			'/isProbeModelDrift\(\s*array[^}]*array\(\s*400,\s*404/',
+			$source,
+			'The literal 400/404 list must not reappear inside the drift predicate.'
 		);
 	}
 

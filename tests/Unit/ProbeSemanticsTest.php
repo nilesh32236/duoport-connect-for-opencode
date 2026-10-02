@@ -641,6 +641,72 @@ namespace OpenCodeConnector\Tests\Unit {
 	}
 
 	/**
+	 * The 400/404 drift retry survives with the deny flag switched ON.
+	 *
+	 * End-to-end guard for the second instance of the model-side defect class.
+	 * The unit guard in ConnectionDiagnosticsTest proves 400/404 are exempt
+	 * from the flag; this proves the consequence that actually matters at the
+	 * probe level: a 404 model-not-found still triggers the retry with the
+	 * second reviewed paid model instead of being denied.
+	 *
+	 * The filter is stubbed to return true for everything, i.e. the worst-case
+	 * operator who has opted fully into Design B. If the 404 were denied it
+	 * would become invalid_key, isProbeModelDrift() would not match it, and the
+	 * probe would break after one request with last-known-good destroyed —
+	 * which is what the two assertions below would catch.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return void
+	 */
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_probe_model_drift_retries_with_the_deny_flag_enabled(): void {
+		require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+		if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+			define( 'MINUTE_IN_SECONDS', 60 );
+		}
+
+		Functions\when( 'get_transient' )->justReturn( false );
+		Functions\when( 'set_transient' )->justReturn( true );
+		Functions\when( 'delete_transient' )->justReturn( true );
+		Functions\when( 'wp_rand' )->justReturn( 0 );
+		// Design B fully enabled: every eligible bucket is denied.
+		Functions\when( 'apply_filters' )->justReturn( true );
+
+		$transporter  = new QueueingProbeTransporter(
+			array(
+				new Response( 404, array( 'error' => array( 'type' => 'model_not_found' ) ) ),
+				new Response( 401, array( 'error' => array( 'type' => 'CreditsError' ) ) ),
+			)
+		);
+		$availability = new OpenCodeProviderAvailability( 'go' );
+		$availability->setHttpTransporter( $transporter );
+		$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+
+		self::assertTrue(
+			$availability->isConfigured(),
+			'A renamed probe model must not read as an invalid key, with or without the deny flag.'
+		);
+		self::assertSame(
+			'no_credits',
+			$availability->getLastResult()['state'],
+			'The retried probe decides the verdict; the drift 404 must not have been denied on the way.'
+		);
+		self::assertCount(
+			2,
+			$transporter->seen,
+			'The 404 must still trigger the second candidate probe with Design B enabled.'
+		);
+		self::assertNotSame(
+			OpenCodeProviderAvailability::PROBE_MODEL,
+			$transporter->seen[1]->getData()['model'],
+			'The retry must use a different reviewed, paid allowlisted model.'
+		);
+	}
+
+	/**
 	 * The stampede lock outlives the worst-case probe.
 	 *
 	 * Each candidate model is a sequential blocking request, so a lock sized

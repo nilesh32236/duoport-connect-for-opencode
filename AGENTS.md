@@ -31,8 +31,14 @@ No Node, no build step. `vendor/` is git-ignored and never ships.
 - snake_case methods in WP-hook-facing code; WPCS enforced via `phpcs.xml` (PSR-4 filenames in `src/`/`tests/` excluded from FileName sniffs).
 - `declare(strict_types=1)` + `ABSPATH` guard in every PHP file.
 - All user-facing strings use text domain `duoport-connect-for-opencode`.
-- Availability probe: 2xx → true; 401 + `CreditsError` → true (valid key, no credits);
-  429 → true (throttled: must not lock out valid users); other 4xx/5xx + exceptions → false.
+- Availability probe (shipped, fail-open): 2xx → true; 401 + `CreditsError` → true
+  (valid key, no credits); 429 → true (throttled: must not lock out valid users); an
+  unrecognised 401, body-less included, → false (`invalid_key`, the only definitive
+  negative). Every other unrecognised response (other 4xx, 1xx, 3xx), every 5xx, and
+  transport exceptions → `uncheckable`, which falls back to last-known-good rather
+  than reporting false. The `duoport_probe_deny_unrecognized` filter (default OFF)
+  downgrades only the unrecognised 4xx to `invalid_key`, with 400/404 exempt because
+  those are the probe-model drift retry signal.
 
 ## Release
 

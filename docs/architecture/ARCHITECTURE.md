@@ -42,8 +42,13 @@ WordPress AI Client model request
 Availability
   -> transient-cached, max_tokens=1 chat/completions probe
   -> boolean contract: 2xx, 429, and 401 CreditsError are configured
-  -> a 401 the gateway attributes to the model is retried, then could-not-be-checked
-  -> every other response, including a body-less 401, is not configured
+  -> a 401 the gateway attributes to the model, or a 400/404, is retried with a
+     second reviewed paid model, then could-not-be-checked
+  -> an unrecognised 401, including a body-less one, is invalid_key: not configured
+  -> every other unrecognised response (other 4xx, 1xx, 3xx), and every 5xx or
+     transport failure, is could-not-be-checked: last-known-good, never a disconnect
+  -> optional `duoport_probe_deny_unrecognized` filter (OFF by default) denies the
+     unrecognised 4xx only, 400/404 excluded so drift recovery survives
 ```
 
 Model Radar flow:
