@@ -47,6 +47,13 @@ final class Settings {
 		}
 		add_action( 'update_option_' . \OpenCodeConnector\OPTION_NAME, array( $this, 'bustCaches' ), 10, 2 );
 		add_action( 'add_option_' . \OpenCodeConnector\OPTION_NAME, array( $this, 'bustCachesAdd' ), 10, 2 );
+		// Deleting this option fires neither of the hooks above, so the
+		// caches would outlive it. This is the same rule the connector-key
+		// hooks in the main plugin file follow: any event that removes the
+		// thing a cache describes must clear that cache, rather than waiting
+		// out its TTL. The callback takes no arguments because
+		// `delete_option_{option}` fires with the option name alone.
+		add_action( 'delete_option_' . \OpenCodeConnector\OPTION_NAME, array( $this, 'bustCachesDelete' ), 10, 0 );
 	}
 
 	/**
@@ -91,6 +98,22 @@ final class Settings {
 	 */
 	public function bustCachesAdd( string $option, $value ): void {
 		unset( $option, $value );
+		$this->clearModelCaches();
+		$this->clearAvailabilityCaches();
+	}
+
+	/**
+	 * Bust caches on option delete.
+	 *
+	 * Registered with zero accepted arguments because `delete_option_{option}`
+	 * fires with the option name alone, which is not the `(option, value)`
+	 * shape `bustCachesAdd()` expects.
+	 *
+	 * @since 0.1.7
+	 *
+	 * @return void
+	 */
+	public function bustCachesDelete(): void {
 		$this->clearModelCaches();
 		$this->clearAvailabilityCaches();
 	}

@@ -466,6 +466,31 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Record or clear the last-known-good configured flag for this catalog.
 	 *
+	 * BEHAVIOUR CHANGE: the 30-day window is ABSOLUTE, not rolling. It is
+	 * measured from the last genuine transition into a good state and is NOT
+	 * refreshed by subsequent successful probes. Before this change a keyed
+	 * probe re-wrote the flag on every success, so the TTL was extended every
+	 * five minutes and could never lapse while the upstream kept answering.
+	 *
+	 * What that changes, stated concretely: a site whose last confirmed good
+	 * probe was on day 1 and whose upstream then starts failing unrecognisably
+	 * — 400/402/403/404, which classify to `unknown` — loses its fallback on
+	 * day 31 rather than holding it indefinitely. `isConfigured()` reads this
+	 * flag for every could-not-be-checked outcome, so on day 31 it starts
+	 * reporting that working key as not connected, and keeps doing so until a
+	 * keyed probe re-arms it. The rolling form meant a credential that had been
+	 * silently failing for a month still reported connected; this form means a
+	 * stale fallback lapses on a bounded, stated interval instead. The flag is
+	 * still cleared outright by the first definitive negative, which is the
+	 * fast path for a genuinely revoked key — the window only governs the
+	 * ambiguous ones.
+	 *
+	 * The DB-write saving is a side effect of the same change, not the reason
+	 * for it: `set_transient()` has no equality short-circuit in WP core, so
+	 * rewriting an unchanged flag is an unconditional options-row UPDATE on
+	 * every keyed probe, about every five minutes per catalog for the life of
+	 * the install.
+	 *
 	 * @since 0.1.6
 	 *
 	 * @param bool $good Whether a keyed probe just succeeded.
@@ -477,14 +502,11 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			$this->deleteCached( $key );
 			return;
 		}
-		// `set_transient()` has no equality short-circuit in WP core, so writing
-		// an unchanged flag is an unconditional options-row UPDATE. A keyed
-		// probe runs about every five minutes per catalog for the life of the
-		// install, so the 30-day TTL would otherwise be refreshed forever by a
-		// value that cannot have changed. Skipping the rewrite makes the window
-		// run from the last genuine transition into "good", which is the
-		// semantic the flag actually wants: it is cleared again by the first
-		// definitive negative, and re-armed by the next keyed probe after that.
+		// Absolute window: an already-good flag is left exactly as it is, so
+		// the TTL counts down from the last genuine transition into a good
+		// state instead of being pushed forward by every subsequent success.
+		// See the method docblock for what that means when the upstream goes
+		// quiet. The DB-write saving is a side effect of the same change.
 		if ( $this->readLastGood() ) {
 			return;
 		}

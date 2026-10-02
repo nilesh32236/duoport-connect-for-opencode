@@ -69,24 +69,27 @@ final class SlimBustHooksTest extends MonkeyTestCase {
 		$deleted      = array();
 
 		Functions\when( 'plugin_basename' )->justReturn( 'duoport-connect-for-opencode/duoport-connect-for-opencode.php' );
-		Functions\when( 'get_option' )->alias(
-			static function ( ...$args ) use ( &$get_calls ): string {
-				$get_calls[] = $args;
-				return '';
-			}
-		);
-		Functions\when( 'update_option' )->alias(
-			static function ( ...$args ) use ( &$update_calls ): bool {
-				$update_calls[] = $args;
-				return true;
-			}
-		);
+		// The guard is stated as "never read or write any connectors_ai_* option",
+		// so it has to cover every option API that could do that, not just the
+		// two that were instrumented when the hook was first written. Mirroring
+		// a key through add_option(), delete_option(), or the *_site_option()
+		// variants would all be an AGENTS.md hard-rule-2 violation, and each
+		// would otherwise pass this test green.
+		foreach ( array( 'get_option', 'add_option', 'update_option', 'delete_option', 'get_site_option', 'add_site_option', 'update_site_option', 'delete_site_option' ) as $reader ) {
+			Functions\when( $reader )->alias(
+				static function ( ...$args ) use ( &$get_calls ): mixed {
+					$get_calls[] = $args;
+					return 0 === strpos( (string) ( $args[0] ?? '' ), 'connectors_ai_' ) ? '' : false;
+				}
+			);
+		}
 		Functions\when( 'delete_transient' )->alias(
 			static function ( ...$args ) use ( &$deleted ): bool {
 				$deleted[] = $args[0];
 				return true;
 			}
 		);
+		Functions\when( 'delete_site_transient' )->justReturn( true );
 
 		require_once dirname( __DIR__, 2 ) . '/duoport-connect-for-opencode.php';
 

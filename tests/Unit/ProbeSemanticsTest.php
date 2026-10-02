@@ -431,6 +431,104 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
+		 * The last-known-good window is absolute, not rolling.
+		 *
+		 * This pins the SEMANTICS, not the write count. The earlier
+		 * `writeLastGood()` test only asserted that no extra options-row write
+		 * happened, which is invisible: a reviewer reading it could not tell an
+		 * absolute TTL from a rolling one, which is exactly why the change went
+		 * out undocumented. Here the expiry timestamp itself is the assertion.
+		 *
+		 * Absolute: a good flag set at day 0 expires at day 30. A keyed probe
+		 * at day 29 does not push that expiry out, so the window closes on day
+		 * 30 as originally issued. Rolling would have moved the expiry to
+		 * day 59.
+		 *
+		 * The consequence, stated because it is the reason this needs pinning:
+		 * a site whose last confirmed good probe was on day 1, and whose
+		 * upstream then starts answering unrecognisably (400/402/403/404,
+		 * which classify to `unknown`), loses its fail-open fallback on day 31
+		 * and reports that working key as not connected until a keyed probe
+		 * re-arms it.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_last_known_good_window_is_absolute_not_rolling(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+			if ( ! defined( 'DAY_IN_SECONDS' ) ) {
+				define( 'DAY_IN_SECONDS', 86400 );
+			}
+
+			$now      = 1_000_000;
+			$lastgood = 'opencode_connector_avail_go_last_good';
+			$expiry   = array();
+
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( &$expiry, &$now ): mixed {
+					if ( ! isset( $expiry[ $key ] ) ) {
+						return false;
+					}
+					return $now < $expiry[ $key ] ? 1 : false;
+				}
+			);
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ) use ( &$expiry, &$now ): bool {
+					$expiry[ $key ] = $now + $ttl;
+					return true;
+				}
+			);
+			Functions\when( 'delete_transient' )->alias(
+				static function ( string $key ) use ( &$expiry ): bool {
+					unset( $expiry[ $key ] );
+					return true;
+				}
+			);
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$day_zero = $now;
+
+			// Day 0: a keyed probe arms the flag for 30 days.
+			$first = new OpenCodeProviderAvailability( 'go' );
+			$first->setHttpTransporter( new FakeProbeTransporter( new Response( 200, null ) ) );
+			$first->setRequestAuthentication( new FakeProbeAuthentication() );
+			$first->diagnose();
+
+			self::assertArrayHasKey( $lastgood, $expiry, 'A keyed probe must arm the flag.' );
+			$absolute_expiry = $expiry[ $lastgood ];
+			self::assertSame( $day_zero + 30 * 86400, $absolute_expiry, 'The window is 30 days from arming.' );
+
+			// Day 29: another keyed success must NOT push the expiry out.
+			$now = $day_zero + 29 * 86400;
+			$second = new OpenCodeProviderAvailability( 'go' );
+			$second->setHttpTransporter( new FakeProbeTransporter( new Response( 200, null ) ) );
+			$second->setRequestAuthentication( new FakeProbeAuthentication() );
+			self::assertTrue( $second->isConfigured(), 'A keyed probe stays connected.' );
+
+			self::assertSame(
+				$absolute_expiry,
+				$expiry[ $lastgood ],
+				'A later success must not extend the window; that would be a rolling TTL.'
+			);
+
+			// Day 31: past the original expiry, the fallback has lapsed.
+			$now   = $absolute_expiry + 1;
+			$later = new OpenCodeProviderAvailability( 'go' );
+			$later->setHttpTransporter( new FakeProbeTransporter( new Response( 404, null ) ) );
+			$later->setRequestAuthentication( new FakeProbeAuthentication() );
+
+			self::assertFalse(
+				$later->isConfigured(),
+				'A stale fallback must lapse on its stated 30-day bound rather than rolling forward forever.'
+			);
+		}
+
+		/**
 		 * An already-set last-known-good flag is not rewritten on every probe.
 		 *
 		 * `set_transient()` has no equality short-circuit in WP core, so writing
