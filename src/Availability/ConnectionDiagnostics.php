@@ -116,11 +116,25 @@ final class ConnectionDiagnostics {
 	 * instead of flipping to not-connected.
 	 *
 	 * Design B is available behind the `duoport_probe_deny_unrecognized`
-	 * filter and is OFF by default. When enabled, the two buckets that are
-	 * credential-blind but still `configured` - a model-side 401 and any other
-	 * unrecognised 4xx - are downgraded to a definitive `invalid_key`, matching
-	 * the documented rule that other 4xx/5xx are not a valid key. See
-	 * denyUnrecognized() for the trade-off and the blast radius of each.
+	 * filter and is OFF by default. When enabled it governs ONE bucket: the
+	 * `unknown` fallthrough, where a response that reached the gateway proved
+	 * nothing about the credential (402 and 403 included). That bucket is
+	 * downgraded to a definitive `invalid_key`, which clears last-known-good.
+	 *
+	 * Design B deliberately does NOT govern the model-side 401 bucket, and that
+	 * exclusion is load-bearing rather than cosmetic. `probe_model_unavailable`
+	 * is the sole member of OpenCodeProviderAvailability::SETTLED_STATES, so it
+	 * is what `isProbeModelDrift()` matches to retry with a second reviewed
+	 * paid model. Denying it would remove the drift-recovery signal, and
+	 * `invalid_key` is not a settled state, so a site that opted in could
+	 * never recover from a retired probe model: last-known-good would be
+	 * destroyed with no path back. That trades a bounded false "Connected" for
+	 * an unbounded false "Not connected", so the model-side 401 stays exactly
+	 * as it is. tests/Unit/ConnectionDiagnosticsTest.php guards this.
+	 *
+	 * Design B also does not govern 5xx or transport failures: those return
+	 * `uncheckable` above, before the filter is consulted. It makes no claim
+	 * about them in either direction.
 	 *
 	 * A 401 that is not a recognised model-side refusal is a rejected
 	 * credential, whatever the body says: a gateway that renames its error
@@ -146,9 +160,8 @@ final class ConnectionDiagnostics {
 				return $this->noCredits( $status );
 			}
 			if ( in_array( $error_type, self::MODEL_SIDE_ERROR_TYPES, true ) ) {
-				if ( $this->denyUnrecognized( $status, $error_type, 'probe_model_unavailable' ) ) {
-					return $this->invalidKey( $status );
-				}
+				// Never routed through denyUnrecognized(): this verdict is the
+				// drift-recovery signal, not an authorization decision.
 				return $this->probeModelUnavailable( $status );
 			}
 			return $this->invalidKey( $status );
@@ -169,17 +182,21 @@ final class ConnectionDiagnostics {
 	}
 
 	/**
-	 * Whether an unrecognised, non-definitive response should be denied.
+	 * Whether an unrecognised 4xx should be denied rather than left unknown.
 	 *
-	 * Design A (this ships, and is the default): a model-side 401 and any
-	 * other unrecognised 4xx report a could-not-be-checked verdict that is
-	 * still `configured`, so `isConfigured()` falls back to last-known-good
-	 * and a transient upstream change cannot disconnect a working key.
+	 * Design A (this ships, and is the default): the `unknown` fallthrough
+	 * reports a could-not-be-checked verdict that is still `configured`, so
+	 * `isConfigured()` falls back to last-known-good and a transient upstream
+	 * change cannot disconnect a working key.
 	 *
-	 * Design B (opt-in): the same responses are treated as a definitive
-	 * negative (`invalid_key`, `configured = false`), which clears
-	 * last-known-good. That matches the documented probe contract - other
-	 * 4xx/5xx -> false - and is the stricter posture.
+	 * Design B (opt-in): that same response becomes a definitive negative
+	 * (`invalid_key`, `configured = false`), clearing last-known-good.
+	 *
+	 * Scope is deliberately limited to the `unknown` bucket. It does not reach
+	 * a model-side 401, which is the drift-recovery signal, nor 5xx and
+	 * transport failures, which return `uncheckable` before this is called.
+	 * See the classify() docblock for why the model-side exclusion is
+	 * load-bearing.
 	 *
 	 * The filter defaults to false, so shipping this code is NOT the security
 	 * decision: the posture a site runs is unchanged until a human opts in.

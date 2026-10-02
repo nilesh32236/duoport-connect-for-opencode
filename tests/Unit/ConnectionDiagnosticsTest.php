@@ -231,27 +231,78 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Design B is available and reachable: the filter flips both buckets to deny.
+	 * The deny filter flips the `unknown` bucket.
 	 *
 	 * Without this the shipped Design A code could be wrong in a way nothing
 	 * would catch, which is the same defect class as the bug being flagged.
+	 * Scope is the `unknown` fallthrough only; see the next test for what the
+	 * flag must NOT touch.
 	 */
-	public function test_deny_filter_downgrades_unrecognized_responses_to_invalid_key(): void {
+	public function test_deny_filter_downgrades_the_unknown_bucket_to_invalid_key(): void {
 		Monkey\Filters\expectApplied( 'duoport_probe_deny_unrecognized' )
 			->atLeast()->once()
 			->andReturn( true );
 
 		$diagnostics = new ConnectionDiagnostics();
 
-		$model_side = $diagnostics->classify( 401, array( 'error' => array( 'type' => 'ModelError' ) ) );
-		self::assertSame( 'invalid_key', $model_side['state'], 'Design B denies a model-side 401.' );
-		self::assertFalse( $model_side['configured'], 'Design B clears last-known-good.' );
-
-		foreach ( array( 402, 403, 404 ) as $status ) {
+		foreach ( array( 402, 403, 404, 400 ) as $status ) {
 			$denied = $diagnostics->classify( $status );
 			self::assertSame( 'invalid_key', $denied['state'], $status . ' is denied under Design B.' );
 			self::assertFalse( $denied['configured'], $status . ' clears last-known-good under Design B.' );
 		}
+	}
+
+	/**
+	 * Design B must NOT reach the model-side 401: that is the drift signal.
+	 *
+	 * Regression guard for a defect found in review. `probe_model_unavailable`
+	 * is the sole member of OpenCodeProviderAvailability::SETTLED_STATES, so
+	 * it is what `isProbeModelDrift()` matches to retry with a second reviewed
+	 * paid model. An earlier draft of this flag also denied that bucket;
+	 * because `invalid_key` is not a settled state, a site that opted in could
+	 * never recover from a retired probe model - last-known-good destroyed with
+	 * no path back. That is a worse failure than the one the flag fixes, so the
+	 * exclusion is permanent and this test is its guard.
+	 */
+	public function test_deny_filter_never_reaches_the_model_side_401(): void {
+		Monkey\Filters\expectApplied( 'duoport_probe_deny_unrecognized' )
+			->never();
+
+		$diagnostics = new ConnectionDiagnostics();
+
+		foreach ( array( 'ModelError', 'model_error', 'MODEL-ERROR', 'model_not_found', 'UnsupportedModel' ) as $type ) {
+			$result = $diagnostics->classify( 401, array( 'error' => array( 'type' => $type ) ) );
+			self::assertSame(
+				'probe_model_unavailable',
+				$result['state'],
+				$type . ' must stay fail-open even with Design B enabled, or drift recovery is lost.'
+			);
+			self::assertTrue(
+				$result['configured'],
+				$type . ' must not clear last-known-good; a retired probe model is not a revoked credential.'
+			);
+		}
+	}
+
+	/**
+	 * The model-side verdict stays in SETTLED_STATES so drift still retries.
+	 *
+	 * Pins the coupling the exclusion above depends on. SETTLED_STATES is
+	 * private, so this is a source-level ratchet in the style already used by
+	 * tests/Unit/MetadataRowIdTypeTest.php: if a refactor ever drops the state
+	 * from that set, the retry silently stops, the `->never()` guard above
+	 * would still pass, and the recovery path would already be broken.
+	 */
+	public function test_model_side_verdict_remains_a_settled_drift_state(): void {
+		$source = (string) file_get_contents(
+			dirname( __DIR__, 2 ) . '/src/Availability/OpenCodeProviderAvailability.php'
+		);
+
+		self::assertMatchesRegularExpression(
+			"/const SETTLED_STATES = array\( 'probe_model_unavailable' \);/",
+			$source,
+			'probe_model_unavailable must remain the settled drift state; dropping it removes probe-model retry and therefore the recovery path the deny filter is scoped to protect.'
+		);
 	}
 
 	/**
@@ -278,6 +329,12 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 	 * classified correctly and must be identical under both postures.
 	 */
 	public function test_flag_does_not_disturb_definitive_or_quota_verdicts(): void {
+		// Every case below returns before the deny guard is reached, so the
+		// meaningful assertion is that the filter is never consulted at all.
+		// An earlier draft re-registered expectApplied mid-loop and compared a
+		// pair computed under one posture, which proved nothing.
+		Monkey\Filters\expectApplied( 'duoport_probe_deny_unrecognized' )->never();
+
 		$diagnostics = new ConnectionDiagnostics();
 
 		$definitions = array(
@@ -292,14 +349,30 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 		foreach ( $definitions as $case ) {
 			list( $status, $data, $expected ) = $case;
 
-			Monkey\Filters\expectApplied( 'duoport_probe_deny_unrecognized' )->andReturn( false );
-			$open = $diagnostics->classify( $status, $data );
-			Monkey\Filters\expectApplied( 'duoport_probe_deny_unrecognized' )->andReturn( true );
-			$denied = $diagnostics->classify( $status, $data );
+			$result = $diagnostics->classify( $status, $data );
 
-			self::assertSame( $expected, $open['state'], $status . ' under Design A.' );
-			self::assertSame( $expected, $denied['state'], $status . ' must not change under Design B.' );
-			self::assertSame( $open['configured'], $denied['configured'], $status . ' configured flag must not change.' );
+			self::assertSame( $expected, $result['state'], $status . ' must classify identically with the guard present.' );
 		}
+	}
+
+	/**
+	 * The 5xx and transport paths are outside the flag's scope, by design.
+	 *
+	 * Design B makes no claim about them in either direction: 5xx returns
+	 * `uncheckable` before the guard is reached, so it cannot produce the
+	 * documented "other 4xx/5xx -> false" and must not claim to.
+	 */
+	public function test_flag_is_not_consulted_for_5xx_or_transport_failures(): void {
+		Monkey\Filters\expectApplied( 'duoport_probe_deny_unrecognized' )->never();
+
+		$diagnostics = new ConnectionDiagnostics();
+
+		foreach ( array( 500, 502, 503 ) as $status ) {
+			$result = $diagnostics->classify( $status );
+			self::assertSame( 'uncheckable', $result['state'], $status . ' stays uncheckable regardless of the flag.' );
+		}
+
+		$transport = $diagnostics->classify( 0, null, new \RuntimeException( 'no route' ) );
+		self::assertSame( 'uncheckable', $transport['state'], 'A transport failure is outside the flag scope.' );
 	}
 }
