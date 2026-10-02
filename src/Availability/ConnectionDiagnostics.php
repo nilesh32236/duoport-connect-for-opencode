@@ -23,6 +23,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class ConnectionDiagnostics {
 
 	/**
+	 * The state every response the classifier has no rule for falls to.
+	 *
+	 * Named so the probe can single this state out without spelling the string
+	 * twice. It deliberately does NOT come with a companion "persistent states"
+	 * list: it is the one persistent member of
+	 * `COULD_NOT_BE_CHECKED_STATES`, and a set of its own would be a third
+	 * hand-maintained list in a class whose whole point is that the state
+	 * lists have exactly one home.
+	 */
+	public const UNKNOWN_STATE = 'unknown';
+
+	/**
 	 * States that prove the key was accepted by the gateway.
 	 *
 	 * `free_tier_limit` is a Zen free-tier quota stop, which is still a valid
@@ -51,7 +63,7 @@ final class ConnectionDiagnostics {
 	 *
 	 * @var list<string>
 	 */
-	public const COULD_NOT_BE_CHECKED_STATES = array( 'uncheckable', 'network_error', 'server_error', 'unknown' );
+	public const COULD_NOT_BE_CHECKED_STATES = array( 'uncheckable', 'network_error', 'server_error', self::UNKNOWN_STATE );
 
 	/**
 	 * States that are a definitive negative for the credential.
@@ -256,11 +268,17 @@ final class ConnectionDiagnostics {
 	 * The classifier no longer produces this state; it is retained so a
 	 * legacy cached value can still be interpreted fail-open by callers.
 	 *
+	 * Every member of COULD_NOT_BE_CHECKED_STATES resolves through the same
+	 * last-known-good path, so they must project the same credential flags:
+	 * none of them adjudicated the credential, so none may report
+	 * `configured = true`. That is the same shape as `uncheckable()`, which
+	 * is what a 5xx actually classifies to today.
+	 *
 	 * @param int $status HTTP status.
 	 * @return array<string, mixed>
 	 */
 	public function serverError( int $status ): array {
-		return $this->result( 'server_error', true, true, false, $status, 'server_error' );
+		return $this->result( 'server_error', false, false, false, $status, 'server_error' );
 	}
 
 	/**

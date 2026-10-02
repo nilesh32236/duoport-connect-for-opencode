@@ -398,13 +398,39 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 		$this->deleteCached( $lock_key );
 		$state = isset( $this->last_result['state'] ) && is_string( $this->last_result['state'] ) ? $this->last_result['state'] : '';
-		// Could-not-be-checked (5xx, transport failure, concurrent probe):
-		// never write the failure to last-known-good. The verdict is cached
-		// briefly so a persistent outage costs one probe per window instead
-		// of one per call, while isConfigured() keeps failing open.
+		// Could-not-be-checked (5xx, transport failure, concurrent probe, and
+		// any unrecognised response): never write the failure to
+		// last-known-good. The verdict is cached so a persistent condition costs
+		// one probe per window instead of one per call, while isConfigured()
+		// keeps failing open.
+		//
+		// The two kinds of could-not-be-checked get different windows, and the
+		// reason is not only cost. A transport failure or a 5xx resolves on its
+		// own, so the one-minute window notices a recovered gateway quickly.
+		// `unknown` is not transient: the gateway answered with something this
+		// plugin has no rule for, and that does not resolve itself in a minute —
+		// a 404 after an upstream model rename is the standing case. It also
+		// takes the full jittered window because the one-minute branch has no
+		// jitter at all, so routing it there would make every site whose
+		// upstream answers 400/404 re-probe in lockstep on the same 60-second
+		// boundary — precisely the synchronized stampede the jitter below
+		// exists to prevent, introduced by the very fix that is supposed to
+		// quieten the probe.
 		if ( in_array( $state, ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES, true ) ) {
-			$second = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
-			$this->setCached( $tkey, $this->last_result, $second );
+			if ( ConnectionDiagnostics::UNKNOWN_STATE !== $state ) {
+				$second = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
+				$this->setCached( $tkey, $this->last_result, $second );
+				return $this->last_result;
+			}
+			// Persistent: fall through to the jittered window below, skipping
+			// the last-known-good writes on the way. It must NOT reach them —
+			// `unknown` proves nothing about the key, and writing false here
+			// would destroy last-known-good and reinstate the exact production
+			// bug this PR fixes.
+			$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
+			$jitter = function_exists( 'wp_rand' ) ? wp_rand( -60, 60 ) : 0;
+			$ttl    = 5 * $minute + (int) $jitter;
+			$this->setCached( $tkey, $this->last_result, max( 60, $ttl ) );
 			return $this->last_result;
 		}
 		// Definitive keyed outcomes refresh last-known-good. A Zen free-tier

@@ -42,7 +42,9 @@ WordPress AI Client model request
 Availability
   -> transient-cached, max_tokens=1 chat/completions probe
   -> boolean contract: 2xx, 429, and 401 CreditsError are configured
-  -> all other responses/exceptions are not configured
+  -> anything the probe cannot interpret (5xx, transport failure, unrecognised
+     4xx) resolves through the transient last-known-good flag, not false
+  -> only a proven invalid or missing key reports not configured
 ```
 
 Model Radar flow:

@@ -41,6 +41,13 @@ namespace OpenCodeConnector\Tests\Unit {
 		private mixed $next;
 
 		/**
+		 * Requests seen, so a spec can assert probe frequency.
+		 *
+		 * @var int
+		 */
+		public int $seen = 0;
+
+		/**
 		 * Constructor.
 		 *
 		 * @param mixed $next Response to return or throwable to throw.
@@ -56,6 +63,7 @@ namespace OpenCodeConnector\Tests\Unit {
 		 * @return mixed
 		 */
 		public function send( mixed $request ): mixed {
+			++$this->seen;
 			if ( $this->next instanceof \Throwable ) {
 				throw $this->next;
 			}
@@ -238,6 +246,188 @@ namespace OpenCodeConnector\Tests\Unit {
 			$bad->setHttpTransporter( new FakeProbeTransporter( new Response( 500, null ) ) );
 			$bad->setRequestAuthentication( new FakeProbeAuthentication() );
 			self::assertFalse( $bad->isConfigured(), 'Zen 500 is not connected.' );
+		}
+
+		/**
+		 * An unrecognised response takes the jittered window, not the transient one.
+		 *
+		 * Two separate defects, one cause. Routing `unknown` onto the
+		 * could-not-be-checked branch put it on a sixty-second window that is
+		 * meant for failures which resolve on their own — five times the probe
+		 * frequency of every other cached verdict. Worse, that branch has no
+		 * jitter, so every site whose upstream answers 400/404 would re-probe
+		 * in lockstep on the same boundary: the synchronized stampede the
+		 * `wp_rand(-60, 60)` below the branch exists to prevent, introduced by
+		 * the change meant to quieten the probe.
+		 *
+		 * The other half matters just as much: the longer window must not be
+		 * bought by letting `unknown` reach the last-known-good writes. If it
+		 * did, it would clear the flag and reinstate the production bug.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_unrecognized_response_uses_the_jittered_window(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			$result_key = 'opencode_connector_avail_go';
+			$rand_calls = 0;
+
+			Functions\when( 'get_transient' )->justReturn( false );
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ) use ( &$writes ): bool {
+					$writes[ $key ] = $ttl;
+					return true;
+				}
+			);
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->alias(
+				static function ( int $min = 0, int $max = 0 ) use ( &$rand_calls ): int {
+					++$rand_calls;
+					return 0;
+				}
+			);
+
+			// A persistent 404 — the shape this PR exists for — must be cached
+			// on the full jittered window, and must consult the jitter source.
+			$writes      = array();
+			$rand_calls  = 0;
+			$persistent  = new OpenCodeProviderAvailability( 'go' );
+			$persistent->setHttpTransporter( new FakeProbeTransporter( new Response( 404, null ) ) );
+			$persistent->setRequestAuthentication( new FakeProbeAuthentication() );
+			$persistent->diagnose();
+
+			self::assertArrayHasKey(
+				$result_key,
+				$writes,
+				'An unrecognised response must still be cached, just for longer.'
+			);
+			self::assertSame(
+				5 * 60,
+				$writes[ $result_key ],
+				'An unrecognised response is not transient; it takes the full five-minute window.'
+			);
+			self::assertGreaterThan(
+				0,
+				$rand_calls,
+				'The long window must be jittered, or every affected site re-probes in lockstep.'
+			);
+
+			// A transport failure genuinely is transient and keeps the short
+			// window, so a recovered gateway is noticed quickly.
+			$writes     = array();
+			$rand_calls = 0;
+			$transient  = new OpenCodeProviderAvailability( 'go' );
+			$transient->setHttpTransporter( new FakeProbeTransporter( new \RuntimeException( 'network down' ) ) );
+			$transient->setRequestAuthentication( new FakeProbeAuthentication() );
+			$transient->diagnose();
+
+			self::assertSame(
+				60,
+				$writes[ $result_key ],
+				'A transport failure resolves on its own and keeps the one-minute window.'
+			);
+
+			// And the longer window must not have cost the fail-open: the
+			// last-known-good flag is never written on this path.
+			$writes = array();
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( $result_key ): mixed {
+					return $key === $result_key ? false : false;
+				}
+			);
+			$guarded = new OpenCodeProviderAvailability( 'go' );
+			$guarded->setHttpTransporter( new FakeProbeTransporter( new Response( 404, null ) ) );
+			$guarded->setRequestAuthentication( new FakeProbeAuthentication() );
+			$guarded->diagnose();
+
+			self::assertArrayNotHasKey(
+				'opencode_connector_avail_go_last_good',
+				$writes,
+				'An unrecognised response proves nothing about the key and must never arm last-known-good.'
+			);
+		}
+
+		/**
+		 * A persistent 404 stops re-probing; a transient failure retries sooner.
+		 *
+		 * The window split is only worth anything if it changes when the next
+		 * outbound probe happens, so this drives a virtual clock and a
+		 * time-aware transient stub rather than asserting on the TTL constant.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_probe_frequency_follows_the_window_split(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			$now   = 1_000_000;
+			$store = array();
+
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( &$store, &$now ): mixed {
+					if ( ! isset( $store[ $key ] ) ) {
+						return false;
+					}
+					list( $expiry, $value ) = $store[ $key ];
+					return $now < $expiry ? $value : false;
+				}
+			);
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ) use ( &$store, &$now ): bool {
+					$store[ $key ] = array( $now + $ttl, $value );
+					return true;
+				}
+			);
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			// Persistent 404: after a minute the cached verdict still stands, so
+			// no second probe goes out.
+			$persistent_transporter = new FakeProbeTransporter( new Response( 404, null ) );
+			$persistent             = new OpenCodeProviderAvailability( 'go' );
+			$persistent->setHttpTransporter( $persistent_transporter );
+			$persistent->setRequestAuthentication( new FakeProbeAuthentication() );
+			$persistent->diagnose();
+			self::assertSame( 1, $persistent_transporter->seen, 'First probe goes out.' );
+
+			$now += 61;
+			$persistent->diagnose();
+			self::assertSame(
+				1,
+				$persistent_transporter->seen,
+				'A persistent 404 must not re-probe on the one-minute boundary that used to drive it.'
+			);
+
+			// A transport failure is transient, so it is still retried after a
+			// minute — a recovered gateway must be noticed quickly.
+			$store = array();
+			$now   = 1_000_000;
+
+			$transient_transporter = new FakeProbeTransporter( new \RuntimeException( 'network down' ) );
+			$transient             = new OpenCodeProviderAvailability( 'go' );
+			$transient->setHttpTransporter( $transient_transporter );
+			$transient->setRequestAuthentication( new FakeProbeAuthentication() );
+			$transient->diagnose();
+			self::assertSame( 1, $transient_transporter->seen, 'First probe goes out.' );
+
+			$now += 61;
+			$transient->diagnose();
+			self::assertSame(
+				2,
+				$transient_transporter->seen,
+				'A transient failure must still be retried once its short window expires.'
+			);
 		}
 
 		/**
