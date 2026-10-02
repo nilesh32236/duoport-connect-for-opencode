@@ -32,7 +32,11 @@ No Node, no build step. `vendor/` is git-ignored and never ships.
 - `declare(strict_types=1)` + `ABSPATH` guard in every PHP file.
 - All user-facing strings use text domain `duoport-connect-for-opencode`.
 - Availability probe: 2xx → true; 401 + `CreditsError` → true (valid key, no credits);
-  429 → true (throttled: must not lock out valid users); other 4xx/5xx + exceptions → false.
+  429 → true (throttled: must not lock out valid users); any other 4xx the gateway
+  introduces (400/402/403/404/…) and all 5xx/transport exceptions → **fall back to the
+  last-known-good flag**, not `false`. Only a proven invalid or missing key reports not
+  configured. Bucket membership lives in `ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES`;
+  never restate the list at a call site.
 
 ## Release
 

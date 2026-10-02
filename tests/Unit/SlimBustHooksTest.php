@@ -4,9 +4,16 @@
  *
  * The plugin must keep busting its availability transients when either
  * `connectors_ai_opencode_go_api_key` or `connectors_ai_opencode_zen_api_key`
- * is added or updated, but the hook callbacks must NEVER read or write any
- * `connectors_ai_*` option (option mirroring is what the wordpress.org
- * review flagged).
+ * is added, updated, or deleted, but the hook callbacks must NEVER read or
+ * write any `connectors_ai_*` option (option mirroring is what the
+ * wordpress.org review flagged).
+ *
+ * Deletion is in that list on purpose. The last-known-good flag now decides
+ * whether an unrecognised response fails open, and that flag lives for 30
+ * days. A key removed by `delete_option()` — an uninstalled Connectors
+ * feature, a migration, WP-CLI, another plugin — fires neither `update_option_`
+ * nor `add_option_`, so without the delete hook the flag outlives the
+ * credential it describes and the plugin reports connected for a month.
  *
  * @package OpenCodeConnector
  * @since 0.1.2
@@ -30,7 +37,7 @@ use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 final class SlimBustHooksTest extends MonkeyTestCase {
 
 	/**
-	 * All four key hooks delete both avail transients and touch no connectors_ai_* option.
+	 * All six key hooks delete both avail transients and touch no connectors_ai_* option.
 	 *
 	 * @since 0.1.2
 	 *
@@ -42,7 +49,7 @@ final class SlimBustHooksTest extends MonkeyTestCase {
 		$captured = array();
 
 		foreach ( array( 'connectors_ai_opencode_go_api_key', 'connectors_ai_opencode_zen_api_key' ) as $setting ) {
-			foreach ( array( 'update_option_', 'add_option_' ) as $prefix ) {
+			foreach ( array( 'update_option_', 'add_option_', 'delete_option_' ) as $prefix ) {
 				$hook = $prefix . $setting;
 				Monkey\Actions\expectAdded( $hook )
 					->once()
@@ -84,12 +91,13 @@ final class SlimBustHooksTest extends MonkeyTestCase {
 		require_once dirname( __DIR__, 2 ) . '/duoport-connect-for-opencode.php';
 
 		self::assertCount(
-			4,
+			6,
 			$captured,
-			'Plugin must register update/add hooks for both the go and zen key settings.'
+			'Plugin must register update/add/delete hooks for both the go and zen key settings.'
 		);
 
-		// Hook args: update_option_{option} fires (old, new); add_option_{option} fires (option, value).
+		// Hook args: update_option_{option} fires (old, new); add_option_ and
+		// delete_option_{option} both fire (option, value).
 		foreach ( $captured as $hook => $callback ) {
 			if ( str_starts_with( $hook, 'update_option_' ) ) {
 				$callback( 'previous-key', 'fresh-key' );
@@ -117,6 +125,19 @@ final class SlimBustHooksTest extends MonkeyTestCase {
 			'opencode_connector_avail_zen_lock',
 			$deleted,
 			'The zen stampede-lock transient must be deleted when either key changes.'
+		);
+		// The last-known-good flag is what the unrecognised-response fallback
+		// reads. If it survives the key's own deletion it reports a working
+		// credential for the full 30-day TTL after the key is gone.
+		self::assertContains(
+			'opencode_connector_avail_go_last_good',
+			$deleted,
+			'The go last-known-good flag must be deleted when either key changes, including on key deletion.'
+		);
+		self::assertContains(
+			'opencode_connector_avail_zen_last_good',
+			$deleted,
+			'The zen last-known-good flag must be deleted when either key changes, including on key deletion.'
 		);
 
 		foreach ( array_merge( $get_calls, $update_calls ) as $call ) {

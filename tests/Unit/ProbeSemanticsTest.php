@@ -4,8 +4,11 @@
  *
  * Locks in the probe contract: 2xx true, 401 plus CreditsError true (valid
  * key, empty balance), 429 true (throttled: must not lock out valid users),
- * other 4xx false, 5xx plus transport exceptions fail open on
- * last-known-good (uncheckable verdict, never fatal).
+ * 5xx plus transport exceptions and any unrecognised response (400/402/403/404)
+ * fail open on last-known-good, and a definitive invalid key still fails
+ * closed. Every row is stated against an explicit cache state: the cold-cache
+ * and warm-cache matrices are separate because a single stub cannot express
+ * both, and a row labelled only "not connected" is true of neither.
  *
  * @package OpenCodeConnector
  * @since 0.1.4
@@ -119,10 +122,71 @@ namespace OpenCodeConnector\Tests\Unit {
 				'401 CreditsError stays connected' => array( 401, array( 'error' => array( 'type' => 'CreditsError' ) ), null, true ),
 				'401 other type is not connected'  => array( 401, array( 'error' => array( 'type' => 'InvalidApiKey' ) ), null, false ),
 				'401 empty body is not connected'  => array( 401, null, null, false ),
-				'400 is not connected'             => array( 400, null, null, false ),
-				'403 is not connected'             => array( 403, null, null, false ),
+				'400 with no last-known-good is not connected' => array( 400, null, null, false ),
+				'403 with no last-known-good is not connected' => array( 403, null, null, false ),
 				'500 is not connected'             => array( 500, null, null, false ),
 				'transport exception degrades'     => array( 0, null, new \RuntimeException( 'network down' ), false ),
+			);
+
+			foreach ( $cases as $label => $case ) {
+				list( $code, $data, $throw, $expected ) = $case;
+
+				$availability = new OpenCodeProviderAvailability( 'go' );
+				$outcome      = $throw ?? new Response( $code, $data );
+				$availability->setHttpTransporter( new FakeProbeTransporter( $outcome ) );
+				$availability->setRequestAuthentication( new FakeProbeAuthentication() );
+
+				self::assertSame( $expected, $availability->isConfigured(), $label );
+			}
+		}
+
+		/**
+		 * Probe matrix WITH last-known-good: an unrecognised 4xx fails open.
+		 *
+		 * The cold-cache matrix above stubs `get_transient` to always return
+		 * false, so on its own it can only ever prove the cold-cache half of the
+		 * contract. It cannot distinguish a probe that fails open from one that
+		 * fails closed, because both agree with `false`. This matrix is the
+		 * other half: with last-known-good set, the very statuses the cold-cache
+		 * rows call "not connected" must come back connected, because an
+		 * unrecognised response proves nothing about the key.
+		 *
+		 * Against main, where `unknown` is absent from the fallback bucket,
+		 * every row here fails. That is the point: without this matrix the
+		 * cold-cache labels state the opposite of shipped behaviour and both
+		 * directions regress silently.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_probe_semantics_matrix_with_last_known_good(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ): mixed {
+					return str_ends_with( $key, '_last_good' ) ? 1 : false;
+				}
+			);
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$cases = array(
+				// Unrecognised: reaches the gateway, says nothing about the key.
+				'400 with last-known-good stays connected' => array( 400, null, null, true ),
+				'402 with last-known-good stays connected' => array( 402, null, null, true ),
+				'403 with last-known-good stays connected' => array( 403, null, null, true ),
+				'404 with last-known-good stays connected' => array( 404, null, null, true ),
+				// 5xx and transport failures keep failing open on the same flag.
+				'500 with last-known-good stays connected' => array( 500, null, null, true ),
+				'transport exception with last-known-good stays connected' => array( 0, null, new \RuntimeException( 'network down' ), true ),
+				// A definitive negative still wins: fail-open must not fail up.
+				'401 invalid key still disconnects despite last-known-good' => array( 401, array( 'error' => array( 'type' => 'InvalidApiKey' ) ), null, false ),
 			);
 
 			foreach ( $cases as $label => $case ) {
@@ -174,6 +238,87 @@ namespace OpenCodeConnector\Tests\Unit {
 			$bad->setHttpTransporter( new FakeProbeTransporter( new Response( 500, null ) ) );
 			$bad->setRequestAuthentication( new FakeProbeAuthentication() );
 			self::assertFalse( $bad->isConfigured(), 'Zen 500 is not connected.' );
+		}
+
+		/**
+		 * An already-set last-known-good flag is not rewritten on every probe.
+		 *
+		 * `set_transient()` has no equality short-circuit in WP core, so writing
+		 * an unchanged flag is an unconditional options-row UPDATE. A keyed
+		 * probe runs about every five minutes per catalog for the life of the
+		 * install, so the previous code issued that UPDATE forever to store a
+		 * value that could not have changed.
+		 *
+		 * Both directions matter: the flag is still armed on the first keyed
+		 * success, and it is still cleared by the first definitive negative,
+		 * which is what lets the next keyed probe re-arm it.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_last_known_good_is_not_rewritten_when_already_set(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+			if ( ! defined( 'DAY_IN_SECONDS' ) ) {
+				define( 'DAY_IN_SECONDS', 86400 );
+			}
+
+			$last_good = 'opencode_connector_avail_go_last_good';
+
+			// Cold flag: the first keyed success must arm it.
+			$cold_writes = array();
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( &$last_good ): mixed {
+					unset( $key );
+					return false;
+				}
+			);
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ) use ( &$cold_writes ): bool {
+					$cold_writes[] = array( $key, $value, $ttl );
+					return true;
+				}
+			);
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$cold = new OpenCodeProviderAvailability( 'go' );
+			$cold->setHttpTransporter( new FakeProbeTransporter( new Response( 200, null ) ) );
+			$cold->setRequestAuthentication( new FakeProbeAuthentication() );
+			self::assertTrue( $cold->isConfigured(), 'A keyed probe is connected.' );
+			self::assertContains(
+				$last_good,
+				array_column( $cold_writes, 0 ),
+				'The first keyed success must arm the last-known-good flag.'
+			);
+
+			// Warm flag: an unchanged value must not be written again.
+			$warm_writes = array();
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( $last_good ): mixed {
+					return $last_good === $key ? 1 : false;
+				}
+			);
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ) use ( &$warm_writes ): bool {
+					$warm_writes[] = array( $key, $value, $ttl );
+					return true;
+				}
+			);
+
+			$warm = new OpenCodeProviderAvailability( 'go' );
+			$warm->setHttpTransporter( new FakeProbeTransporter( new Response( 200, null ) ) );
+			$warm->setRequestAuthentication( new FakeProbeAuthentication() );
+			self::assertTrue( $warm->isConfigured(), 'A keyed probe is still connected.' );
+			self::assertNotContains(
+				$last_good,
+				array_column( $warm_writes, 0 ),
+				'An already-true flag must not be rewritten; set_transient() has no equality short-circuit.'
+			);
 		}
 
 		/**

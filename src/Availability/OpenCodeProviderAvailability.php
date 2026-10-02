@@ -451,6 +451,17 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			$this->deleteCached( $key );
 			return;
 		}
+		// `set_transient()` has no equality short-circuit in WP core, so writing
+		// an unchanged flag is an unconditional options-row UPDATE. A keyed
+		// probe runs about every five minutes per catalog for the life of the
+		// install, so the 30-day TTL would otherwise be refreshed forever by a
+		// value that cannot have changed. Skipping the rewrite makes the window
+		// run from the last genuine transition into "good", which is the
+		// semantic the flag actually wants: it is cleared again by the first
+		// definitive negative, and re-armed by the next keyed probe after that.
+		if ( $this->readLastGood() ) {
+			return;
+		}
 		$day = defined( 'DAY_IN_SECONDS' ) ? (int) DAY_IN_SECONDS : 86400;
 		$this->setCached( $key, 1, 30 * $day );
 	}

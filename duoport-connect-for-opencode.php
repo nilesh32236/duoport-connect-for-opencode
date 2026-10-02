@@ -208,6 +208,16 @@ $opencode_connector_bust = static function (): void {
 foreach ( array( 'connectors_ai_opencode_go_api_key', 'connectors_ai_opencode_zen_api_key' ) as $opencode_connector_setting ) {
 	add_action( 'update_option_' . $opencode_connector_setting, $opencode_connector_bust );
 	add_action( 'add_option_' . $opencode_connector_setting, $opencode_connector_bust );
+	// A key can also leave by deletion rather than update: uninstalling the
+	// Connectors feature, a migration, WP-CLI, or another plugin calling
+	// delete_option(). Neither of the hooks above fires then, so the
+	// last-known-good flag would outlive the key it describes by its full
+	// 30-day TTL. That flag is what the unrecognised-response fallback reads,
+	// so a site that deleted its key would keep reporting connected for a
+	// month off a verdict about a credential that no longer exists. Deleting
+	// the key is the one event that unambiguously invalidates the flag, so the
+	// same credential-blind delete list applies; no new lifecycle is needed.
+	add_action( 'delete_option_' . $opencode_connector_setting, $opencode_connector_bust );
 }
 unset( $opencode_connector_bust, $opencode_connector_setting );
 

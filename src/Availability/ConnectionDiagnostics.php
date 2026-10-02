@@ -43,8 +43,9 @@ final class ConnectionDiagnostics {
 	 * a 400, a 402, a 403, any status the gateway introduces that this plugin
 	 * has no rule for. Such a response reached the gateway, so it is evidence
 	 * that the request was made and never evidence about the key — which is
-	 * why `unknown()` reports `configured = true`. It was missing from the
-	 * fallback list, so a 400/404 — the shape OpenCode returns after it renames
+	 * why membership here is what makes the caller fall back to last-known-good
+	 * instead of reporting a working key as not configured. It was missing from
+	 * the fallback list, so a 400/404 — the shape OpenCode returns after it renames
 	 * or retires a model — missed the bucket and was reported as not
 	 * configured, on the default branch, to sites whose keys were fine.
 	 *
@@ -114,10 +115,14 @@ final class ConnectionDiagnostics {
 	 */
 	public function verify_state( array $diagnosis ): string {
 		$state = isset( $diagnosis['state'] ) && is_string( $diagnosis['state'] ) ? $diagnosis['state'] : '';
-		if ( in_array( $state, array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit' ), true ) ) {
+		// Read the published buckets rather than a second copy of each list.
+		// The probe defect this class documents was one missing entry in one of
+		// two hand-maintained lists, so any list spelled out again here is the
+		// same hazard wearing a different hat.
+		if ( in_array( $state, self::KEYED_STATES, true ) ) {
 			return 'valid';
 		}
-		if ( in_array( $state, array( 'invalid_key', 'not_configured' ), true ) ) {
+		if ( in_array( $state, self::DEFINITIVE_NEGATIVE_STATES, true ) ) {
 			return 'invalid_key';
 		}
 		return 'could-not-be-checked';
@@ -159,15 +164,22 @@ final class ConnectionDiagnostics {
 	/**
 	 * Build an unknown result for a response that matched no known rule.
 	 *
-	 * The backend was reached and the key was read, so this is configured and
-	 * verified, but it is not a usable connection. Callers must not treat it
-	 * as a positive result.
+	 * The backend was reached and identified — that is what separates this from
+	 * `uncheckable()`, where it was never reached — but the response says
+	 * nothing about the credential, so `configured` is false: this result must
+	 * not assert a credential is set up when the probe could not determine it.
+	 *
+	 * `isConfigured()` is the surface that applies the fail-open: it resolves an
+	 * unrecognised response through last-known-good, which is false on a cold
+	 * cache. A consumer keying on `['configured']` must not get an
+	 * unconditional fail-open that the boolean projection deliberately withholds.
+	 * Callers must not treat this as a positive result.
 	 *
 	 * @param int $status HTTP status (defaults to 0 when no response exists).
 	 * @return array<string, mixed>
 	 */
 	public function unknown( int $status = 0 ): array {
-		return $this->result( 'unknown', true, true, false, $status, 'unknown' );
+		return $this->result( 'unknown', false, true, false, $status, 'unknown' );
 	}
 
 	/**
