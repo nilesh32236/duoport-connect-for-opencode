@@ -89,6 +89,13 @@ final class UnknownBucketRatchetTest extends MonkeyTestCase {
 	 * the published bucket removes the second copy, so the next state added to
 	 * the vocabulary cannot be forgotten at a call site.
 	 *
+	 * The assertion is on the SHAPE OF THE DEFECT — a hand-maintained array at
+	 * a decision point — not on how many times the constant appears. An
+	 * earlier version of this test asserted `substr_count === 2`, which meant
+	 * the test would have failed the first time anyone added a legitimate third
+	 * decision point: it would have blocked the correct fix rather than the
+	 * regression it was written for.
+	 *
 	 * @return void
 	 */
 	public function test_probe_reads_the_published_bucket(): void {
@@ -96,15 +103,20 @@ final class UnknownBucketRatchetTest extends MonkeyTestCase {
 			dirname( __DIR__, 2 ) . '/src/Availability/OpenCodeProviderAvailability.php'
 		);
 
-		self::assertSame(
-			2,
-			substr_count( $source, 'ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES' ),
-			'Both decision points must read the published bucket.'
-		);
 		self::assertDoesNotMatchRegularExpression(
-			"/array\( 'uncheckable', 'network_error', 'server_error'/",
+			'/in_array\(\s*\$state,\s*array\(/',
 			$source,
-			'A hand-maintained copy of the bucket list is what let `unknown` go missing.'
+			'A hand-maintained copy of the bucket list at a decision point is what let `unknown` go missing.'
 		);
+
+		// A floor, not a count: each bucket the probe branches on must actually
+		// be consulted by production code.
+		foreach ( array( 'KEYED_STATES', 'COULD_NOT_BE_CHECKED_STATES' ) as $constant ) {
+			self::assertGreaterThan(
+				0,
+				substr_count( $source, 'ConnectionDiagnostics::' . $constant ),
+				$constant . ' must be read by the probe, not merely declared.'
+			);
+		}
 	}
 }

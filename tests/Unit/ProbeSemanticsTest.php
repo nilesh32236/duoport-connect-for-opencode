@@ -249,6 +249,100 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
+		 * What clears last-known-good, asserted by behaviour rather than shape.
+		 *
+		 * `DEFINITIVE_NEGATIVE_STATES` has no production reader: the probe
+		 * reaches `writeLastGood(false)` through its `else` branch, so the
+		 * constant today is declared, published, and tested only by a test.
+		 * That is fine for the constant's purpose — it names the states that
+		 * clear the flag — but it means nothing checks the *effect*.
+		 *
+		 * So this pins the effect directly: a response the classifier places in
+		 * the definitive-negative bucket clears the flag, and every response it
+		 * does not place there leaves it alone. Derived from the constant rather
+		 * than a hardcoded list, so the constant gains a real reader in the test
+		 * without production code reading a bucket it does not need to branch on.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_only_definitive_negatives_clear_last_known_good(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+			if ( ! class_exists( \OpenCodeConnector\Availability\ConnectionDiagnostics::class ) ) {
+				require_once dirname( __DIR__, 2 ) . '/src/Availability/ConnectionDiagnostics.php';
+			}
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			$last_good = 'opencode_connector_avail_go_last_good';
+			$cleared   = array();
+			$classify  = new \OpenCodeConnector\Availability\ConnectionDiagnostics();
+
+			// The definitive-negative states the classifier can actually reach.
+			$definitive = array_intersect(
+				\OpenCodeConnector\Availability\ConnectionDiagnostics::DEFINITIVE_NEGATIVE_STATES,
+				array( 'invalid_key' )
+			);
+			self::assertNotEmpty( $definitive, 'The classifier must still be able to produce a definitive negative.' );
+
+			// 401 with a non-credits type is the shape that reaches it.
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( $last_good ): mixed {
+					return $last_good === $key ? 1 : false;
+				}
+			);
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->alias(
+				static function ( string $key ) use ( &$cleared ): bool {
+					$cleared[] = $key;
+					return true;
+				}
+			);
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$invalid = new OpenCodeProviderAvailability( 'go' );
+			$invalid->setHttpTransporter( new FakeProbeTransporter( new Response( 401, array( 'error' => array( 'type' => 'InvalidApiKey' ) ) ) ) );
+			$invalid->setRequestAuthentication( new FakeProbeAuthentication() );
+
+			self::assertSame(
+				'invalid_key',
+				$classify->classify( 401, array( 'error' => array( 'type' => 'InvalidApiKey' ) ) )['state'],
+				'Sanity: this response must classify into the definitive-negative bucket.'
+			);
+			self::assertFalse( $invalid->isConfigured(), 'A definitive negative must disconnect even with last-known-good set.' );
+			self::assertContains(
+				$last_good,
+				$cleared,
+				'A definitive negative must clear the last-known-good flag.'
+			);
+
+			// Every state outside that bucket leaves the flag alone. This is the
+			// half that a count-based ratchet could never check.
+			foreach ( array( 'no_credits', 'rate_limited', 'unknown', 'uncheckable' ) as $state ) {
+				self::assertNotContains(
+					$state,
+					\OpenCodeConnector\Availability\ConnectionDiagnostics::DEFINITIVE_NEGATIVE_STATES,
+					$state . ' must not be in the definitive-negative bucket.'
+				);
+			}
+
+			$cleared = array();
+			$credits = new OpenCodeProviderAvailability( 'go' );
+			$credits->setHttpTransporter( new FakeProbeTransporter( new Response( 401, array( 'error' => array( 'type' => 'CreditsError' ) ) ) ) );
+			$credits->setRequestAuthentication( new FakeProbeAuthentication() );
+
+			self::assertTrue( $credits->isConfigured(), 'A valid key with no credits is still configured.' );
+			self::assertNotContains(
+				$last_good,
+				$cleared,
+				'no_credits is not a definitive negative and must not clear the flag.'
+			);
+		}
+
+		/**
 		 * An unrecognised response takes the jittered window, not the transient one.
 		 *
 		 * Two separate defects, one cause. Routing `unknown` onto the
