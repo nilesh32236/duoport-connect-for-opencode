@@ -216,7 +216,7 @@ namespace OpenCodeConnector\Tests\Unit {
 			$diagnostics = new ConnectionDiagnostics();
 			self::assertSame( 'valid', $diagnostics->verify_state( array( 'state' => 'verified' ) ) );
 			self::assertSame( 'invalid_key', $diagnostics->verify_state( array( 'state' => 'invalid_key' ) ) );
-			self::assertSame( 'could-not-be-checked', $diagnostics->verify_state( array( 'state' => 'server_error' ) ) );
+			self::assertSame( 'could-not-be-checked', $diagnostics->verify_state( array( 'state' => 'unknown' ) ) );
 			self::assertSame( 'could-not-be-checked', $diagnostics->verify_state( array( 'state' => 'unknown' ) ) );
 		}
 

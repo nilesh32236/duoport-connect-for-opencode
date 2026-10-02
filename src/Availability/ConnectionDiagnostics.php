@@ -55,7 +55,7 @@ final class ConnectionDiagnostics {
 	 *
 	 * @var list<string>
 	 */
-	public const COULD_NOT_BE_CHECKED_STATES = array( 'uncheckable', 'network_error', 'server_error', 'unknown', 'probe_model_unavailable' );
+	public const COULD_NOT_BE_CHECKED_STATES = array( 'uncheckable', 'unknown', 'probe_model_unavailable' );
 
 	/**
 	 * States that are a definitive negative for the credential.
@@ -158,6 +158,12 @@ final class ConnectionDiagnostics {
 			}
 			return $this->invalidKey( $status );
 		}
+		// 402 Payment Required is the billing shape of the same fact as 401
+		// CreditsError: the gateway reached, read the key, and refused it for
+		// want of balance. It is a keyed outcome, not an unrecognised one.
+		if ( 402 === $status ) {
+			return $this->noCredits( $status );
+		}
 		if ( 429 === $status ) {
 			if ( 'freeusagelimiterror' === $error_type ) {
 				return $this->freeTierLimit( $status );
@@ -253,15 +259,20 @@ final class ConnectionDiagnostics {
 	/**
 	 * Build an unknown result for a response that matched no known rule.
 	 *
-	 * The backend was reached and the key was read, so this is configured and
-	 * verified, but it is not a usable connection. Callers must not treat it
-	 * as a positive result.
+	 * The response reached the gateway, so it is configured, but no rule
+	 * matched, so it is NOT verified: nothing identified the credential. It is
+	 * not a usable connection either.
+	 *
+	 * `configured = true` with `verified = false` is the point of this verdict:
+	 * the pair is what makes a caller fall back to last-known-good instead of
+	 * reading an uninterpreted status as a credential failure. Claiming
+	 * `verified` here would assert an identification that never happened.
 	 *
 	 * @param int $status HTTP status (defaults to 0 when no response exists).
 	 * @return array<string, mixed>
 	 */
 	public function unknown( int $status = 0 ): array {
-		return $this->result( 'unknown', true, true, false, $status, 'unknown' );
+		return $this->result( 'unknown', true, false, false, $status, 'unknown' );
 	}
 
 	/**
@@ -278,15 +289,6 @@ final class ConnectionDiagnostics {
 	 */
 	public function uncheckable( int $status = 0 ): array {
 		return $this->result( 'uncheckable', false, false, false, $status, 'could_not_be_checked' );
-	}
-
-	/**
-	 * Build a network-error result.
-	 *
-	 * @return array<string, mixed>
-	 */
-	public function networkError(): array {
-		return $this->result( 'network_error', false, false, false, 0, 'network_failure' );
 	}
 
 	/**
@@ -330,19 +332,6 @@ final class ConnectionDiagnostics {
 	 */
 	public function freeTierLimit( int $status ): array {
 		return $this->result( 'free_tier_limit', true, true, false, $status, 'free_usage_limit' );
-	}
-
-	/**
-	 * Build a server-error result.
-	 *
-	 * The classifier no longer produces this state; it is retained so a
-	 * legacy cached value can still be interpreted fail-open by callers.
-	 *
-	 * @param int $status HTTP status.
-	 * @return array<string, mixed>
-	 */
-	public function serverError( int $status ): array {
-		return $this->result( 'server_error', true, true, false, $status, 'server_error' );
 	}
 
 	/**

@@ -95,16 +95,17 @@ configured
 verified
 usable
 state: not_configured | verified | invalid_key | no_credits |
-       rate_limited | free_tier_limit | uncheckable | network_error |
-       server_error | unsupported_model | unsupported_endpoint |
-       unsupported_capability | unknown
+       rate_limited | free_tier_limit | uncheckable |
+       probe_model_unavailable | unknown
 ```
 
 `isConfigured()` may remain a compatibility projection. Settings may simplify the value for display, but must not collapse diagnostics before the backend result is produced. Probe responses must be cached briefly, must use the smallest safe request, and must never log the request authorization header.
 
 A could-not-be-checked outcome is never cached as the connection result and never clears the transient-only last-known-good flag. Quota outcomes are never could-not-be-checked: 429 maps to `rate_limited` or `free_tier_limit`, and 401 with a credits error maps to `no_credits`. Only a proven invalid or missing key reports not configured.
 
-The could-not-be-checked bucket is `ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES`, and membership is the whole fallback decision: `isConfigured()` reads it, so a member falls back to last-known-good and a non-member does not. It holds `uncheckable` (5xx, transport failure, concurrent probe), `probe_model_unavailable` (a 401 the gateway attributes to the requested model), and `unknown` — which is what every unrecognised response classifies to. `unknown` is the load-bearing member: such a response reached the gateway, so it is evidence that the request was made and never evidence about the key, and reporting it as not configured disconnected working keys whenever the upstream introduced a status.
+`network_error`, `server_error`, `unsupported_model`, `unsupported_endpoint` and `unsupported_capability` are no longer produced by the classifier and are removed here: an entry in a bucket that decides whether a site is reported as configured is a contract, and an unreachable one is drift.
+
+The could-not-be-checked bucket is `ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES`, and membership is the whole fallback decision: `isConfigured()` reads it, so a member falls back to last-known-good and a non-member does not. It holds `uncheckable` (5xx, transport failure, concurrent probe), `probe_model_unavailable` (a 401 the gateway attributes to the requested model), and `unknown` — which is what every unrecognised response classifies to. 402 Payment Required is keyed, not unknown: it is the billing shape of 401 CreditsError. `unknown` is the load-bearing member: such a response reached the gateway, so it is evidence that the request was made and never evidence about the key, and reporting it as not configured disconnected working keys whenever the upstream introduced a status.
 
 `ConnectionDiagnostics` owns the state vocabulary: `KEYED_STATES`, `COULD_NOT_BE_CHECKED_STATES`, and `DEFINITIVE_NEGATIVE_STATES` are defined there once and read from there by the availability probe and the verification-state mapper, so the two can never disagree about what a state means.
 

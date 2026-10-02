@@ -106,7 +106,7 @@ namespace OpenCodeConnector\Tests\Unit {
 			Functions\when( 'delete_transient' )->justReturn( true );
 			Functions\when( 'wp_rand' )->justReturn( 0 );
 
-			foreach ( array( 400, 402, 403, 404 ) as $status ) {
+			foreach ( array( 400, 403, 404 ) as $status ) {
 				$availability = new OpenCodeProviderAvailability( 'go' );
 				$availability->setHttpTransporter( new UnknownFallbackTransporter( new Response( $status, null ) ) );
 				$availability->setRequestAuthentication( new UnknownFallbackAuthentication() );
@@ -121,6 +121,38 @@ namespace OpenCodeConnector\Tests\Unit {
 					$status . ' with last-known-good must stay connected; it proved nothing about the key.'
 				);
 			}
+		}
+
+		/**
+		 * 402 Payment Required is keyed, not unknown.
+		 *
+		 * The gateway reached, read the key, and refused it for want of balance,
+		 * which is the same fact as 401 CreditsError. Leaving it in the
+		 * unrecognised fallthrough would have reported "could not be checked"
+		 * for a response that positively identifies the credential.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_payment_required_is_a_keyed_no_credits_verdict(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			Functions\when( 'get_transient' )->justReturn( false );
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			$availability->setHttpTransporter( new UnknownFallbackTransporter( new Response( 402, null ) ) );
+			$availability->setRequestAuthentication( new UnknownFallbackAuthentication() );
+
+			self::assertSame( 'no_credits', $availability->diagnose()['state'] );
+			self::assertTrue( $availability->isConfigured(), '402 with no last-known-good is still a configured key.' );
 		}
 
 		/**
@@ -143,7 +175,7 @@ namespace OpenCodeConnector\Tests\Unit {
 			Functions\when( 'delete_transient' )->justReturn( true );
 			Functions\when( 'wp_rand' )->justReturn( 0 );
 
-			foreach ( array( 400, 402, 403, 404 ) as $status ) {
+			foreach ( array( 400, 403, 404 ) as $status ) {
 				$availability = new OpenCodeProviderAvailability( 'go' );
 				$availability->setHttpTransporter( new UnknownFallbackTransporter( new Response( $status, null ) ) );
 				$availability->setRequestAuthentication( new UnknownFallbackAuthentication() );

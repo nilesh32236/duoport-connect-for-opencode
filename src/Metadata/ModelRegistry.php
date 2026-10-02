@@ -145,11 +145,19 @@ final class ModelRegistry {
 	 * CreditsError for a valid key with an empty balance) while a free model
 	 * fails closed whenever it is transiently unavailable upstream.
 	 *
+	 * Nullable on purpose: a catalog whose only reviewed models are free has no
+	 * paid alternative, and the caller must degrade to a single probe rather than
+	 * fatal. It cannot be non-nullable, because returning null from a `string`
+	 * return type is a TypeError that would escape probe() into isConfigured(),
+	 * whose production caller catches it and reports not configured — turning a
+	 * missing retry candidate back into the fail-closed disconnect this fallback
+	 * exists to avoid.
+	 *
 	 * @param string $catalog Catalog slug.
 	 * @param string $exclude Model id to skip (the primary probe model).
-	 * @return string|null Model id, or null when the catalog has no alternative.
+	 * @return string|null Model id, or null when the catalog has no paid alternative.
 	 */
-	public static function fallbackProbeModel( string $catalog, string $exclude ): string {
+	public static function fallbackProbeModel( string $catalog, string $exclude ): ?string {
 		foreach ( self::records( $catalog ) as $record ) {
 			$id = (string) ( $record['id'] ?? '' );
 			if ( '' === $id || $id === $exclude ) {

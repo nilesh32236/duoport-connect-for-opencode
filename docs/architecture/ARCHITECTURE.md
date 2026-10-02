@@ -41,7 +41,7 @@ WordPress AI Client model request
 
 Availability
   -> transient-cached, max_tokens=1 chat/completions probe
-  -> boolean contract: 2xx, 429, and 401 CreditsError are configured
+  -> boolean contract: 2xx, 429, 401 CreditsError and 402 are configured
   -> a model-side 401, or an unrecognised 400/404, is retried with a second
      reviewed paid probe model, then could-not-be-checked
   -> an unrecognised 401 (including a body-less one) is invalid_key: not configured

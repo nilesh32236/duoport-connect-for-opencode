@@ -76,11 +76,15 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Whether the provider is configured, preserving the legacy boolean contract.
 	 *
-	 * Fail-open: quota exhaustion, rate limiting, and previously cached
-	 * server errors read as configured; could-not-be-checked verdicts (5xx,
-	 * transport failures, concurrent probes) preserve last-known-good state
-	 * instead of flipping valid keys to not-connected. Unkeyed installs
-	 * still read as not configured.
+	 * Fail-open: quota exhaustion (401 CreditsError, 402) and rate limiting read
+	 * as configured. Every verdict in
+	 * ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES preserves
+	 * last-known-good state instead of flipping valid keys to not-connected:
+	 * 5xx, transport failures, concurrent probes, a 401 the gateway attributes
+	 * to the model, and any UNRECOGNISED response, which reached the gateway but
+	 * said nothing about the key. Only a definitive rejection (an unrecognised
+	 * 401) and a missing key read as not configured, and an unkeyed install with
+	 * no last-known-good falls back to not configured.
 	 *
 	 * @since 0.1.0
 	 *
@@ -171,7 +175,9 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 
 		if ( function_exists( 'set_transient' ) ) {
 			try {
-				set_transient( $lock_key, 1, 10 );
+				// Sized for every candidate: two sequential blocking requests under
+				// a 10s lock would let a concurrent verify start a re-probe.
+				set_transient( $lock_key, 1, 10 * count( $this->probeModels() ) );
 			} catch ( \Throwable $lock_exception ) {
 				unset( $lock_exception );
 				// Fail-open: proceed without the lock.
@@ -198,41 +204,54 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 				$diagnosis = null;
 			}
 		} elseif ( $surface_ok ) {
-			try {
-				$probe_data   = array(
-					'model'      => self::PROBE_MODEL,
-					'messages'   => array(
-						array(
-							'role'    => 'user',
-							'content' => 'ping',
+			// Same candidate list and same drift retry as probe(), driven from the
+			// same helper. Verification is a second entry point to the same
+			// question, so a recovery path that worked on one and not the other
+			// would be a trap: the settings screen would recover from a retired
+			// probe model while its own verify button reported could-not-checked
+			// for the same key at the same moment.
+			$probe_models = $this->probeModels();
+			$last_index   = count( $probe_models ) - 1;
+			foreach ( $probe_models as $index => $verify_model ) {
+				try {
+					$probe_data   = array(
+						'model'      => (string) $verify_model,
+						'messages'   => array(
+							array(
+								'role'    => 'user',
+								'content' => 'ping',
+							),
 						),
-					),
-					'max_tokens' => 1,
-				);
-				$base_headers = array( 'Content-Type' => 'application/json' );
-				if ( class_exists( SessionHeader::class ) && method_exists( SessionHeader::class, 'inject_into_headers' ) ) {
-					$probe_headers = SessionHeader::inject_into_headers( $base_headers, $probe_data );
-				} else {
-					$probe_headers = $base_headers;
-				}
-				$req       = new Request(
-					HttpMethodEnum::POST(),
-					$cls::url( 'chat/completions' ),
-					$probe_headers,
-					$probe_data
-				);
-				$req       = $this->getRequestAuthentication()->authenticateRequest( $req );
-				$res       = $this->getHttpTransporter()->send( $req );
-				$diagnosis = null !== $diagnostics ? $diagnostics->classify( $res->getStatusCode(), $res->getData() ) : null;
-			} catch ( \Throwable $exception ) {
-				unset( $exception );
-				if ( null !== $diagnostics ) {
-					try {
-						$diagnosis = $diagnostics->classify( 0, null, new \RuntimeException( 'verify transport failure' ) );
-					} catch ( \Throwable $classify_exception ) {
-						unset( $classify_exception );
-						$diagnosis = null;
+						'max_tokens' => 1,
+					);
+					$base_headers = array( 'Content-Type' => 'application/json' );
+					if ( class_exists( SessionHeader::class ) && method_exists( SessionHeader::class, 'inject_into_headers' ) ) {
+						$probe_headers = SessionHeader::inject_into_headers( $base_headers, $probe_data );
+					} else {
+						$probe_headers = $base_headers;
 					}
+					$req       = new Request(
+						HttpMethodEnum::POST(),
+						$cls::url( 'chat/completions' ),
+						$probe_headers,
+						$probe_data
+					);
+					$req       = $this->getRequestAuthentication()->authenticateRequest( $req );
+					$res       = $this->getHttpTransporter()->send( $req );
+					$diagnosis = null !== $diagnostics ? $diagnostics->classify( $res->getStatusCode(), $res->getData() ) : null;
+				} catch ( \Throwable $exception ) {
+					unset( $exception );
+					if ( null !== $diagnostics ) {
+						try {
+							$diagnosis = $diagnostics->classify( 0, null, new \RuntimeException( 'verify transport failure' ) );
+						} catch ( \Throwable $classify_exception ) {
+							unset( $classify_exception );
+							$diagnosis = null;
+						}
+					}
+				}
+				if ( null === $diagnosis || ! $this->isProbeModelDrift( $diagnosis ) || $index >= $last_index ) {
+					break;
 				}
 			}
 		}
@@ -420,10 +439,11 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		// costs one probe per window instead of one per call, while
 		// isConfigured() keeps failing open.
 		if ( in_array( $state, ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES, true ) ) {
-			if ( $this->isDriftStatus( $this->last_result ) ) {
+			if ( $this->isProbeModelDrift( $this->last_result ) ) {
 				// Probe-model drift does not resolve in a minute: a retired model
-				// will not come back within this window. A short cache here costs
-				// two probe requests a minute for as long as the drift lasts.
+				// will not come back within this window, and the retry doubles the
+				// request count. A short cache here costs two paid probes a minute
+				// for as long as the drift lasts.
 				$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
 				$jitter = function_exists( 'wp_rand' ) ? wp_rand( -60, 60 ) : 0;
 				$this->setCached( $tkey, $this->last_result, max( 60, 5 * $minute + (int) $jitter ) );
@@ -478,11 +498,13 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * is at least as likely once a model is renamed. No credential verdict is
 	 * weakened by this predicate.
 	 *
-	 * The status list is read from
+	 * This one predicate decides BOTH the retry and the cache window, because
+	 * those two must agree about which verdicts mean drift: a verdict that
+	 * triggers a second paid request and a verdict re-probed every minute are
+	 * the same fact, and two predicates encoding it separately is how they drift
+	 * apart. Its status list is read from
 	 * ConnectionDiagnostics::PROBE_MODEL_DRIFT_STATUSES rather than restated
-	 * here. The retry decision and the cache-window decision below must agree
-	 * about which statuses mean drift; they are the same fact, so they read the
-	 * same list.
+	 * here.
 	 *
 	 * @param array<string, mixed> $result Diagnosis of one attempt.
 	 * @return bool
@@ -491,21 +513,6 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		if ( 'probe_model_unavailable' === $this->stateOf( $result ) ) {
 			return true;
 		}
-		return 'unknown' === $this->stateOf( $result )
-			&& in_array( (int) ( $result['status'] ?? 0 ), ConnectionDiagnostics::PROBE_MODEL_DRIFT_STATUSES, true );
-	}
-
-	/**
-	 * Whether an unrecognised verdict arrived at one of the drift statuses.
-	 *
-	 * Reads the same published list as isProbeModelDrift(), so a status added
-	 * there cannot be retried on one path and re-probed every minute on the
-	 * other.
-	 *
-	 * @param array<string, mixed> $result Diagnosis.
-	 * @return bool
-	 */
-	private function isDriftStatus( array $result ): bool {
 		return 'unknown' === $this->stateOf( $result )
 			&& in_array( (int) ( $result['status'] ?? 0 ), ConnectionDiagnostics::PROBE_MODEL_DRIFT_STATUSES, true );
 	}
