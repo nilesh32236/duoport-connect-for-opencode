@@ -109,8 +109,6 @@ final class Settings {
 	 * fires with the option name alone, which is not the `(option, value)`
 	 * shape `bustCachesAdd()` expects.
 	 *
-	 * @since 0.1.7
-	 *
 	 * @return void
 	 */
 	public function bustCachesDelete(): void {

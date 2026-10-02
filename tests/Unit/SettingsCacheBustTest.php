@@ -253,33 +253,91 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
-		 * uninstall.php still wants every key gone, fallbacks included.
+		 * Uninstall must remove every transient this plugin owns.
 		 *
-		 * The scoping fix above is the reason Catalog::allTransientKeys() must
-		 * keep existing with its current shape. Uninstall removes the plugin and
-		 * every credential verdict it left behind, so its delete list must stay
-		 * the full set — a fallback surviving uninstall would outlive the plugin
-		 * by its full 30 days.
+		 * This replaces a guard that could not fail. It grepped uninstall.php
+		 * for the string "allTransientKeys()" — which the file's own leading
+		 * comment also contains — and then asserted a property of Catalog that
+		 * other specs already pin. Deleting the entire production delete list
+		 * from uninstall.php left the whole suite green: a test that passed
+		 * while standing in for a file nothing was checking.
+		 *
+		 * So this executes uninstall.php and reads the transients it really
+		 * deletes. Uninstall removes the plugin and every verdict it left
+		 * behind, so this is the one caller that must not scope the delete list
+		 * down — including the last-known-good flags, which would otherwise
+		 * outlive the plugin by their full 30 days.
 		 *
 		 * @return void
 		 */
-		public function test_uninstall_delete_set_still_covers_every_key(): void {
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_uninstall_removes_every_transient_this_plugin_owns(): void {
+			// uninstall.php exits unless WordPress says it is uninstalling. It
+			// must be defined before the require, or the process ends here and
+			// the spec reports nothing.
+			if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
+				define( 'WP_UNINSTALL_PLUGIN', 'duoport-connect-for-opencode/duoport-connect-for-opencode.php' );
+			}
+
+			$deleted = array();
+			Functions\when( 'delete_transient' )->alias(
+				static function ( ...$args ) use ( &$deleted ): bool {
+					$deleted[] = $args[0];
+					return true;
+				}
+			);
+			Functions\when( 'delete_site_transient' )->justReturn( true );
+			Functions\when( 'delete_option' )->justReturn( true );
+			Functions\when( 'delete_site_option' )->justReturn( true );
+
+			require_once dirname( __DIR__, 2 ) . '/uninstall.php';
+
+			$expected = \OpenCodeConnector\Metadata\Catalog::allTransientKeys();
+			$actual   = array_values( array_unique( $deleted ) );
+			sort( $expected );
+			sort( $actual );
+
+			self::assertSame(
+				$expected,
+				$actual,
+				'Uninstall must delete every transient this plugin owns, for both catalogs, last-known-good flags included.'
+			);
+		}
+
+		/**
+		 * The fail-open fallback list must not drift from the catalog.
+		 *
+		 * uninstall.php keeps a hand-written copy of the key list for when the
+		 * autoloader is unavailable at uninstall time. That copy is exactly the
+		 * kind of thing that goes stale silently — nothing imports it, so
+		 * removing a key from Catalog leaves uninstall still "handling" a key
+		 * that no longer exists while forgetting one that does.
+		 *
+		 * @return void
+		 */
+		public function test_uninstall_fallback_key_list_matches_the_catalog(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
 			$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/uninstall.php' );
 
-			self::assertStringContainsString(
-				'allTransientKeys()',
+			$found = preg_match(
+				'/\$opencode_connector_avail_keys\s*=\s*array\((?P<keys>[^)]*)\);/',
 				$source,
-				'uninstall must keep deriving its delete list from Catalog::allTransientKeys(), which includes the last-known-good flags.'
+				$matches
 			);
+			self::assertSame( 1, $found, 'uninstall.php must keep a literal fallback key list for the no-autoloader case.' );
 
-			$transients = \OpenCodeConnector\Metadata\Catalog::allTransientKeys();
-			foreach ( array( 'go', 'zen' ) as $catalog ) {
-				self::assertContains(
-					'opencode_connector_avail_' . $catalog . '_last_good',
-					$transients,
-					'Uninstall must still remove the ' . $catalog . ' fallback.'
-				);
-			}
+			preg_match_all( "/'([^']+)'/", (string) $matches['keys'], $quoted );
+			$literals = $quoted[1];
+			$expected = \OpenCodeConnector\Metadata\Catalog::allTransientKeys();
+			sort( $literals );
+			sort( $expected );
+
+			self::assertSame(
+				$expected,
+				$literals,
+				'The fallback list is a hand-maintained copy of Catalog::allTransientKeys(). If it drifts, uninstall silently stops removing keys whenever the autoloader is unavailable.'
+			);
 		}
 	}
 }

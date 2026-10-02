@@ -308,9 +308,15 @@ namespace OpenCodeConnector\Tests\Unit {
 			// instead of two literals in the source. Assert the property, which
 			// is what the old literal check was standing in for — a guard that
 			// can only be satisfied by one spelling is a guard on the spelling.
-			$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/duoport-connect-for-opencode.php' );
-			self::assertStringContainsString( 'Catalog::allKeys(', $source );
-
+			//
+			// What the entry file DOES with that list is not asserted here, and
+			// used to be asserted by grepping the file for 'Catalog::allKeys('.
+			// That grep was unsound: the comment above the loop contains the same
+			// string, so swapping allKeys() for a narrower list dropped both
+			// catalogs' verification verdicts from the delete list and the suite
+			// stayed green. SlimBustHooksTest now calls the entry file's hook and
+			// asserts the deleted keys, which is the check that can actually
+			// fail. What remains here is the Catalog half it covers for us.
 			foreach ( array( 'go', 'zen' ) as $catalog ) {
 				$catalog_keys = \OpenCodeConnector\Metadata\Catalog::allKeys( $catalog );
 				self::assertContains( 'opencode_connector_verify_' . $catalog, $catalog_keys );

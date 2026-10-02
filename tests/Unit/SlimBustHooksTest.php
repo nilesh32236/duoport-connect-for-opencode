@@ -177,8 +177,6 @@ final class SlimBustHooksTest extends MonkeyTestCase {
 	 * Asserted on the delete hook because that is the trigger this PR added and
 	 * the one that fires on a key genuinely going away.
 	 *
-	 * @since 0.1.2
-	 *
 	 * @return void
 	 */
 	#[RunInSeparateProcess]

@@ -145,8 +145,6 @@ final class Catalog {
 	 * flag is a statement about the credential, and only an event that changes the
 	 * credential may drop it — a display setting does not.
 	 *
-	 * @since 0.1.6
-	 *
 	 * @param string $catalog Catalog slug.
 	 * @return list<string>
 	 */

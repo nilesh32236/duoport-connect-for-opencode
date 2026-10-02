@@ -421,13 +421,24 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		$probe_headers = 'go' === $this->catalog && class_exists( GoRequestHeaders::class )
 			? GoRequestHeaders::for_go( $base_headers, $probe_data )
 			: SessionHeader::inject_into_headers( $base_headers, $probe_data );
-		$req           = new Request(
-			HttpMethodEnum::POST(),
-			$cls::url( 'chat/completions' ),
-			$probe_headers,
-			$probe_data
-		);
 		try {
+			// Construction belongs INSIDE the try. `$cls::url()` is a static call
+			// on the provider class and HttpMethodEnum::POST() is a magic factory
+			// served by __callStatic, so a broken or half-installed SDK throws
+			// \Error or \BadMethodCallException here rather than returning a value
+			// that could be checked. verify() already guards that surface with an
+			// explicit method_exists/defined check for exactly this reason (see
+			// $surface_ok above); probe() had no equivalent, and building the
+			// request outside the try left this as the one path in the class that
+			// fails neither open nor closed — it escaped isConfigured() as an
+			// uncaught throwable and skipped the stampede-lock release below,
+			// leaving every later caller locked out for the lock's full TTL.
+			$req               = new Request(
+				HttpMethodEnum::POST(),
+				$cls::url( 'chat/completions' ),
+				$probe_headers,
+				$probe_data
+			);
 			$req               = $this->getRequestAuthentication()->authenticateRequest( $req );
 			$res               = $this->getHttpTransporter()->send( $req );
 			$data              = $res->getData();

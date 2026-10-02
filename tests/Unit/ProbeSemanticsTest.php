@@ -251,17 +251,21 @@ namespace OpenCodeConnector\Tests\Unit {
 		/**
 		 * What clears last-known-good, asserted by behaviour rather than shape.
 		 *
-		 * `DEFINITIVE_NEGATIVE_STATES` has no production reader: the probe
-		 * reaches `writeLastGood(false)` through its `else` branch, so the
-		 * constant today is declared, published, and tested only by a test.
-		 * That is fine for the constant's purpose — it names the states that
-		 * clear the flag — but it means nothing checks the *effect*.
+		 * This docblock used to claim `DEFINITIVE_NEGATIVE_STATES` has "no
+		 * production reader" on the grounds that the probe reached
+		 * `writeLastGood(false)` through an unconditional `else`. That stopped
+		 * being true in this PR: `applyLastGood()` now reads the bucket
+		 * directly, and only a member of it may clear the flag. The claim was
+		 * left behind by the change it was describing.
 		 *
-		 * So this pins the effect directly: a response the classifier places in
-		 * the definitive-negative bucket clears the flag, and every response it
-		 * does not place there leaves it alone. Derived from the constant rather
-		 * than a hardcoded list, so the constant gains a real reader in the test
-		 * without production code reading a bucket it does not need to branch on.
+		 * The reasoning it was built on is still why this spec exists. A bucket
+		 * read in production is only as good as the read, and a test that
+		 * asserts the constant's *contents* cannot tell a reader that ignores
+		 * it from one that honours it. So this pins the effect: a response the
+		 * classifier places in the definitive-negative bucket clears the flag,
+		 * and a response it does not place there leaves it alone. If
+		 * `applyLastGood()` ever regresses to an unconditional clear, the first
+		 * half of this test fails.
 		 *
 		 * @return void
 		 */
@@ -940,8 +944,6 @@ namespace OpenCodeConnector\Tests\Unit {
 		 * stampede lock, set runs inside the rolling last-known-good write, and
 		 * get runs before every probe.
 		 *
-		 * @since 0.1.7
-		 *
 		 * @return void
 		 */
 		#[RunInSeparateProcess]
@@ -975,8 +977,6 @@ namespace OpenCodeConnector\Tests\Unit {
 		/**
 		 * The rolling last-known-good write must not be fatal when the cache is.
 		 *
-		 * @since 0.1.7
-		 *
 		 * @return void
 		 */
 		#[RunInSeparateProcess]
@@ -1006,8 +1006,6 @@ namespace OpenCodeConnector\Tests\Unit {
 
 		/**
 		 * A cache read that throws must degrade to a miss, never to an exception.
-		 *
-		 * @since 0.1.7
 		 *
 		 * @return void
 		 */
