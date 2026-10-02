@@ -348,6 +348,146 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
+		 * The stampede lock is released AFTER the verdict is cached.
+		 *
+		 * Asserts the ORDER of the two writes, not the outcome. Releasing the
+		 * lock first leaves an instant in which neither the lock nor the cached
+		 * verdict covers the request, and a caller landing in it starts a full
+		 * duplicate probe round — two requests for one logical check, on the
+		 * retry path that is already two requests wide.
+		 *
+		 * A record of the call order is the only thing that can see this: both
+		 * writes happen, and the final state is identical either way.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_lock_is_released_after_the_verdict_is_cached(): void {
+			$this->boot();
+			$order = array();
+
+			// Every exit from probe() is covered: a drift verdict, a transient
+			// could-not-be-checked verdict, and a definitive keyed one.
+			$cases = array(
+				'drift 404'       => array( 404, array( 'error' => array( 'type' => 'model_not_found' ) ) ),
+				'uncheckable 500' => array( 500, null ),
+				'keyed 200'       => array( 200, null ),
+			);
+
+			foreach ( $cases as $label => $case ) {
+				list( $status, $data ) = $case;
+				$order                 = array();
+
+				Functions\when( 'get_transient' )->justReturn( false );
+				Functions\when( 'set_transient' )->alias(
+					static function ( string $key, mixed $value, int $ttl ) use ( &$order ): bool {
+						$order[] = 'set:' . ( str_ends_with( $key, '_lock' ) ? 'lock' : 'verdict' );
+						return true;
+					}
+				);
+				Functions\when( 'delete_transient' )->alias(
+					static function ( string $key ) use ( &$order ): bool {
+						$order[] = 'delete:' . ( str_ends_with( $key, '_lock' ) ? 'lock' : 'verdict' );
+						return true;
+					}
+				);
+				Functions\when( 'wp_rand' )->justReturn( 0 );
+
+				$availability = new OpenCodeProviderAvailability( 'go' );
+				$availability->setHttpTransporter( new UnknownDriftTransporter( new Response( $status, $data ) ) );
+				$availability->setRequestAuthentication( new DriftAuthentication() );
+				$availability->diagnose();
+
+				$set_verdict = array_search( 'set:verdict', $order, true );
+				$del_lock    = array_search( 'delete:lock', $order, true );
+				self::assertNotFalse( $set_verdict, $label . ': the verdict must be cached.' );
+				self::assertNotFalse( $del_lock, $label . ': the lock must be released.' );
+				self::assertLessThan(
+					$del_lock,
+					$set_verdict,
+					$label . ': the verdict must be cached BEFORE the lock is released, or an instant exists with neither.'
+				);
+			}
+		}
+
+		/**
+		 * verify() inherits the same drift retry as probe().
+		 *
+		 * The gap this closes is the change-and-its-evidence gap: verify() was
+		 * wired to probeModels() and isProbeModelDrift() in the previous commit
+		 * with no test, so the wiring could have been wrong in three ways and
+		 * nothing would have said so. Asserted behaviourally, not structurally.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_verify_retries_on_drift_and_reports_valid(): void {
+			$this->boot();
+
+			Functions\when( 'get_transient' )->justReturn( false );
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$transporter = new DriftQueueingTransporter(
+				array(
+					new Response( 401, array( 'error' => array( 'type' => 'ModelError' ) ) ),
+					new Response( 401, array( 'error' => array( 'type' => 'CreditsError' ) ) ),
+				)
+			);
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			$availability->setHttpTransporter( $transporter );
+			$availability->setRequestAuthentication( new DriftAuthentication() );
+
+			$verdict = $availability->verify();
+
+			self::assertSame( 2, count( $transporter->seen ), 'verify() must retry the second candidate on drift.' );
+			self::assertNotSame(
+				OpenCodeProviderAvailability::PROBE_MODEL,
+				$transporter->seen[1]->getData()['model'],
+				'The retry must use a different reviewed, paid allowlisted model.'
+			);
+			self::assertSame(
+				'valid',
+				$verdict['state'],
+				'A valid key with no balance verifies as valid; a retired probe model must not make it could-not-be-checked.'
+			);
+		}
+
+		/**
+		 * verify() does NOT retry when the first candidate is definitive.
+		 *
+		 * The counterweight: without it, a retry-on-everything bug would pass
+		 * the test above by always sending two requests.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_verify_does_not_retry_on_a_definitive_verdict(): void {
+			$this->boot();
+
+			Functions\when( 'get_transient' )->justReturn( false );
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$transporter = new DriftQueueingTransporter(
+				array( new Response( 401, array( 'error' => array( 'type' => 'InvalidApiKey' ) ) ) )
+			);
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			$availability->setHttpTransporter( $transporter );
+			$availability->setRequestAuthentication( new DriftAuthentication() );
+
+			$verdict = $availability->verify();
+
+			self::assertCount( 1, $transporter->seen, 'A definitive rejection must not cost a second request.' );
+			self::assertSame( 'invalid_key', $verdict['state'] );
+		}
+
+		/**
 		 * RATCHET: the state buckets stay disjoint and `unknown` fails open.
 		 *
 		 * `unknown` in the could-not-be-checked bucket is the bug fix in this PR.

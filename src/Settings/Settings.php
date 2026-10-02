@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Availability\ConnectionDiagnostics;
+use OpenCodeConnector\Availability\OpenCodeProviderAvailability;
 use WordPress\AiClient\AiClient;
 
 /**
@@ -198,8 +200,14 @@ final class Settings {
 	 */
 	private function fetchProviderStatus(): array {
 		$status = array(
-			'go'  => false,
-			'zen' => false,
+			'go'  => array(
+				'configured' => false,
+				'state'      => '',
+			),
+			'zen' => array(
+				'configured' => false,
+				'state'      => '',
+			),
 		);
 		if ( ! class_exists( AiClient::class ) || ! method_exists( AiClient::class, 'defaultRegistry' ) ) {
 			return $status;
@@ -214,9 +222,19 @@ final class Settings {
 			foreach ( \OpenCodeConnector\Metadata\Catalog::ALL as $catalog ) {
 				$provider_id = 'opencode-' . $catalog;
 				try {
-					$status[ $catalog ] = (bool) $registry->isProviderConfigured( $provider_id );
+					$configured         = (bool) $registry->isProviderConfigured( $provider_id );
+					$status[ $catalog ] = array(
+						'configured' => $configured,
+						// The verdict behind the boolean, read from the same
+						// transient the probe just wrote. probe() is cache-first,
+						// so this costs no additional HTTP request.
+						'state'      => $this->lastProbeState( $catalog ),
+					);
 				} catch ( \Throwable ) {
-					$status[ $catalog ] = false;
+					$status[ $catalog ] = array(
+						'configured' => false,
+						'state'      => '',
+					);
 				}
 			}
 		} catch ( \Throwable ) {
@@ -229,6 +247,55 @@ final class Settings {
 	}
 
 	/**
+	 * Read the cached probe verdict for a catalog, without probing.
+	 *
+	 * Returns an empty string when nothing is cached. An empty state is not
+	 * treated as connected by statusLabel(): it falls through exactly the way an
+	 * unrecognised state does.
+	 *
+	 * @param string $catalog Catalog slug.
+	 * @return string
+	 */
+	private function lastProbeState( string $catalog ): string {
+		try {
+			$availability = new OpenCodeProviderAvailability( $catalog );
+			return (string) ( $availability->getLastResult()['state'] ?? '' );
+		} catch ( \Throwable ) {
+			return '';
+		}
+	}
+
+	/**
+	 * The connection line for one catalog, driven by the probe verdict.
+	 *
+	 * A preserved last-known-good flag is not the same fact as a connection that
+	 * verified just now, so the two are rendered differently. Deciding this from
+	 * the bare boolean would report "connected" for every state the probe could
+	 * not interpret, including a state in no bucket at all.
+	 *
+	 * Positive membership tests on both sides, so a state nobody has classified
+	 * cannot reach the plain "connected" branch: it falls through to
+	 * "could not verify", or to "not connected" when there is no last-known-good.
+	 *
+	 * @param array<string, mixed> $status Status for one catalog.
+	 * @return string
+	 */
+	private function statusLabel( array $status ): string {
+		$state      = isset( $status['state'] ) && is_string( $status['state'] ) ? $status['state'] : '';
+		$configured = ! empty( $status['configured'] );
+		if ( in_array( $state, ConnectionDiagnostics::KEYED_STATES, true ) ) {
+			return __( 'connected', 'duoport-connect-for-opencode' );
+		}
+		if ( in_array( $state, ConnectionDiagnostics::DEFINITIVE_NEGATIVE_STATES, true ) ) {
+			return __( 'not connected', 'duoport-connect-for-opencode' );
+		}
+		if ( $configured ) {
+			return __( 'connected · could not verify', 'duoport-connect-for-opencode' );
+		}
+		return __( 'not connected', 'duoport-connect-for-opencode' );
+	}
+
+	/**
 	 * Render settings page.
 	 *
 	 * @since 0.1.0
@@ -238,8 +305,6 @@ final class Settings {
 	public function render(): void {
 		$opts   = get_option( \OpenCodeConnector\OPTION_NAME, array( 'show_all_models' => false ) );
 		$status = $this->fetchProviderStatus();
-		$go_ok  = $status['go'];
-		$zen_ok = $status['zen'];
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'DuoPort Connector', 'duoport-connect-for-opencode' ); ?></h1>
@@ -258,7 +323,7 @@ final class Settings {
 			<p>
 			<?php
 				/* translators: 1: Go connection status, 2: Zen connection status */
-				printf( esc_html__( 'Go: %1$s · Zen: %2$s', 'duoport-connect-for-opencode' ), $go_ok ? esc_html__( 'connected', 'duoport-connect-for-opencode' ) : esc_html__( 'not connected', 'duoport-connect-for-opencode' ), $zen_ok ? esc_html__( 'connected', 'duoport-connect-for-opencode' ) : esc_html__( 'not connected', 'duoport-connect-for-opencode' ) );
+				printf( esc_html__( 'Go: %1$s · Zen: %2$s', 'duoport-connect-for-opencode' ), esc_html( $this->statusLabel( $status['go'] ) ), esc_html( $this->statusLabel( $status['zen'] ) ) );
 			?>
 			</p>
 			<form method="post" action="options.php">

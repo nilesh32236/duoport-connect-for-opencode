@@ -92,21 +92,27 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 */
 	public function isConfigured(): bool {
 		$result = $this->probe();
-		$state  = isset( $result['state'] ) && is_string( $result['state'] ) ? $result['state'] : '';
-		// Definitive, keyed outcomes stay configured. `free_tier_limit` is a
-		// Zen free-tier quota stop, which is still a valid key.
+		$state  = $this->stateOf( $result );
 		if ( in_array( $state, ConnectionDiagnostics::KEYED_STATES, true ) ) {
 			return true;
 		}
-		// Could-not-be-checked outcomes fall back to last-known-good instead of
-		// flipping a valid key to not-connected during an outage. This bucket
-		// includes `unknown`: an unrecognised response reached the gateway, so it
-		// is not evidence about the credential, and returning false for it
-		// disconnected working keys whenever the upstream introduced a status.
-		if ( in_array( $state, ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES, true ) ) {
-			return $this->readLastGood();
+		// Only a definitive negative reports not configured. `free_tier_limit` is
+		// a Zen free-tier quota stop, which is still a valid key, so it is keyed.
+		if ( in_array( $state, ConnectionDiagnostics::DEFINITIVE_NEGATIVE_STATES, true ) ) {
+			return false;
 		}
-		return false;
+		// Everything else falls back to last-known-good: the could-not-be-checked
+		// bucket (5xx, transport failure, concurrent probe, a model-side 401, and
+		// `unknown`, which reached the gateway but said nothing about the key) AND
+		// any state in no bucket at all.
+		//
+		// That last clause is the point. Membership of COULD_NOT_BE_CHECKED_STATES
+		// is deliberately NOT tested here, because testing it would make an
+		// unbucketed state fall to `return false` — i.e. a state nobody classified
+		// would silently read as "not configured", which is the exact defect this
+		// change exists to remove. Failing open by omission is the safe direction
+		// for a state nobody has classified yet.
+		return $this->readLastGood();
 	}
 
 	/**
@@ -431,40 +437,37 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 				break;
 			}
 		}
-		$this->deleteCached( $lock_key );
-		$state = isset( $this->last_result['state'] ) && is_string( $this->last_result['state'] ) ? $this->last_result['state'] : '';
-		// Could-not-be-checked (5xx, transport failure, concurrent probe, or a
-		// response that says nothing about the key): never write the failure to
-		// last-known-good. The verdict is cached briefly so a persistent outage
-		// costs one probe per window instead of one per call, while
-		// isConfigured() keeps failing open.
-		if ( in_array( $state, ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES, true ) ) {
-			if ( $this->isProbeModelDrift( $this->last_result ) ) {
-				// Probe-model drift does not resolve in a minute: a retired model
-				// will not come back within this window, and the retry doubles the
-				// request count. A short cache here costs two paid probes a minute
-				// for as long as the drift lasts.
-				$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
-				$jitter = function_exists( 'wp_rand' ) ? wp_rand( -60, 60 ) : 0;
-				$this->setCached( $tkey, $this->last_result, max( 60, 5 * $minute + (int) $jitter ) );
-				return $this->last_result;
-			}
-			$second = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
-			$this->setCached( $tkey, $this->last_result, $second );
-			return $this->last_result;
-		}
-		// Definitive keyed outcomes refresh last-known-good. A Zen free-tier
-		// quota stop proves the key is valid, so it counts as a good result.
-		if ( in_array( $state, ConnectionDiagnostics::KEYED_STATES, true ) ) {
-			$this->writeLastGood( true );
-		} else {
-			$this->writeLastGood( false );
-		}
-		// Stagger expiry ±60s to avoid synchronized stampedes.
+		$state  = $this->stateOf( $this->last_result );
 		$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
 		$jitter = function_exists( 'wp_rand' ) ? wp_rand( -60, 60 ) : 0;
-		$ttl    = 5 * $minute + (int) $jitter;
-		$this->setCached( $tkey, $this->last_result, max( 60, $ttl ) );
+		// A settled drift verdict does not resolve in a minute: a retired model
+		// will not come back within that window, and the retry doubles the request
+		// count. A short window here costs two paid probes a minute for as long as
+		// the drift lasts.
+		$ttl = $this->isProbeModelDrift( $this->last_result )
+			? max( 60, 5 * $minute + (int) $jitter )
+			: $minute;
+
+		if ( in_array( $state, ConnectionDiagnostics::KEYED_STATES, true ) ) {
+			// Definitive keyed outcomes refresh last-known-good.
+			$this->writeLastGood( true );
+			$ttl = max( 60, 5 * $minute + (int) $jitter );
+		} elseif ( in_array( $state, ConnectionDiagnostics::DEFINITIVE_NEGATIVE_STATES, true ) ) {
+			$this->writeLastGood( false );
+			$ttl = max( 60, 5 * $minute + (int) $jitter );
+		}
+		// Anything else leaves last-known-good UNTOUCHED, including a state in no
+		// bucket at all. Clearing the flag on a state nobody classified would
+		// disconnect a working key by omission, which is the defect this code
+		// path exists to prevent, so the write is a positive membership test on
+		// both sides and the default is to change nothing.
+
+		// Cache the verdict BEFORE releasing the stampede lock. Releasing first
+		// leaves an instant in which neither the lock nor the cached verdict
+		// covers the request, and a caller landing in it starts a full duplicate
+		// probe round — two requests, twice the spend, for one logical check.
+		$this->setCached( $tkey, $this->last_result, $ttl );
+		$this->deleteCached( $lock_key );
 		return $this->last_result;
 	}
 
