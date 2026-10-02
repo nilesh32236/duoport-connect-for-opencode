@@ -525,7 +525,14 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
-		 * The last-known-good window is absolute, not rolling.
+		 * The last-known-good window is rolling, and this pins that.
+		 *
+		 * The title used to read "absolute, not rolling" — the exact
+		 * implementation this PR reverted — while the body below described the
+		 * rolling behaviour the assertions actually check. A docblock that
+		 * contradicts the test under it is worse than no docblock: it tells the
+		 * next maintainer that the reverted variant is the intended one, and
+		 * that reader has no way to tell from the title alone.
 		 *
 		 * This pins the SEMANTICS, not the write count. A write count cannot
 		 * tell a rolling window from an absolute one, which is how an absolute
@@ -625,11 +632,15 @@ namespace OpenCodeConnector\Tests\Unit {
 		/**
 		 * A keyed success refreshes an already-set last-known-good flag.
 		 *
-		 * This looks like a wasteful rewrite and is not: `set_transient()` has no
-		 * equality short-circuit in WP core, so writing the flag on every keyed
-		 * probe is an options-row UPDATE about every five minutes per catalog.
-		 * That UPDATE is what pushes the 30-day window forward, and rolling is the
-		 * guarantee the whole fail-open rests on — see
+		 * This looks like a wasteful rewrite and is not: on the default path
+		 * `set_transient()` writes `_transient_*` rows with a raw UPDATE and no
+		 * equality short-circuit, so writing the flag on every keyed probe is
+		 * an options-row UPDATE about every five minutes per catalog. (Under a
+		 * persistent object cache `set_transient()` short-circuits to
+		 * `wp_cache_set()` and the cost is zero — the full reasoning is on
+		 * `writeLastGood()`, which is where the decision is justified.)
+		 * That UPDATE is what pushes the 30-day window forward, and rolling is
+		 * the guarantee the whole fail-open rests on — see
 		 * `test_last_known_good_window_is_refreshed_while_the_key_keeps_working`
 		 * and the docblock on `writeLastGood()`.
 		 *

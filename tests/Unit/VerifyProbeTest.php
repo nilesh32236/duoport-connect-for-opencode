@@ -302,9 +302,20 @@ namespace OpenCodeConnector\Tests\Unit {
 				self::assertStringNotContainsString( 'connectors_ai_', (string) ( $call[0] ?? '' ) );
 			}
 
+			// The plugin file's per-catalog delete list derives each catalog's
+			// verify keys from the catalog slug rather than hard-coding them, so
+			// "both catalogs are covered" is now a property of Catalog::allKeys()
+			// instead of two literals in the source. Assert the property, which
+			// is what the old literal check was standing in for — a guard that
+			// can only be satisfied by one spelling is a guard on the spelling.
 			$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/duoport-connect-for-opencode.php' );
-			self::assertStringContainsString( 'opencode_connector_verify_go', $source );
-			self::assertStringContainsString( 'opencode_connector_verify_zen', $source );
+			self::assertStringContainsString( 'Catalog::allKeys(', $source );
+
+			foreach ( array( 'go', 'zen' ) as $catalog ) {
+				$catalog_keys = \OpenCodeConnector\Metadata\Catalog::allKeys( $catalog );
+				self::assertContains( 'opencode_connector_verify_' . $catalog, $catalog_keys );
+				self::assertContains( 'opencode_connector_verify_' . $catalog . '_lock', $catalog_keys );
+			}
 		}
 
 		/**

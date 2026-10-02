@@ -98,7 +98,23 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		if ( in_array( $state, ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES, true ) ) {
 			return $this->readLastGood();
 		}
-		return false;
+		// Definitive negatives are the only states that may report
+		// not-configured: `invalid_key` is a proven bad credential and
+		// `not_configured` is a proven missing one. Both have adjudicated the
+		// credential, which is what earns them the right to end the call false.
+		if ( in_array( $state, ConnectionDiagnostics::DEFINITIVE_NEGATIVE_STATES, true ) ) {
+			return false;
+		}
+		// Everything else is in NO bucket. This used to be a bare `return false`,
+		// which read as "unknown state, so assume the worst" — the same
+		// fail-closed assumption applyLastGood() was just hardened against, and
+		// it was the last one standing. The buckets are exhaustive over today's
+		// vocabulary, so this is currently unreachable, which is exactly why it
+		// was harmless and exactly when it would be reached: the day someone adds
+		// a state without giving it a bucket. Fail open on whatever the flag
+		// says, for the same reason the flag survives: a state that adjudicated
+		// nothing is not evidence against the credential.
+		return $this->readLastGood();
 	}
 
 	/**
@@ -521,12 +537,23 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * counting down only from the last real confirmation.
 	 *
 	 * The cost is one options-row UPDATE per keyed probe, about every five
-	 * minutes per catalog for the life of the install, because WP core's
-	 * `set_transient()` has no equality short-circuit. That write is the
-	 * accepted price of the guarantee above, not an oversight. If it ever
-	 * needs to be avoided, the fix belongs at the storage layer (an
-	 * equality check that still extends the TTL), never at the cost of the
-	 * rolling behaviour.
+	 * minutes per catalog for the life of the install — and that figure is
+	 * conditional, not universal. WP core's `set_transient()` branches on
+	 * `wp_using_ext_object_cache()`: on a site with a persistent object cache
+	 * (Redis, Memcached) it returns through `wp_cache_set()` and writes no
+	 * options row at all, so the database cost is zero there. Only the default
+	 * path, which writes `_transient_*` rows with a raw UPDATE and no equality
+	 * short-circuit, pays it. The earlier version of this paragraph stated the
+	 * cost as if it were unconditional, which is wrong for the majority of
+	 * production sites and was offered as support for a decision that does not
+	 * depend on it.
+	 *
+	 * The decision does not depend on the cost. Rolling is required for
+	 * correctness; the price is what it happens to be on the sites that pay it.
+	 * That write is the accepted price of the guarantee above, not an
+	 * oversight. If it ever needs to be avoided, the fix belongs at the storage
+	 * layer (an equality check that still extends the TTL), never at the cost of
+	 * the rolling behaviour.
 	 *
 	 * Clearing is unaffected: the first definitive negative deletes the flag
 	 * outright and immediately, so a genuinely revoked key is never held open

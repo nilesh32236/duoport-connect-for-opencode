@@ -225,5 +225,86 @@ namespace OpenCodeConnector\Tests\Unit {
 				'A proven invalid key must still clear the flag — that is what lets a revoked key go at once.'
 			);
 		}
+
+		/**
+		 * isConfigured() fails OPEN on a state in no bucket.
+		 *
+		 * This is the last fail-closed decision point, and it was left standing
+		 * while its sibling in applyLastGood() was hardened. Both ask the same
+		 * question — what should a state that adjudicated nothing mean? — and
+		 * the answers were `true`/`false` respectively. `applyLastGood()`'s own
+		 * docblock argues that a state outside every bucket must never be read
+		 * as evidence against the credential; `isConfigured()` was doing
+		 * precisely that, one call away.
+		 *
+		 * The state here is synthetic and deliberately unbucketed, because no
+		 * real one is — the buckets are exhaustive over today's vocabulary, and
+		 * that is exactly what made the bare `return false` read as harmless
+		 * rather than as a landmine for the next state someone adds.
+		 *
+		 * The control assertion is load-bearing for the same reason as the one
+		 * on the applyLastGood() test: without it, "an unbucketed state returns
+		 * true" would also be satisfied by an isConfigured() that always returns
+		 * true, which is not the contract and would never report a revoked key.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_is_configured_fails_open_on_a_state_in_no_bucket(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			$result_key = Catalog::AVAIL_PREFIX . 'go';
+			$flag_key   = Catalog::AVAIL_PREFIX . 'go' . Catalog::LAST_GOOD_SUFFIX;
+
+			$unbucketed = 'synthetic_state_in_no_bucket';
+			foreach (
+				array(
+					'KEYED_STATES'                => ConnectionDiagnostics::KEYED_STATES,
+					'DEFINITIVE_NEGATIVE_STATES'  => ConnectionDiagnostics::DEFINITIVE_NEGATIVE_STATES,
+					'COULD_NOT_BE_CHECKED_STATES' => ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES,
+				) as $name => $bucket
+			) {
+				self::assertNotContains(
+					$unbucketed,
+					$bucket,
+					'This test is only meaningful while the state is in no bucket.'
+				);
+			}
+
+			// Seed the cached probe result directly: probe() returns a cached array
+			// verbatim, which is how a synthetic state can be fed through the
+			// real public path without a classifier that cannot produce it.
+			$serve = static function ( array $result, bool $flag ) use ( $result_key, $flag_key ): callable {
+				return static function ( string $key ) use ( $result, $flag, $result_key, $flag_key ): mixed {
+					if ( $key === $result_key ) {
+						return $result;
+					}
+					return $flag_key === $key && $flag ? 1 : false;
+				};
+			};
+
+			Functions\when( 'get_transient' )->alias(
+				$serve( array( 'state' => $unbucketed ), true )
+			);
+			$armed = new OpenCodeProviderAvailability( 'go' );
+
+			self::assertTrue(
+				$armed->isConfigured(),
+				'A state in no bucket has adjudicated nothing, so it must not silently mean "not configured".'
+			);
+
+			// Control: a proven negative still reports false, or the assertion
+			// above proves nothing.
+			Functions\when( 'get_transient' )->alias(
+				$serve( array( 'state' => 'invalid_key' ), true )
+			);
+			$revoked = new OpenCodeProviderAvailability( 'go' );
+
+			self::assertFalse(
+				$revoked->isConfigured(),
+				'A proven invalid key must still report not-configured even with an armed flag.'
+			);
+		}
 	}
 }

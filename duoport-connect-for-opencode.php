@@ -170,12 +170,31 @@ add_action(
 // valid keys were rejected with "It was not possible to connect to the
 // provider using this key." Separate settings keep every validation against
 // the real submitted key.
-$opencode_connector_bust = static function (): void {
-	// Single source of truth: Metadata\Catalog::allTransientKeys() (a
-	// dependency-free class safe to load without SDK traits). Fallback
-	// literals below run only when the class cannot autoload.
-	if ( class_exists( Metadata\Catalog::class ) && method_exists( Metadata\Catalog::class, 'allTransientKeys' ) ) {
-		foreach ( Metadata\Catalog::allTransientKeys() as $opencode_connector_key ) {
+// Busts ONLY the transients for the connector whose option fired the hook.
+//
+// Scoped per catalog on purpose. The delete list used to be
+// Catalog::allTransientKeys(), which is every key for both catalogs — correct
+// for uninstall.php, wrong here. Both connectors' last-known-good flags are
+// independent 30-day fail-open fallbacks, so deleting or rotating the Go key
+// also destroyed Zen's. Since `unknown` never re-arms the flag, a Zen gateway
+// currently answering 400/402/403/404 lost its fallback permanently and Zen
+// reported not-configured until a *keyed* response arrived — this PR's exact
+// defect, reached through a sibling's key rotation.
+//
+// WP passes the option name as the first argument on all three of
+// `add_option_{$option}`, `update_option_{$option}` and `delete_option_{$option}`.
+$opencode_connector_bust = static function ( string $opencode_connector_option = '' ): void {
+	if ( ! str_contains( $opencode_connector_option, '_go_' ) && ! str_contains( $opencode_connector_option, '_zen_' ) ) {
+		// Not a connector key this closure is registered for. Deleting both
+		// catalogs here would reintroduce the over-bust this scoping removes.
+		return;
+	}
+	$opencode_connector_catalog = str_contains( $opencode_connector_option, '_zen_' ) ? 'zen' : 'go';
+	// Single source of truth: Metadata\Catalog::allKeys() (a dependency-free
+	// class safe to load without SDK traits). Fallback literals below run only
+	// when the class cannot autoload.
+	if ( class_exists( Metadata\Catalog::class ) && method_exists( Metadata\Catalog::class, 'allKeys' ) ) {
+		foreach ( Metadata\Catalog::allKeys( $opencode_connector_catalog ) as $opencode_connector_key ) {
 			delete_transient( $opencode_connector_key );
 			if ( function_exists( 'delete_site_transient' ) ) {
 				delete_site_transient( $opencode_connector_key );
@@ -184,18 +203,14 @@ $opencode_connector_bust = static function (): void {
 		unset( $opencode_connector_key );
 		return;
 	}
+	$opencode_connector_base = 'opencode_connector_avail_' . $opencode_connector_catalog;
 	foreach (
 		array(
-			'opencode_connector_avail_go',
-			'opencode_connector_avail_zen',
-			'opencode_connector_avail_go_lock',
-			'opencode_connector_avail_zen_lock',
-			'opencode_connector_avail_go_last_good',
-			'opencode_connector_avail_zen_last_good',
-			'opencode_connector_verify_go',
-			'opencode_connector_verify_zen',
-			'opencode_connector_verify_go_lock',
-			'opencode_connector_verify_zen_lock',
+			$opencode_connector_base,
+			$opencode_connector_base . '_lock',
+			$opencode_connector_base . '_last_good',
+			'opencode_connector_verify_' . $opencode_connector_catalog,
+			'opencode_connector_verify_' . $opencode_connector_catalog . '_lock',
 		) as $opencode_connector_key
 	) {
 		delete_transient( $opencode_connector_key );
@@ -203,7 +218,7 @@ $opencode_connector_bust = static function (): void {
 			delete_site_transient( $opencode_connector_key );
 		}
 	}
-	unset( $opencode_connector_key );
+	unset( $opencode_connector_key, $opencode_connector_base );
 };
 foreach ( array( 'connectors_ai_opencode_go_api_key', 'connectors_ai_opencode_zen_api_key' ) as $opencode_connector_setting ) {
 	add_action( 'update_option_' . $opencode_connector_setting, $opencode_connector_bust );
