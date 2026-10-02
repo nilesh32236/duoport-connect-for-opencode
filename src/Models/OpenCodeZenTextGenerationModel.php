@@ -16,6 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Metadata\ModelAllowlist;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
 
 /**
@@ -39,9 +40,11 @@ final class OpenCodeZenTextGenerationModel extends AbstractOpenCodeTextGeneratio
 	/**
 	 * Curated same-catalog, same-endpoint fallback for tool requests.
 	 *
+	 * @since 0.1.5
+	 *
 	 * @return array<int, string>
 	 */
 	protected function fallback_model_ids(): array {
-		return array( \OpenCodeConnector\Metadata\ModelAllowlist::ZEN_TOOL_FALLBACK );
+		return array( ModelAllowlist::ZEN_TOOL_FALLBACK );
 	}
 }

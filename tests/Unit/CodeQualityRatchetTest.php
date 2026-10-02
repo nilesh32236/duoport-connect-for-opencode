@@ -80,6 +80,86 @@ final class CodeQualityRatchetTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * Product code must not carry WordPress-present guards around __().
+	 *
+	 * The providers wrapped every translated string in
+	 * `function_exists( '__' )` with an untranslated English fallback. In a
+	 * WordPress plugin __() always exists, so the guard only existed for
+	 * SDK-free tests (Brain Monkey provides __()), and a genuinely missing
+	 * translation silently returned English with no signal.
+	 *
+	 * @since 0.1.8
+	 */
+	public function test_provider_strings_call_translation_directly(): void {
+		$root = dirname( __DIR__, 2 );
+
+		foreach ( array( 'OpenCodeGoProvider.php', 'OpenCodeZenProvider.php' ) as $file ) {
+			$source = (string) file_get_contents( $root . '/src/Providers/' . $file );
+
+			self::assertStringNotContainsString(
+				"function_exists( '__' )",
+				$source,
+				$file . ' must call __() directly; the guard ships test scaffolding as product code.'
+			);
+			self::assertStringContainsString(
+				"__( 'OpenCode",
+				$source,
+				$file . ' must keep its user-facing strings translated.'
+			);
+		}
+	}
+
+	/**
+	 * The availability class must use one cache-bust implementation.
+	 *
+	 * verify() re-implemented raw transient access with inline try/catch while
+	 * probe() used the guarded helpers, so the fail-open rule existed twice in
+	 * one class and could diverge. Every transient write in this class must go
+	 * through the helpers.
+	 *
+	 * @since 0.1.8
+	 */
+	public function test_availability_transients_go_through_the_guarded_helpers(): void {
+		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Availability/OpenCodeProviderAvailability.php' );
+
+		foreach ( array( 'get_transient', 'set_transient', 'delete_transient' ) as $call ) {
+			self::assertSame(
+				1,
+				substr_count( $source, "function_exists( '" . $call . "' )" ),
+				$call . ' must be reached through exactly one guarded helper.'
+			);
+		}
+		self::assertStringContainsString( '$this->read_cached(', $source );
+		self::assertStringContainsString( '$this->write_cached(', $source );
+		self::assertStringContainsString( '$this->delete_cached(', $source );
+		self::assertStringNotContainsString(
+			'unset( $',
+			$source,
+			'The unset( $exception ) idiom silences nothing: PHP does not warn on unused catch bindings.'
+		);
+	}
+
+	/**
+	 * The PSR-4 loader must confine resolution to the plugin directory.
+	 *
+	 * It is the one place in src/ that turns a class name into a filesystem
+	 * path, so the resolved path is checked for containment.
+	 *
+	 * @since 0.1.8
+	 */
+	public function test_autoloader_confines_resolution_to_the_plugin_directory(): void {
+		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/autoload.php' );
+
+		self::assertStringContainsString( 'realpath(', $source, 'The loader must resolve the candidate path before requiring it.' );
+		self::assertStringContainsString(
+			'str_starts_with( $file, $base . DIRECTORY_SEPARATOR )',
+			$source,
+			'The loader must reject a resolved path outside the plugin directory.'
+		);
+		self::assertStringNotContainsString( "if ( file_exists( \$file ) ) {", $source );
+	}
+
+	/**
 	 * The shared Go header helper is the single text/image header seam.
 	 */
 	public function test_text_and_image_models_share_go_header_helper(): void {

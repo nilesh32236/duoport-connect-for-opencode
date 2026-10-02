@@ -16,6 +16,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Metadata\Catalog;
+use OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory;
+use OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory;
 use WordPress\AiClient\AiClient;
 
 /**
@@ -75,8 +78,8 @@ final class Settings {
 	 */
 	public function bustCaches( $old_value, $new_value ): void {
 		if ( ( $old_value['show_all_models'] ?? false ) !== ( $new_value['show_all_models'] ?? false ) ) {
-			$this->clearModelCaches();
-			$this->clearAvailabilityCaches();
+			self::clearModelCaches();
+			self::clearAvailabilityCaches();
 		}
 	}
 
@@ -91,8 +94,8 @@ final class Settings {
 	 */
 	public function bustCachesAdd( string $option, $value ): void {
 		unset( $option, $value );
-		$this->clearModelCaches();
-		$this->clearAvailabilityCaches();
+		self::clearModelCaches();
+		self::clearAvailabilityCaches();
 	}
 
 	/**
@@ -112,7 +115,7 @@ final class Settings {
 	 * @return void
 	 */
 	public static function clearAvailabilityCaches(): void {
-		foreach ( \OpenCodeConnector\Metadata\Catalog::allTransientKeys() as $key ) {
+		foreach ( Catalog::allTransientKeys() as $key ) {
 			delete_transient( $key );
 			if ( function_exists( 'delete_site_transient' ) ) {
 				delete_site_transient( $key );
@@ -123,14 +126,18 @@ final class Settings {
 	/**
 	 * Clear model caches.
 	 *
+	 * Static and public for the same reason as clearAvailabilityCaches(): both
+	 * halves of the cache-bust pair are reachable from the same call sites,
+	 * including static ones.
+	 *
 	 * @since 0.1.0
 	 *
 	 * @return void
 	 */
-	private function clearModelCaches(): void {
+	public static function clearModelCaches(): void {
 		$classes = array(
-			\OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory::class,
-			\OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory::class,
+			OpenCodeGoModelMetadataDirectory::class,
+			OpenCodeZenModelMetadataDirectory::class,
 		);
 		$cache   = null;
 		if ( class_exists( AiClient::class ) && method_exists( AiClient::class, 'getCache' ) ) {
@@ -141,7 +148,7 @@ final class Settings {
 			}
 		}
 		foreach ( $classes as $cls ) {
-			$full_key = $this->modelCacheKey( $cls );
+			$full_key = self::modelCacheKey( $cls );
 			if ( is_object( $cache ) && method_exists( $cache, 'delete' ) ) {
 				$cache->delete( $full_key );
 			}
@@ -170,7 +177,7 @@ final class Settings {
 	 * @param string $class_name FQCN.
 	 * @return string
 	 */
-	private function modelCacheKey( string $class_name ): string {
+	private static function modelCacheKey( string $class_name ): string {
 		$ai_version = defined( AiClient::class . '::VERSION' ) ? AiClient::VERSION : '0.0.0';
 		return 'ai_client_' . $ai_version . '_' . md5( $class_name ) . '_models';
 	}
@@ -211,7 +218,7 @@ final class Settings {
 			}
 			// Use non-blocking check: transient-backed isConfigured() already has
 			// stampede lock + jitter; avoid double HTTP on render by tolerating exceptions.
-			foreach ( \OpenCodeConnector\Metadata\Catalog::ALL as $catalog ) {
+			foreach ( Catalog::ALL as $catalog ) {
 				$provider_id = 'opencode-' . $catalog;
 				try {
 					$status[ $catalog ] = (bool) $registry->isProviderConfigured( $provider_id );

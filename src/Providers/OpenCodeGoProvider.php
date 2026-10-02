@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Metadata\Catalog;
+
 /**
  * OpenCode Go provider (subscription catalog).
  *
@@ -42,7 +44,7 @@ final class OpenCodeGoProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function catalogKey(): string {
-		return \OpenCodeConnector\Metadata\Catalog::GO;
+		return Catalog::GO;
 	}
 
 	/**
@@ -53,10 +55,7 @@ final class OpenCodeGoProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function displayName(): string {
-		if ( function_exists( '__' ) ) {
-			return __( 'OpenCode Go', 'duoport-connect-for-opencode' );
-		}
-		return 'OpenCode Go';
+		return __( 'OpenCode Go', 'duoport-connect-for-opencode' );
 	}
 
 	/**
@@ -67,10 +66,7 @@ final class OpenCodeGoProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function description(): string {
-		if ( function_exists( '__' ) ) {
-			return __( 'Text generation with OpenCode Go.', 'duoport-connect-for-opencode' );
-		}
-		return 'Text generation with OpenCode Go.';
+		return __( 'Text generation with OpenCode Go.', 'duoport-connect-for-opencode' );
 	}
 
 	/**
@@ -81,6 +77,6 @@ final class OpenCodeGoProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function baseUrl(): string {
-		return \OpenCodeConnector\Metadata\Catalog::baseUrl( \OpenCodeConnector\Metadata\Catalog::GO );
+		return Catalog::baseUrl( Catalog::GO );
 	}
 }

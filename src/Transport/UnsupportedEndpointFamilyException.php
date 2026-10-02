@@ -3,6 +3,7 @@
  * Exception for unsupported OpenCode endpoint families.
  *
  * @package OpenCodeConnector
+ * @since 0.1.5
  */
 
 declare(strict_types=1);
@@ -15,6 +16,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Raised before transport when a model has no verified endpoint route.
+ *
+ * @package OpenCodeConnector
+ * @since 0.1.5
  */
 final class UnsupportedEndpointFamilyException extends \RuntimeException {
 }

@@ -69,7 +69,16 @@ final class ToolPassthroughTestModel extends AbstractOpenCodeTextGenerationModel
 	protected function providerClass(): string {
 		return 'zen' === $this->catalog ? OpenCodeZenProvider::class : OpenCodeGoProvider::class;
 	}
-	public function metadata(): object {
+	/**
+	 * Explicit SDK-style metadata accessor.
+	 *
+	 * Named deliberately: the resolver only calls declared accessors, so an
+	 * unrelated zero-argument method can never be invoked and its return value
+	 * misread as model metadata.
+	 *
+	 * @return object Metadata stand-in.
+	 */
+	public function getModelMetadata(): object {
 		return new ToolPassthroughFakeMetadata( $this->model_id );
 	}
 	public function expose_prepare_tools( array $declarations ): array {

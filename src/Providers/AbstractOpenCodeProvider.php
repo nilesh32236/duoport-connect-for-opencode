@@ -17,6 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use OpenCodeConnector\Availability\OpenCodeProviderAvailability;
+use OpenCodeConnector\Metadata\Catalog;
 use OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory;
 use OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory;
 use OpenCodeConnector\Models\OpenCodeGoImageGenerationModel;
@@ -138,7 +139,7 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * @return string Model class FQCN.
 	 */
 	private static function modelClassFor( string $family ): string {
-		$is_go = \OpenCodeConnector\Metadata\Catalog::GO === static::catalogKey();
+		$is_go = Catalog::GO === static::catalogKey();
 		if ( 'image' === $family ) {
 			return $is_go ? OpenCodeGoImageGenerationModel::class : OpenCodeZenImageGenerationModel::class;
 		}
@@ -277,7 +278,7 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * @return string Directory class FQCN.
 	 */
 	private static function directoryClassFor(): string {
-		return \OpenCodeConnector\Metadata\Catalog::GO === static::catalogKey()
+		return Catalog::GO === static::catalogKey()
 			? OpenCodeGoModelMetadataDirectory::class
 			: OpenCodeZenModelMetadataDirectory::class;
 	}

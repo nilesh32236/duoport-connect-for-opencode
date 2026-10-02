@@ -3,6 +3,7 @@
  * Explicit endpoint-family routing for verified model records.
  *
  * @package OpenCodeConnector
+ * @since 0.1.5
  */
 
 declare(strict_types=1);
@@ -17,6 +18,9 @@ use OpenCodeConnector\Metadata\ModelRegistry;
 
 /**
  * Resolves only reviewed endpoint families and paths.
+ *
+ * @package OpenCodeConnector
+ * @since 0.1.5
  */
 final class EndpointRoute {
 
@@ -29,10 +33,14 @@ final class EndpointRoute {
 	 * and provider-specific transports remain denied until their payload,
 	 * parser, and authentication contracts are complete.
 	 *
+	 * The key is `ModelRegistry::IMPLEMENTED_FAMILY`, the one place the
+	 * implemented family is named, so this map and the selector's admission
+	 * rule (`CapabilityAwareFallback`) cannot drift apart.
+	 *
 	 * @var array<string, string>
 	 */
 	private const PATHS = array(
-		'chat' => 'chat/completions',
+		ModelRegistry::IMPLEMENTED_FAMILY => 'chat/completions',
 	);
 
 	/**
@@ -41,6 +49,8 @@ final class EndpointRoute {
 	 * The registry sentinel means "this model's documented family is not
 	 * implemented", which is a different fact from a named family, so it gets
 	 * its own message instead of quoting the sentinel back to the caller.
+	 *
+	 * @since 0.1.5
 	 *
 	 * @param string $kind Endpoint family name.
 	 * @return never
@@ -64,6 +74,8 @@ final class EndpointRoute {
 	/**
 	 * Resolve a model record's endpoint kind or fail before transport.
 	 *
+	 * @since 0.1.5
+	 *
 	 * @param string $model_id Model ID.
 	 * @param string $catalog  Catalog slug.
 	 * @return string
@@ -84,6 +96,8 @@ final class EndpointRoute {
 	/**
 	 * Resolve a path for a model.
 	 *
+	 * @since 0.1.5
+	 *
 	 * @param string $model_id Model ID.
 	 * @param string $catalog  Catalog slug.
 	 * @return string
@@ -95,6 +109,8 @@ final class EndpointRoute {
 
 	/**
 	 * Return a path for a known endpoint kind.
+	 *
+	 * @since 0.1.5
 	 *
 	 * @param string $kind Endpoint kind.
 	 * @return string

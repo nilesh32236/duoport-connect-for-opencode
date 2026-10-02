@@ -212,10 +212,15 @@ final class ImageAttachmentSaver {
 				);
 		}
 
-		if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
+		// Metadata generation is an enhancement, not a precondition: the media
+		// include is only present in wp-admin, so a REST or cron context skips
+		// it instead of depending on the admin bootstrap being on disk.
+		if ( ! function_exists( 'wp_generate_attachment_metadata' ) && file_exists( ABSPATH . 'wp-admin/includes/image.php' ) ) {
 			require_once ABSPATH . 'wp-admin/includes/image.php';
 		}
-		wp_update_attachment_metadata( (int) $attachment_id, wp_generate_attachment_metadata( (int) $attachment_id, (string) $upload['file'] ) );
+		if ( function_exists( 'wp_generate_attachment_metadata' ) ) {
+			wp_update_attachment_metadata( (int) $attachment_id, wp_generate_attachment_metadata( (int) $attachment_id, (string) $upload['file'] ) );
+		}
 
 		return (int) $attachment_id;
 	}

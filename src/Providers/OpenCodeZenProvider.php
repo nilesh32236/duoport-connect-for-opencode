@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Metadata\Catalog;
+
 /**
  * OpenCode Zen provider (pay-as-you-go catalog including free models).
  *
@@ -42,7 +44,7 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function catalogKey(): string {
-		return \OpenCodeConnector\Metadata\Catalog::ZEN;
+		return Catalog::ZEN;
 	}
 
 	/**
@@ -53,10 +55,7 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function displayName(): string {
-		if ( function_exists( '__' ) ) {
-			return __( 'OpenCode Zen', 'duoport-connect-for-opencode' );
-		}
-		return 'OpenCode Zen';
+		return __( 'OpenCode Zen', 'duoport-connect-for-opencode' );
 	}
 
 	/**
@@ -67,10 +66,7 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function description(): string {
-		if ( function_exists( '__' ) ) {
-			return __( 'Text generation with OpenCode Zen, including free models.', 'duoport-connect-for-opencode' );
-		}
-		return 'Text generation with OpenCode Zen, including free models.';
+		return __( 'Text generation with OpenCode Zen, including free models.', 'duoport-connect-for-opencode' );
 	}
 
 	/**
@@ -81,6 +77,6 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function baseUrl(): string {
-		return \OpenCodeConnector\Metadata\Catalog::baseUrl( \OpenCodeConnector\Metadata\Catalog::ZEN );
+		return Catalog::baseUrl( Catalog::ZEN );
 	}
 }

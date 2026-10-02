@@ -18,6 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use OpenCodeConnector\Http\GoRequestHeaders;
 use OpenCodeConnector\Metadata\CapabilityAwareFallback;
+use OpenCodeConnector\Metadata\Catalog;
 use OpenCodeConnector\Metadata\ModelRegistry;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
@@ -108,32 +109,37 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
 		$cls               = $this->providerClass();
 		$prepared_model_id = $this->prepared_route_model_id;
-		$model_id          = null !== $prepared_model_id ? $prepared_model_id : $this->route_model_id();
-		$catalog           = $this->catalog_key_for_tool_gate();
-		if ( '' === $model_id || '' === $catalog ) {
-			throw new UnsupportedEndpointFamilyException( 'Model route metadata is unavailable.' );
+		try {
+			$model_id = null !== $prepared_model_id ? $prepared_model_id : $this->route_model_id();
+			$catalog  = $this->catalog_key_for_tool_gate();
+			if ( '' === $model_id || '' === $catalog ) {
+				throw new UnsupportedEndpointFamilyException( 'Model route metadata is unavailable.' );
+			}
+			$capability = null !== $prepared_model_id || ( is_array( $data ) && ! empty( $data['tools'] ) ) ? 'tools' : 'text';
+			$selection  = $this->fallbackSelector()->select(
+				$catalog,
+				$model_id,
+				$capability,
+				$this->fallback_model_ids()
+			);
+			if ( ! is_string( $selection['selected_id'] ?? null ) ) {
+				throw new UnsupportedEndpointFamilyException( 'No verified model candidate is available for this route.' );
+			}
+			$model_id = $selection['selected_id'];
+			if ( is_array( $data ) ) {
+				$data['model'] = $model_id;
+			}
+			$path = EndpointRoute::pathForModel( $model_id, $catalog );
+			if ( OpenCodeGoProvider::class === $cls ) {
+				$headers = GoRequestHeaders::for_go( $headers, $data );
+			}
+			return new Request( $method, $cls::url( $path ), $headers, $data, $this->getRequestOptions() );
+		} finally {
+			// One request's prepared fallback must never leak into the next
+			// request, not even when this one throws: a stale id would force the
+			// tools capability and bypass normal route resolution.
+			$this->prepared_route_model_id = null;
 		}
-		$capability = null !== $prepared_model_id || ( is_array( $data ) && ! empty( $data['tools'] ) ) ? 'tools' : 'text';
-		$selection  = $this->fallbackSelector()->select(
-			$catalog,
-			$model_id,
-			$capability,
-			$this->fallback_model_ids()
-		);
-		if ( ! is_string( $selection['selected_id'] ?? null ) ) {
-			throw new UnsupportedEndpointFamilyException( 'No verified model candidate is available for this route.' );
-		}
-		$model_id = $selection['selected_id'];
-		if ( is_array( $data ) ) {
-			$data['model'] = $model_id;
-		}
-		$path = EndpointRoute::pathForModel( $model_id, $catalog );
-		if ( OpenCodeGoProvider::class === $cls ) {
-			$headers = GoRequestHeaders::for_go( $headers, $data );
-		}
-		$request                       = new Request( $method, $cls::url( $path ), $headers, $data, $this->getRequestOptions() );
-		$this->prepared_route_model_id = null;
-		return $request;
 	}
 
 	/**
@@ -255,6 +261,8 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * Protected as a test seam for SDK-free model doubles; production models
 	 * use the metadata/reflection resolver below.
 	 *
+	 * @since 0.1.5
+	 *
 	 * @return string
 	 */
 	protected function route_model_id(): string {
@@ -266,6 +274,8 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 *
 	 * The default is empty: callers must opt into a bounded fallback list.
 	 * Selection still enforces endpoint, capability, and verification equality.
+	 *
+	 * @since 0.1.5
 	 *
 	 * @return array<int, string>
 	 */
@@ -304,7 +314,12 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * @return string Empty string when unresolvable. Never throws.
 	 */
 	private function resolveViaAccessors(): string {
-		foreach ( array( 'metadata', 'getModelMetadata', 'getMetadata', 'getModel', 'model' ) as $accessor ) {
+		// Only explicit accessors are probed. A bare `metadata` or `model`
+		// guess is a plausible name for an unrelated zero-argument method on an
+		// SDK base class, which would then be invoked with no arguments and
+		// its return value misread as model metadata. The reflection fallback
+		// covers the case where none of these resolve.
+		foreach ( array( 'getModelMetadata', 'getMetadata', 'getModel' ) as $accessor ) {
 			if ( ! method_exists( $this, $accessor ) ) {
 				continue;
 			}
@@ -317,10 +332,14 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 				continue;
 			}
 			try {
-				$id = (string) $metadata->getId();
+				$raw_id = $metadata->getId();
 			} catch ( \Throwable ) {
 				continue;
 			}
+			if ( ! is_scalar( $raw_id ) ) {
+				continue;
+			}
+			$id = (string) $raw_id;
 			if ( '' !== $id ) {
 				return $id;
 			}
@@ -351,15 +370,20 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 				} catch ( \Throwable ) {
 					continue;
 				}
-				if ( is_object( $candidate ) && method_exists( $candidate, 'getId' ) ) {
-					try {
-						$id = (string) $candidate->getId();
-					} catch ( \Throwable ) {
-						continue;
-					}
-					if ( '' !== $id ) {
-						return $id;
-					}
+				if ( ! is_object( $candidate ) || ! method_exists( $candidate, 'getId' ) ) {
+					continue;
+				}
+				try {
+					$raw_id = $candidate->getId();
+				} catch ( \Throwable ) {
+					continue;
+				}
+				if ( ! is_scalar( $raw_id ) ) {
+					continue;
+				}
+				$id = (string) $raw_id;
+				if ( '' !== $id ) {
+					return $id;
 				}
 			}
 		} catch ( \Throwable ) {
@@ -381,18 +405,16 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 */
 	private function catalog_key_for_tool_gate(): string {
 		try {
-			if ( ! method_exists( $this, 'providerClass' ) ) {
-				return '';
-			}
+			// providerClass() is abstract on this class, so it always exists.
 			$cls = $this->providerClass();
 			if ( ! is_string( $cls ) || '' === $cls ) {
 				return '';
 			}
 			if ( OpenCodeZenProvider::class === $cls ) {
-				return \OpenCodeConnector\Metadata\Catalog::ZEN;
+				return Catalog::ZEN;
 			}
 			if ( OpenCodeGoProvider::class === $cls ) {
-				return \OpenCodeConnector\Metadata\Catalog::GO;
+				return Catalog::GO;
 			}
 		} catch ( \Throwable ) {
 			return '';

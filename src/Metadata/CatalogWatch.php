@@ -16,6 +16,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 /**
  * Compares discovery evidence with the reviewed registry without promoting it.
+ *
+ * @package OpenCodeConnector
+ * @since 0.1.5
  */
 final class CatalogWatch {
 
@@ -25,9 +28,18 @@ final class CatalogWatch {
 	 * Discovery is evidence only: every output row is non-promotable until a
 	 * human updates the registry and its verification date.
 	 *
+	 * Every returned row carries a non-empty `id` except for one sentinel:
+	 * when the whole snapshot is unusable (unknown catalog, or a non-empty
+	 * input with no valid row) the result is a single row with `id` set to the
+	 * empty string and `status` `input_invalid`. Callers must branch on the
+	 * empty id to tell "the snapshot was invalid" apart from "this one model
+	 * is invalid"; they are never mixed into the same ranking.
+	 *
+	 * @since 0.1.5
+	 *
 	 * @param string            $catalog   Catalog slug.
 	 * @param array<int, mixed> $discovered Raw discovery rows.
-	 * @return list<array<string, mixed>>
+	 * @return list<array<string, mixed>> Comparison rows, plus at most one empty-id sentinel row.
 	 */
 	public function compare( string $catalog, array $discovered ): array {
 		if ( ! Catalog::isValid( $catalog ) ) {

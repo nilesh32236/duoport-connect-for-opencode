@@ -19,6 +19,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * Each verdict has a named factory so callers cannot build a result from a
  * positional argument bag, and so the state vocabulary has one home.
+ *
+ * @package OpenCodeConnector
+ * @since 0.1.5
  */
 final class ConnectionDiagnostics {
 
@@ -33,6 +36,8 @@ final class ConnectionDiagnostics {
 	 * could-not-be-checked verdict so callers can preserve last-known-good
 	 * state instead of flipping to not-connected.
 	 *
+	 * @since 0.1.5
+	 *
 	 * @param int                       $status    HTTP status code, or zero for a transport failure.
 	 * @param array<string, mixed>|null $data      Response data used only to identify the error type.
 	 * @param \Throwable|null           $exception Transport exception, if any.
@@ -42,7 +47,7 @@ final class ConnectionDiagnostics {
 		if ( null !== $exception || 0 === $status ) {
 			return $this->uncheckable( 0 );
 		}
-		if ( $status >= 200 && $status < 300 ) {
+		if ( 200 <= $status && $status < 300 ) {
 			return $this->verified( $status );
 		}
 		if ( 401 === $status ) {
@@ -57,7 +62,7 @@ final class ConnectionDiagnostics {
 			}
 			return $this->rateLimited( $status );
 		}
-		if ( $status >= 500 && $status < 600 ) {
+		if ( 500 <= $status && $status < 600 ) {
 			return $this->uncheckable( $status );
 		}
 		return $this->unknown( $status );
@@ -69,6 +74,8 @@ final class ConnectionDiagnostics {
 	 * Returns one of `valid`, `invalid_key`, or `could-not-be-checked` so the
 	 * settings page can report genuine credential verification, distinct from
 	 * the lightweight availability probe.
+	 *
+	 * @since 0.1.7
 	 *
 	 * @param array<string, mixed> $diagnosis Detailed result from classify().
 	 * @return string
@@ -87,15 +94,23 @@ final class ConnectionDiagnostics {
 	/**
 	 * Read the credential-blind backend error type.
 	 *
+	 * @since 0.1.7
+	 *
 	 * @param array<string, mixed>|null $data Response data.
 	 * @return string Empty string when the type is absent.
 	 */
 	private function errorType( ?array $data ): string {
-		return is_array( $data ) ? (string) ( $data['error']['type'] ?? '' ) : '';
+		$type = is_array( $data ) ? ( $data['error']['type'] ?? '' ) : '';
+		// The body is decoded JSON: `error.type` can be an array or an object.
+		// Blind-casting it would emit a warning or throw, and a malformed body
+		// must never take down classification.
+		return is_scalar( $type ) ? (string) $type : '';
 	}
 
 	/**
 	 * Build a not-configured result.
+	 *
+	 * @since 0.1.5
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -110,6 +125,8 @@ final class ConnectionDiagnostics {
 	 * status in the cached result. The default 200 is only for the legacy
 	 * boolean-cache path, which has no status to report.
 	 *
+	 * @since 0.1.5
+	 *
 	 * @param int $status HTTP status (defaults to 200 for legacy callers).
 	 * @return array<string, mixed>
 	 */
@@ -123,6 +140,8 @@ final class ConnectionDiagnostics {
 	 * The backend was reached and the key was read, so this is configured and
 	 * verified, but it is not a usable connection. Callers must not treat it
 	 * as a positive result.
+	 *
+	 * @since 0.1.5
 	 *
 	 * @param int $status HTTP status (defaults to 0 when no response exists).
 	 * @return array<string, mixed>
@@ -140,6 +159,8 @@ final class ConnectionDiagnostics {
 	 * to noCredits(). Callers preserve last-known-good configured state on
 	 * this verdict instead of flipping to not-connected.
 	 *
+	 * @since 0.1.7
+	 *
 	 * @param int $status HTTP status, or zero for a transport failure.
 	 * @return array<string, mixed>
 	 */
@@ -150,6 +171,8 @@ final class ConnectionDiagnostics {
 	/**
 	 * Build a network-error result.
 	 *
+	 * @since 0.1.7
+	 *
 	 * @return array<string, mixed>
 	 */
 	public function networkError(): array {
@@ -158,6 +181,8 @@ final class ConnectionDiagnostics {
 
 	/**
 	 * Build a no-credits result (valid key, empty balance).
+	 *
+	 * @since 0.1.7
 	 *
 	 * @param int $status HTTP status.
 	 * @return array<string, mixed>
@@ -169,6 +194,8 @@ final class ConnectionDiagnostics {
 	/**
 	 * Build an invalid-key result.
 	 *
+	 * @since 0.1.7
+	 *
 	 * @param int $status HTTP status.
 	 * @return array<string, mixed>
 	 */
@@ -178,6 +205,8 @@ final class ConnectionDiagnostics {
 
 	/**
 	 * Build a rate-limited result.
+	 *
+	 * @since 0.1.7
 	 *
 	 * @param int $status HTTP status.
 	 * @return array<string, mixed>
@@ -192,6 +221,8 @@ final class ConnectionDiagnostics {
 	 * A Zen free-tier quota stop still proves the key is valid, so this is
 	 * configured and verified but not currently usable.
 	 *
+	 * @since 0.1.7
+	 *
 	 * @param int $status HTTP status.
 	 * @return array<string, mixed>
 	 */
@@ -205,6 +236,8 @@ final class ConnectionDiagnostics {
 	 * The classifier no longer produces this state; it is retained so a
 	 * legacy cached value can still be interpreted fail-open by callers.
 	 *
+	 * @since 0.1.7
+	 *
 	 * @param int $status HTTP status.
 	 * @return array<string, mixed>
 	 */
@@ -214,6 +247,8 @@ final class ConnectionDiagnostics {
 
 	/**
 	 * Build a stable, non-sensitive result.
+	 *
+	 * @since 0.1.5
 	 *
 	 * @param string $state      Safe state name.
 	 * @param bool   $configured Whether authorization was accepted.

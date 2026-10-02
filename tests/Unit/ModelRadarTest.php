@@ -111,6 +111,75 @@ final class ModelRadarTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * Published change rows are valid on their own.
+	 *
+	 * The summary needs four facts the report does not publish (retirement,
+	 * free-name evidence, explicit free evidence, unsupported family). They
+	 * used to ride along on `_`-prefixed keys that summarizeResult() stripped
+	 * in place, so any caller that built a row without summarizing it — or any
+	 * new consumer — published internal scaffolding as report data.
+	 *
+	 * @since 0.1.8
+	 */
+	public function test_published_change_rows_carry_no_scaffolding_keys(): void {
+		$report = ( new ModelRadar() )->report(
+			array(
+				'go'  => array(
+					array( 'id' => 'glm-5.3', 'free' => true ),
+					array( 'id' => 'brand-new-model' ),
+				),
+				'zen' => array( array( 'id' => 'minimax-m3' ) ),
+			),
+			'2026-09-25T00:00:00+00:00'
+		);
+
+		$seen = 0;
+		foreach ( $report['catalogs'] as $catalog => $data ) {
+			foreach ( $data['changes'] as $change ) {
+				++$seen;
+				foreach ( array_keys( $change ) as $key ) {
+					self::assertStringStartsNotWith(
+						'_',
+						(string) $key,
+						$catalog . ' change rows must not publish internal keys.'
+					);
+				}
+				self::assertArrayHasKey( 'status', $change );
+				self::assertArrayHasKey( 'states', $change );
+			}
+		}
+
+		self::assertGreaterThan( 0, $seen, 'The fixture must produce change rows.' );
+	}
+
+	/**
+	 * Unreachable and reachable reports share one summary schema.
+	 *
+	 * The unreachable branch used to inline its own copy of the counter list.
+	 * Adding a counter to the reachable summary left unreachable reports
+	 * missing it, so a consumer branching on key presence saw two different
+	 * report shapes for the same catalog.
+	 *
+	 * @since 0.1.8
+	 */
+	public function test_unreachable_and_reachable_reports_share_one_summary_schema(): void {
+		$report = ( new ModelRadar() )->report(
+			array(
+				'go'  => array( array( 'id' => 'glm-5.3' ) ),
+				'zen' => null,
+			),
+			'2026-09-25T00:00:00+00:00'
+		);
+
+		self::assertSame(
+			array_keys( $report['catalogs']['zen']['summary'] ),
+			array_keys( $report['catalogs']['go']['summary'] ),
+			'One definition owns the summary schema for both branches.'
+		);
+		self::assertSame( array(), $report['catalogs']['zen']['changes'] );
+	}
+
+	/**
 	 * Markdown output is useful for one aggregated issue and contains no credentials.
 	 */
 	public function test_markdown_is_safe_for_an_aggregated_issue(): void {
