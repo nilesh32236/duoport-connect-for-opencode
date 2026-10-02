@@ -110,6 +110,32 @@ A could-not-be-checked outcome is never cleared from the transient-only last-kno
 
 Because these states prove nothing about the key, `isConfigured()` falls back to last-known-good rather than reporting a working key as not configured. That is the deliberate trade: an uninterpreted response is not evidence against the credential. Its cost is that the fallback is invisible, so a long-lived verdict can outlive the condition it was issued for — which is why deleting a connector key clears the flag rather than waiting out its TTL. Quota outcomes are never in this bucket: 429 maps to `rate_limited` or `free_tier_limit`, and 401 with a credits error maps to `no_credits`. Only a proven invalid or missing key reports not configured.
 
+#### Which statuses reach `unknown`, and why that is a decision
+
+Recorded explicitly rather than inherited from the classifier's fallthrough, because "whatever the code happens to do" is not a contract anyone can review. The set is fixed by `classify()`, not chosen per status:
+
+| Upstream status | Classifies to | Fails open on the flag |
+| --- | --- | --- |
+| 2xx | `verified` | no — arms the flag |
+| 401 (`CreditsError`) | `no_credits` | no — arms the flag |
+| 401 (anything else) | `invalid_key` | no — clears the flag |
+| 429 (`FreeUsageLimitError`) | `free_tier_limit` | no — arms the flag |
+| 429 (anything else) | `rate_limited` | no — arms the flag |
+| 5xx, transport failure, status 0 | `uncheckable` | yes |
+| **every other status** | `unknown` | **yes** |
+| no key stored | `not_configured` | no — clears the flag |
+
+So the fail-open set is every status that is not 2xx, not 401, not 429, and not 5xx: **400, 402, 403, 404, 405, 407, 408, 409, 410, 422, plus any 4xx the gateway introduces later, plus the 1xx/3xx codes that should not occur and are no more informative than a 400.** In practice 400 and 404 dominate, because an upstream model rename or retirement answers with them.
+
+**Why 402 and 403 fail open, stated once so it is not re-litigated by accident.** Both are defensible as credential problems, and both are routinely *not*:
+
+- **403** is the strongest case for failing closed, and the reason it still must not is that a 403 does not distinguish a revoked key from a plan that lacks the probed model, a retired model, an IP or WAF block, or a gateway policy change. Failing closed disconnects a site whose key works perfectly for every model it is actually entitled to use — the same failure mode as the production bug this PR exists to fix, reached by a different route.
+- **402** signals a billing state, which is a property of the *account*, not a verdict on the credential. Treating it as a credential failure disconnects working keys on a payment hiccup.
+
+The cost of this choice is bounded, and the bound is what makes it acceptable: **failing open does not arm the flag.** `unknown` leaves last-known-good exactly as it found it, so a site with no armed flag still reports not configured, and a site with a live flag keeps it. A genuinely revoked key does not hide behind this — the gateway answers 401, which is a definitive negative and clears the flag immediately. The only thing 402/403 failing open can delay is the *displayed* state of a key that is already unusable, never the clearing of a proven bad one.
+
+Changing which statuses fail open is not a documentation change. It would move work pinned by `UnknownFallbackTest.php`, and belongs in its own PR with its own evidence. This section exists to record the current choice, not to license changing it.
+
 ### Transient key ownership
 
 Every transient this plugin writes is owned by `Metadata\Catalog`:

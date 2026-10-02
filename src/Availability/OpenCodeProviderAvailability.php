@@ -435,11 +435,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 		// Definitive keyed outcomes refresh last-known-good. A Zen free-tier
 		// quota stop proves the key is valid, so it counts as a good result.
-		if ( in_array( $state, ConnectionDiagnostics::KEYED_STATES, true ) ) {
-			$this->writeLastGood( true );
-		} else {
-			$this->writeLastGood( false );
-		}
+		$this->applyLastGood( $state );
 		// Stagger expiry ±60s to avoid synchronized stampedes.
 		$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
 		$jitter = function_exists( 'wp_rand' ) ? wp_rand( -60, 60 ) : 0;
@@ -461,6 +457,42 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	private function readLastGood(): bool {
 		$value = $this->getCached( Catalog::AVAIL_PREFIX . $this->catalog . Catalog::LAST_GOOD_SUFFIX );
 		return ! empty( $value );
+	}
+
+	/**
+	 * Apply a classified verdict to the last-known-good flag.
+	 *
+	 * Three outcomes, not two: arm, clear, or leave alone. The third is the
+	 * one that matters and it exists because the earlier version of this
+	 * decision was `KEYED_STATES ? write(true) : write(false)` — an `else`
+	 * that cleared the flag for everything not keyed, including any state in
+	 * NO bucket at all.
+	 *
+	 * That fallthrough is the same hazard as the production bug this PR fixes,
+	 * one branch later. The bug was `unknown` missing from the bucket list, so
+	 * a state that had adjudicated nothing reached a write that decided the
+	 * credential was bad, and a working key was disconnected. An unbucketed
+	 * state is the identical mistake made permanently: today the buckets happen
+	 * to be exhaustive, so the `else` is unreachable for real states and reads
+	 * as harmless — until the next state is added to the vocabulary without a
+	 * bucket, which is exactly when nobody is looking at this method.
+	 *
+	 * So the fallthrough fails OPEN on whatever the flag already says. Only a
+	 * state in DEFINITIVE_NEGATIVE_STATES may clear it, because only those two
+	 * are a proven verdict about the credential. Everything else has proved
+	 * nothing, and proving nothing must not cost a site its connection.
+	 *
+	 * @param string $state Classified state name.
+	 * @return void
+	 */
+	private function applyLastGood( string $state ): void {
+		if ( in_array( $state, ConnectionDiagnostics::KEYED_STATES, true ) ) {
+			$this->writeLastGood( true );
+			return;
+		}
+		if ( in_array( $state, ConnectionDiagnostics::DEFINITIVE_NEGATIVE_STATES, true ) ) {
+			$this->writeLastGood( false );
+		}
 	}
 
 	/**

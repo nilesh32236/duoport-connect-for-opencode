@@ -629,7 +629,7 @@ namespace OpenCodeConnector\Tests\Unit {
 		 * equality short-circuit in WP core, so writing the flag on every keyed
 		 * probe is an options-row UPDATE about every five minutes per catalog.
 		 * That UPDATE is what pushes the 30-day window forward, and rolling is the
-		 * guarantee the whole fail-open rests on — see the inverted
+		 * guarantee the whole fail-open rests on — see
 		 * `test_last_known_good_window_is_refreshed_while_the_key_keeps_working`
 		 * and the docblock on `writeLastGood()`.
 		 *
@@ -637,18 +637,13 @@ namespace OpenCodeConnector\Tests\Unit {
 		 * was skipped. It was measuring the right thing about the wrong behaviour,
 		 * which is how an absolute window passed for two review rounds.
 		 *
-		/**
-		 * An already-set last-known-good flag is not rewritten on every probe.
-		 *
-		 * `set_transient()` has no equality short-circuit in WP core, so writing
-		 * an unchanged flag is an unconditional options-row UPDATE. A keyed
-		 * probe runs about every five minutes per catalog for the life of the
-		 * install, so the previous code issued that UPDATE forever to store a
-		 * value that could not have changed.
-		 *
-		 * Both directions matter: the flag is still armed on the first keyed
-		 * success, and it is still cleared by the first definitive negative,
-		 * which is what lets the next keyed probe re-arm it.
+		 * The abandoned half of that earlier attempt is what left this docblock
+		 * claiming BOTH things at once: an unterminated first fragment followed
+		 * by a stray second `/**` inside it, so the block a reader sees asserts
+		 * the flag is rewritten on every keyed success and, a few lines later,
+		 * that it is not. The assertion below is the correct one and this prose
+		 * now matches it; the second fragment described the absolute window this
+		 * PR reverted and had no test behind it.
 		 *
 		 * @return void
 		 */
