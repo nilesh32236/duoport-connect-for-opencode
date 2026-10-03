@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-const VERSION     = '0.1.7';
+const VERSION     = '0.1.8';
 const OPTION_NAME = 'opencode_connector_settings';
 
 require_once __DIR__ . '/src/autoload.php';
