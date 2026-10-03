@@ -48,6 +48,18 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * transiently unavailable upstream. The same model backs the opt-in
 	 * verification probe.
 	 *
+	 * The cost of a constant is that this one is load-bearing for the whole
+	 * plugin: every probe on every site sends exactly this model, so when it is
+	 * retired upstream the failure is fleet-wide and instantaneous. That is why
+	 * the probe hands this name to `ConnectionDiagnostics::classify()`, which
+	 * uses it to separate "the credential was rejected" from "the model this
+	 * plugin probes with is gone" — see PROBE_MODEL_UNAVAILABLE_STATE. Without
+	 * that separation a retired model is indistinguishable from a revoked key,
+	 * and the 401 rule this docblock above relies on would delete the
+	 * last-known-good flag on every site at once. Retiring the constant is
+	 * therefore a breaking change for anyone reading it: it has to come with a
+	 * classifier rule for the model that replaces it.
+	 *
 	 * @since 0.1.6
 	 */
 	const PROBE_MODEL = 'deepseek-v4-flash';
@@ -241,7 +253,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 				);
 				$req       = $this->getRequestAuthentication()->authenticateRequest( $req );
 				$res       = $this->getHttpTransporter()->send( $req );
-				$diagnosis = null !== $diagnostics ? $diagnostics->classify( $res->getStatusCode(), $res->getData() ) : null;
+				$diagnosis = null !== $diagnostics ? $diagnostics->classify( $res->getStatusCode(), $res->getData(), null, self::PROBE_MODEL ) : null;
 			} catch ( \Throwable $exception ) {
 				unset( $exception );
 				if ( null !== $diagnostics ) {
@@ -442,7 +454,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			$req               = $this->getRequestAuthentication()->authenticateRequest( $req );
 			$res               = $this->getHttpTransporter()->send( $req );
 			$data              = $res->getData();
-			$this->last_result = $diagnostics->classify( $res->getStatusCode(), is_array( $data ) ? $data : null );
+			$this->last_result = $diagnostics->classify( $res->getStatusCode(), is_array( $data ) ? $data : null, null, $probe_model );
 		} catch ( \Throwable $exception ) {
 			$this->last_result = $diagnostics->classify( 0, null, $exception );
 		}
@@ -459,22 +471,28 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		// own, so the one-minute window notices a recovered gateway quickly.
 		// `unknown` is not transient: the gateway answered with something this
 		// plugin has no rule for, and that does not resolve itself in a minute —
-		// a 404 after an upstream model rename is the standing case. It also
-		// takes the full jittered window because the one-minute branch has no
-		// jitter at all, so routing it there would make every site whose
-		// upstream answers 400/404 re-probe in lockstep on the same 60-second
-		// boundary — precisely the synchronized stampede the jitter below
-		// exists to prevent, introduced by the very fix that is supposed to
-		// quieten the probe.
+		// a 404 after an upstream model rename is the standing case.
+		// `probe_model_unavailable` is the same shape for the same reason: the
+		// gateway has said the model this plugin probes with is gone, and it will
+		// still be gone in a minute.
+		//
+		// Both also take the full jittered window because the one-minute branch
+		// has no jitter at all, so routing them there would make every site whose
+		// upstream answered that way re-probe in lockstep on the same 60-second
+		// boundary — precisely the synchronized stampede the jitter below exists
+		// to prevent, introduced by the very fix that is supposed to quieten the
+		// probe. Membership is read from the published list rather than an
+		// `!== UNKNOWN_STATE` test, so adding a third persistent state later
+		// cannot land on the short branch by being forgotten here.
 		if ( in_array( $state, ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES, true ) ) {
-			if ( ConnectionDiagnostics::UNKNOWN_STATE !== $state ) {
+			if ( ! in_array( $state, ConnectionDiagnostics::PERSISTENT_UNCHECKABLE_STATES, true ) ) {
 				$second = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
 				$this->setCached( $tkey, $this->last_result, $second );
 				return $this->last_result;
 			}
 			// Persistent: fall through to the jittered window below, skipping
 			// the last-known-good writes on the way. It must NOT reach them —
-			// `unknown` proves nothing about the key, and writing false here
+			// neither state proves anything about the key, and writing false here
 			// would destroy last-known-good and reinstate the exact production
 			// bug this PR fixes.
 			$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;

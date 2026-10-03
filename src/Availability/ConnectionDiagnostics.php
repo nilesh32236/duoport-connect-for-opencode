@@ -26,13 +26,34 @@ final class ConnectionDiagnostics {
 	 * The state every response the classifier has no rule for falls to.
 	 *
 	 * Named so the probe can single this state out without spelling the string
-	 * twice. It deliberately does NOT come with a companion "persistent states"
-	 * list: it is the one persistent member of
-	 * `COULD_NOT_BE_CHECKED_STATES`, and a set of its own would be a third
-	 * hand-maintained list in a class whose whole point is that the state
-	 * lists have exactly one home.
+	 * twice. It is a PERSISTENT member of `COULD_NOT_BE_CHECKED_STATES`, and it
+	 * used to be the only one — which is why it carried no companion list of its
+	 * own: a set containing one member is a second hand-maintained list in a
+	 * class whose whole point is that the state lists have exactly one home.
+	 * `PROBE_MODEL_UNAVAILABLE_STATE` joined it, so that home now has two
+	 * members and the companion list below exists for that reason, not as
+	 * tidying.
 	 */
 	public const UNKNOWN_STATE = 'unknown';
+
+	/**
+	 * A failure the gateway attributes to the probe model itself.
+	 *
+	 * `PROBE_MODEL` is a hard-coded constant and the probe sends only that model,
+	 * so when the model is retired upstream the probe fails on every site at
+	 * once. Without a distinct state for that, the outcome is read through the
+	 * rules meant for the CREDENTIAL — and a 401, which this plugin has to treat
+	 * as a proven bad key so a revoked key goes immediately, deletes the
+	 * last-known-good flag. That flag is the fallback `isConfigured()` reads, so
+	 * one retired model disconnects every key that was valid when it was
+	 * entered: the mass false-invalidation this state exists to stop.
+	 *
+	 * It is deliberately NOT `unknown`. `unknown` means "no rule matched, this
+	 * response says nothing about anything"; drift means "a rule matched, and
+	 * what it matched is about the probe". Collapsing the two would make a real,
+	 * diagnosable, upstream change indistinguishable from an unrelated 400.
+	 */
+	public const PROBE_MODEL_UNAVAILABLE_STATE = 'probe_model_unavailable';
 
 	/**
 	 * States that prove the key was accepted by the gateway.
@@ -50,7 +71,7 @@ final class ConnectionDiagnostics {
 	 * Every member falls back to last-known-good instead of reporting a working
 	 * key as not connected.
 	 *
-	 * `unknown` is the load-bearing member, and its absence is the bug this
+	 * `unknown` is the load-bearing member, and its absence was the bug this
 	 * constant documents. It is what every unrecognised response classifies to:
 	 * a 400, a 402, a 403, any status the gateway introduces that this plugin
 	 * has no rule for. Such a response reached the gateway, so it is evidence
@@ -61,9 +82,33 @@ final class ConnectionDiagnostics {
 	 * or retires a model — missed the bucket and was reported as not
 	 * configured, on the default branch, to sites whose keys were fine.
 	 *
+	 * `probe_model_unavailable` is in here for the same reason and not only for
+	 * it: the responses it names would otherwise reach the definitive-negative
+	 * bucket on a 401, where being absent would cost a credential verdict.
+	 *
 	 * @var list<string>
 	 */
-	public const COULD_NOT_BE_CHECKED_STATES = array( 'uncheckable', 'network_error', 'server_error', self::UNKNOWN_STATE );
+	public const COULD_NOT_BE_CHECKED_STATES = array( 'uncheckable', 'network_error', 'server_error', self::UNKNOWN_STATE, self::PROBE_MODEL_UNAVAILABLE_STATE );
+
+	/**
+	 * Uncheckable states that do not resolve on their own.
+	 *
+	 * These take the long, jittered cache window instead of the one-minute one.
+	 * The minute is for transport failures and 5xx, which clear by themselves.
+	 * A gateway answering with something this plugin has no rule for, or naming
+	 * a retired probe model, will still be doing so in a minute — and the
+	 * one-minute branch carries no jitter at all, so routing these there would
+	 * make every affected site re-probe on the same sixty-second boundary,
+	 * which is the synchronized stampede the jitter exists to prevent.
+	 *
+	 * Published here for the same reason the buckets are: a call site that
+	 * decides "transient or persistent" with its own copy of the membership
+	 * repeats the exact defect that `unknown`'s absence from the fallback bucket
+	 * was. A reader of this list at a call site is fine; a second copy is not.
+	 *
+	 * @var list<string>
+	 */
+	public const PERSISTENT_UNCHECKABLE_STATES = array( self::UNKNOWN_STATE, self::PROBE_MODEL_UNAVAILABLE_STATE );
 
 	/**
 	 * States that are a definitive negative for the credential.
@@ -73,6 +118,95 @@ final class ConnectionDiagnostics {
 	 * @var list<string>
 	 */
 	public const DEFINITIVE_NEGATIVE_STATES = array( 'not_configured', 'invalid_key' );
+
+	/**
+	 * Error `type`/`code` values that name a MODEL as the thing that is missing.
+	 *
+	 * Stored already normalised — lower case with every non-alphanumeric
+	 * character removed — because the same identifier arrives in several
+	 * spellings: `model_not_found`, `model-not-found` and `ModelNotFound` are one
+	 * value. Comparing raw strings would recognise the one spelling this plugin
+	 * happened to see first and silently miss the next.
+	 *
+	 * Every entry names a model explicitly, which is why a bare `NotFoundError`
+	 * is NOT here despite being a common 404 type: it names nothing at all, and
+	 * treating it as model-scoped would label an endpoint-level 404 as probe
+	 * drift. That case still lands on `unknown`, which is also indeterminate and
+	 * also takes the persistent window — it just declines to claim a cause it
+	 * cannot name.
+	 *
+	 * @var list<string>
+	 */
+	private const MODEL_SCOPED_ERROR_CODES = array(
+		'modelnotfound',
+		'unknownmodel',
+		'unknownmodelerror',
+		'modelnotavailable',
+		'modelunavailable',
+		'modelretired',
+		'retiredmodelerror',
+		'invalidmodelerror',
+		'deprecatedmodelerror',
+		'unsupportedmodel',
+		'unsupportedmodelerror',
+	);
+
+	/**
+	 * Error `type`/`code` values that name the CREDENTIAL as the rejected thing.
+	 *
+	 * These veto attribution. The rule that identifies a probe-model failure is
+	 * deliberately permissive about what counts as evidence — `param: "model"`
+	 * alone is enough — and permissive in the direction that protects working
+	 * keys. The risk that creates is the opposite one: a genuinely revoked key
+	 * whose response mentions the model somewhere stops being reported as
+	 * revoked, and the flag this plugin is built around keeps reporting a dead
+	 * credential as good for another 30 days. A response that names the
+	 * credential is the strongest evidence available that the model was not the
+	 * subject, so it ends the search.
+	 *
+	 * `insufficient_permissions` is deliberately NOT here. "Your key cannot reach
+	 * this model" is the drift case, not a credential verdict: the key is what the
+	 * user entered and it still works for everything else.
+	 *
+	 * @var list<string>
+	 */
+	private const CREDENTIAL_SCOPED_ERROR_CODES = array(
+		'invalidapikey',
+		'invalidkey',
+		'unauthorized',
+		'authenticationerror',
+		'authenticationfailed',
+		'invalidtoken',
+		'expiredtoken',
+		'invalidauthorization',
+	);
+
+	/**
+	 * Message fragments that mean the MODEL is gone.
+	 *
+	 * Only ever consulted when the message ALSO names the probe model, so these
+	 * phrases never have to carry the whole weight of the attribution. Kept as
+	 * plain lowercase substrings because that is the shape the messages arrive
+	 * in; a phrase that needs a regex is a sign the rule is getting less
+	 * specific than it should be.
+	 *
+	 * @var list<string>
+	 */
+	private const MODEL_GONE_PHRASES = array(
+		'does not exist',
+		'not found',
+		'no such model',
+		'unknown model',
+		'is not available',
+		'no longer available',
+		'not available for this key',
+		'do not have access',
+		'does not have access',
+		'has been deprecated',
+		'is deprecated',
+		'has been retired',
+		'is retired',
+	);
 
 	/**
 	 * Classify one backend response or transport exception.
@@ -85,12 +219,22 @@ final class ConnectionDiagnostics {
 	 * could-not-be-checked verdict so callers can preserve last-known-good
 	 * state instead of flipping to not-connected.
 	 *
-	 * @param int                       $status    HTTP status code, or zero for a transport failure.
-	 * @param array<string, mixed>|null $data      Response data used only to identify the error type.
-	 * @param \Throwable|null           $exception Transport exception, if any.
+	 * $probe_model is the model the request ASKED FOR, and it is what turns a
+	 * model-scoped failure from a credential verdict into an indeterminate one.
+	 * It is a parameter rather than a property because the attribution is only
+	 * valid for a request whose model this plugin chose: the same body is a real
+	 * error to a user whose own model is missing, and the only two callers that
+	 * pass it send nothing but `PROBE_MODEL`. Passing null — the default —
+	 * leaves classification exactly as it was, so a caller with no probe context
+	 * cannot accidentally inherit the exemption.
+	 *
+	 * @param int                       $status      HTTP status code, or zero for a transport failure.
+	 * @param array<string, mixed>|null $data        Response data used only to identify the error type.
+	 * @param \Throwable|null           $exception   Transport exception, if any.
+	 * @param string|null               $probe_model Model the probe asked for, when the caller has one.
 	 * @return array<string, mixed>
 	 */
-	public function classify( int $status, ?array $data = null, ?\Throwable $exception = null ): array {
+	public function classify( int $status, ?array $data = null, ?\Throwable $exception = null, ?string $probe_model = null ): array {
 		if ( null !== $exception || 0 === $status ) {
 			return $this->uncheckable( 0 );
 		}
@@ -101,18 +245,116 @@ final class ConnectionDiagnostics {
 			if ( 'CreditsError' === $this->errorType( $data ) ) {
 				return $this->noCredits( $status );
 			}
+			// Before the definitive negative, not after it. A gateway may answer
+			// 401 because the key cannot reach THIS model — for one key, or for
+			// every key at once when the model is retired upstream. Either way the
+			// credential is not what was rejected, and clearing last-known-good
+			// here is the mass false-invalidation this branch would otherwise cause.
+			if ( $this->isProbeModelDrift( $data, $probe_model ) ) {
+				return $this->probeModelUnavailable( $status );
+			}
 			return $this->invalidKey( $status );
 		}
 		if ( 429 === $status ) {
 			if ( 'FreeUsageLimitError' === $this->errorType( $data ) ) {
 				return $this->freeTierLimit( $status );
 			}
+			// Deliberately NOT attributed. 429 is the gateway saying it accepted
+			// the credential and refused the request for capacity reasons; that is
+			// proof the key works, and downgrading it to indeterminate would stop
+			// a healthy key refreshing the very flag this exemption preserves.
 			return $this->rateLimited( $status );
 		}
 		if ( $status >= 500 && $status < 600 ) {
 			return $this->uncheckable( $status );
 		}
+		// Ahead of the generic fallthrough for the same reason as the 401 branch:
+		// `unknown` is right for a response that says nothing, and wrong for one
+		// that has already told us exactly what is wrong — with the probe.
+		if ( $this->isProbeModelDrift( $data, $probe_model ) ) {
+			return $this->probeModelUnavailable( $status );
+		}
 		return $this->unknown( $status );
+	}
+
+	/**
+	 * Whether a response is attributable to the probe model being unavailable.
+	 *
+	 * Every rule below needs POSITIVE evidence that the MODEL is the subject.
+	 * The tempting shortcut is to treat a bare 404 as drift, because drift is
+	 * usually a 404 — and that shortcut is what would destroy this class's
+	 * authority. A 404 with no body names no model, and treating it as drift
+	 * would make every unrecognised response indistinguishable from a retired
+	 * model, which is precisely the over-reach that lets a genuine credential
+	 * problem hide behind a plausible label. So the model must be named, either
+	 * by a model-scoped code, by `param: "model"`, or by appearing in a message
+	 * that also says it is gone.
+	 *
+	 * @param array<string, mixed>|null $data        Response data.
+	 * @param string|null               $probe_model Model the probe asked for, or null for no probe context.
+	 * @return bool
+	 */
+	private function isProbeModelDrift( ?array $data, ?string $probe_model ): bool {
+		if ( null === $probe_model || '' === trim( $probe_model ) || ! is_array( $data ) || ! isset( $data['error'] ) || ! is_array( $data['error'] ) ) {
+			return false;
+		}
+		$error = $data['error'];
+		$code  = $this->normalize( (string) ( $error['code'] ?? '' ) );
+		$type  = $this->normalize( (string) ( $error['type'] ?? '' ) );
+
+		// Veto first, and for every rule below. A response that names the
+		// credential has told us the credential is what was rejected; nothing
+		// later in this method can make the model the subject after that.
+		if ( in_array( $code, self::CREDENTIAL_SCOPED_ERROR_CODES, true ) || in_array( $type, self::CREDENTIAL_SCOPED_ERROR_CODES, true ) ) {
+			return false;
+		}
+
+		// `param: "model"` is the OpenAI-compatible way of saying which part of
+		// the request was rejected, and it is model-scoped by construction.
+		if ( 'model' === $this->normalize( (string) ( $error['param'] ?? '' ) ) ) {
+			return true;
+		}
+
+		// A type or code that names a model is model-scoped by construction, so
+		// it does not also have to appear in the message.
+		if ( in_array( $code, self::MODEL_SCOPED_ERROR_CODES, true ) || in_array( $type, self::MODEL_SCOPED_ERROR_CODES, true ) ) {
+			return true;
+		}
+
+		// Everything else has to make the model the SUBJECT as well as the
+		// problem, so the probe model itself has to appear in the message.
+		//
+		// BOTH sides are normalised, and that is load-bearing rather than
+		// cosmetic. Model ids routinely contain characters the normaliser strips —
+		// `deepseek-v4-flash` normalises to `deepseekv4flash` — so matching a
+		// normalised needle against a raw lowercased message never matches, and
+		// the whole rule silently stops working for exactly the model this plugin
+		// probes with. The phrases are normalised on the same footing; comparing
+		// one normalised string against a raw one would reintroduce the same
+		// defect on the phrase side, where every phrase contains a space.
+		$message = $this->normalize( (string) ( $error['message'] ?? '' ) );
+		if ( '' === $message || ! str_contains( $message, $this->normalize( $probe_model ) ) ) {
+			return false;
+		}
+		foreach ( self::MODEL_GONE_PHRASES as $phrase ) {
+			if ( str_contains( $message, $this->normalize( $phrase ) ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Reduce an error identifier to comparable form.
+	 *
+	 * Lower case with every non-alphanumeric character dropped, so
+	 * `model_not_found`, `Model-Not-Found` and `modelnotfound` are one value.
+	 *
+	 * @param string $value Raw value.
+	 * @return string
+	 */
+	private function normalize( string $value ): string {
+		return strtolower( (string) preg_replace( '/[^a-zA-Z0-9]/', '', $value ) );
 	}
 
 	/**
@@ -192,6 +434,23 @@ final class ConnectionDiagnostics {
 	 */
 	public function unknown( int $status = 0 ): array {
 		return $this->result( 'unknown', false, true, false, $status, 'unknown' );
+	}
+
+	/**
+	 * Build a probe-model-unavailable result.
+	 *
+	 * The gateway was reached and identified — that is the `unknown()` truth as
+	 * well — but what it rejected was the MODEL this plugin chose, so it says
+	 * nothing about the credential and must not be counted as a verdict on it.
+	 * `configured` is therefore false for the same reason `unknown()`'s is: a
+	 * consumer keying on that flag must not get an unconditional fail-open,
+	 * because the fallback is resolved one level up by `isConfigured()`.
+	 *
+	 * @param int $status HTTP status.
+	 * @return array<string, mixed>
+	 */
+	public function probeModelUnavailable( int $status ): array {
+		return $this->result( self::PROBE_MODEL_UNAVAILABLE_STATE, false, true, false, $status, 'probe_model_unavailable' );
 	}
 
 	/**

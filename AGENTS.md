@@ -42,6 +42,14 @@ No Node, no build step. `vendor/` is git-ignored and never ships.
   last-known-good flag**, not `false`. Only a proven invalid or missing key reports not
   configured. Bucket membership lives in `ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES`;
   never restate the list at a call site.
+- `PROBE_MODEL` is fleet-wide: every probe on every site sends that one model, so a
+  retirement upstream fails everywhere at once. The probe passes the model to
+  `ConnectionDiagnostics::classify()`, which reports a response that names THAT model as
+  the unavailable thing as `probe_model_unavailable` — indeterminate, never a credential
+  verdict, so it cannot clear last-known-good. Attribution needs positive model evidence
+  (`param: "model"`, a model-scoped code, or the model's name plus a "gone" phrase) and is
+  vetoed by a credential-scoped code, so a revoked key is never rescued by model wording.
+  401 CreditsError and 429 are keyed verdicts and are never downgraded.
 
 ## Release
 
