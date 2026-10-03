@@ -4,7 +4,7 @@ Tags: ai, artificial-intelligence, connector, opencode, zen
 Requires at least: 7.0
 Tested up to: 7.1.2
 Requires PHP: 8.2
-Stable tag: 0.1.7
+Stable tag: 0.1.8
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -108,6 +108,22 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 * See https://opencode.ai/legal/terms-of-service for terms and https://opencode.ai/legal/privacy-policy for privacy policy.
 
 == Changelog ==
+
+= 0.1.8 (2026-10-03) =
+* Fixed: rotating a saved key did not clear its cached availability state.
+  WordPress fires `update_option_{$option}` with the option name as the THIRD
+  argument, while `add_option_` and `delete_option_` pass it FIRST. The cleanup
+  hook read the first argument, so on a key CHANGE it received the previous key
+  text, did not match, and returned. A rotated key could keep its
+  last-known-good state for up to 30 days. Removal and first-time setup were
+  never affected.
+* Fixed: an error response naming the credential only in its message text, with
+  no machine-readable code, could be read as "the model was retired" and leave
+  a revoked key marked valid. Credential signals in the message are now honoured
+  before any model-drift attribution.
+* Improved: a probe failure attributable to the retired PROBE_MODEL is recorded
+  as its own outcome instead of being folded into the general indeterminate
+  bucket, so it backs off instead of retrying every 60 seconds.
 
 = 0.1.7 =
 * Fixed: credential verification now detects the WordPress AI Client HTTP method enum correctly, so valid keys are no longer treated as unverifiable because of a dynamic SDK method.
