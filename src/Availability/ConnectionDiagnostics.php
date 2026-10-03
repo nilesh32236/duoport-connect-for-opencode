@@ -182,6 +182,43 @@ final class ConnectionDiagnostics {
 	);
 
 	/**
+	 * Message fragments that mean the CREDENTIAL is the rejected thing.
+	 *
+	 * The same veto as `CREDENTIAL_SCOPED_ERROR_CODES`, expressed the way
+	 * gateways actually send it. `code` and `type` are optional in every
+	 * OpenAI-compatible error schema, so a 401 whose entire verdict is prose —
+	 * "Invalid API key provided", which is what OpenAI itself returns — carries
+	 * neither, and a veto reading only those two fields finds nothing to act
+	 * on. `param: "model"` then fires and a revoked key is held open for 30 days
+	 * on the strength of a sentence that also said the key was dead.
+	 *
+	 * Normalised for the same reason as the code list, and compared against a
+	 * normalised message so a hyphenated model name and a spaced phrase both
+	 * match. Deliberately excludes anything a MODEL-only failure would contain,
+	 * so "your key does not have access to model X" still reads as drift.
+	 *
+	 * @var list<string>
+	 */
+	private const CREDENTIAL_SCOPED_PHRASES = array(
+		'invalidapikey',
+		'incorrectapikey',
+		'unrecognizedapikey',
+		'unrecognisedapikey',
+		'invalidkey',
+		'badapikey',
+		'missingapikey',
+		'noapikey',
+		'apikeynotfound',
+		'unauthorized',
+		'unauthorised',
+		'authenticationfailed',
+		'authenticationerror',
+		'invalidtoken',
+		'expiredtoken',
+		'invalidauthorization',
+	);
+
+	/**
 	 * Message fragments that mean the MODEL is gone.
 	 *
 	 * Only ever consulted when the message ALSO names the probe model, so these
@@ -298,14 +335,24 @@ final class ConnectionDiagnostics {
 		if ( null === $probe_model || '' === trim( $probe_model ) || ! is_array( $data ) || ! isset( $data['error'] ) || ! is_array( $data['error'] ) ) {
 			return false;
 		}
-		$error = $data['error'];
-		$code  = $this->normalize( (string) ( $error['code'] ?? '' ) );
-		$type  = $this->normalize( (string) ( $error['type'] ?? '' ) );
+		$error   = $data['error'];
+		$code    = $this->normalize( (string) ( $error['code'] ?? '' ) );
+		$type    = $this->normalize( (string) ( $error['type'] ?? '' ) );
+		$message = $this->normalize( (string) ( $error['message'] ?? '' ) );
 
 		// Veto first, and for every rule below. A response that names the
 		// credential has told us the credential is what was rejected; nothing
 		// later in this method can make the model the subject after that.
-		if ( in_array( $code, self::CREDENTIAL_SCOPED_ERROR_CODES, true ) || in_array( $type, self::CREDENTIAL_SCOPED_ERROR_CODES, true ) ) {
+		//
+		// The message is consulted alongside code and type, and it has to be.
+		// Both fields are optional in every OpenAI-compatible error schema, so
+		// the common 401 — "Invalid API key provided", type
+		// `invalid_request_error`, no `code` at all — carries no structural
+		// credential signal whatsoever. Reading only the two fields let
+		// `param: "model"` fire on it and hold a revoked key open for 30 days.
+		if ( in_array( $code, self::CREDENTIAL_SCOPED_ERROR_CODES, true )
+			|| in_array( $type, self::CREDENTIAL_SCOPED_ERROR_CODES, true )
+			|| $this->containsAnyOf( $message, self::CREDENTIAL_SCOPED_PHRASES ) ) {
 			return false;
 		}
 
@@ -332,11 +379,29 @@ final class ConnectionDiagnostics {
 		// probes with. The phrases are normalised on the same footing; comparing
 		// one normalised string against a raw one would reintroduce the same
 		// defect on the phrase side, where every phrase contains a space.
-		$message = $this->normalize( (string) ( $error['message'] ?? '' ) );
 		if ( '' === $message || ! str_contains( $message, $this->normalize( $probe_model ) ) ) {
 			return false;
 		}
-		foreach ( self::MODEL_GONE_PHRASES as $phrase ) {
+		return $this->containsAnyOf( $message, self::MODEL_GONE_PHRASES );
+	}
+
+	/**
+	 * Whether a normalised string contains any normalised phrase.
+	 *
+	 * Both sides are already normalised, so this is a plain substring test. The
+	 * phrases are constants and cannot be pre-normalised at declaration without
+	 * a helper, so they are normalised here — which is why this helper exists
+	 * at all rather than an inline `foreach`.
+	 *
+	 * @param string   $message  Normalised message.
+	 * @param string[] $phrases  Raw phrases, normalised on the fly.
+	 * @return bool
+	 */
+	private function containsAnyOf( string $message, array $phrases ): bool {
+		if ( '' === $message ) {
+			return false;
+		}
+		foreach ( $phrases as $phrase ) {
 			if ( str_contains( $message, $this->normalize( $phrase ) ) ) {
 				return true;
 			}

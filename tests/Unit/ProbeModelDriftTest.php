@@ -527,6 +527,67 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
+		 * The veto has to read the MESSAGE too, not only code and type.
+		 *
+		 * This is the case that found the hole. A gateway is perfectly entitled
+		 * to answer 401 with a generic `invalid_request_error` type, no `code`
+		 * at all, and put the whole verdict in prose — which is what OpenAI
+		 * itself does. A veto that reads only `code` and `type` finds nothing
+		 * there, so the `param: "model"` rule fires and a revoked key is held
+		 * open for 30 days on the strength of a sentence that also said the key
+		 * was invalid.
+		 *
+		 * The rest of this spec could not reach the hole at all: it passed
+		 * `code => 'invalid_api_key'`, so the structural veto always won and the
+		 * message was never load-bearing. That is what a spec which only ever
+		 * exercises the branch that already works looks like.
+		 *
+		 * @return void
+		 */
+		public function test_a_credential_verdict_in_the_message_only_still_vetoes(): void {
+			$diagnostics = new ConnectionDiagnostics();
+			$model       = OpenCodeProviderAvailability::PROBE_MODEL;
+
+			$message_only = $diagnostics->classify(
+				401,
+				array(
+					'error' => array(
+						'message' => sprintf( 'Invalid API key provided. This key does not have access to model %s.', $model ),
+						'type'    => 'invalid_request_error',
+						'param'   => 'model',
+					),
+				),
+				null,
+				$model
+			);
+			self::assertSame(
+				'invalid_key',
+				$message_only['state'],
+				'A 401 whose message says the API key is invalid is a credential verdict, however generic its type and whatever param it carries.'
+			);
+
+			// Same verdict, different spelling, so the veto is a vocabulary rather
+			// than one memorised string.
+			$incorrect = $diagnostics->classify(
+				401,
+				array(
+					'error' => array(
+						'message' => sprintf( 'Incorrect API key provided for model %s.', $model ),
+						'type'    => 'invalid_request_error',
+						'param'   => 'model',
+					),
+				),
+				null,
+				$model
+			);
+			self::assertSame(
+				'invalid_key',
+				$incorrect['state'],
+				'The message veto must cover the spellings a gateway actually uses, not one memorised string.'
+			);
+		}
+
+		/**
 		 * A keyed outcome that happens to mention the model is still keyed.
 		 *
 		 * Order matters here: a 401 CreditsError is proof the gateway READ the

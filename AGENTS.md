@@ -23,9 +23,19 @@ No Node, no build step. `vendor/` is git-ignored and never ships.
    `delete_option_` trio but must stay credential-blind (transient deletes
    only). All three, because deleting an option fires neither of the other two:
    a handler set missing `delete_option_` lets its caches outlive the thing they
-   describe and wait out a TTL instead. `delete_option_{option}` passes the
-   option name alone, so its callback takes no arguments. This was a wp.org
-   review finding.
+   describe and wait out a TTL instead. This was a wp.org review finding.
+   **The three hooks do NOT agree on where the option name sits**, so a bust
+   callback must read it from the position that hook actually uses — reading
+   the wrong argument is silent, because the callback then fails its own guard
+   and deletes nothing. Verified against WordPress 7.1.2,
+   `wp-includes/option.php`:
+   `update_option_{option}` is `( $old_value, $value, $option )` — the option
+   name is **third**, and the first argument is a credential; `add_option_`
+   and `delete_option_` pass the option name **first**. Reading argument one
+   everywhere made every key *rotation* a silent no-op. `*_site_option_` is
+   not needed: WP core reads connector keys with `get_option()`
+   (`wp-includes/connectors.php:462`), so they are site options on multisite
+   too.
 3. **Keep versions in sync**: main-file `Version:` header, `VERSION` const,
    `readme.txt` Stable tag + Changelog + Upgrade Notice.
 4. **Keep the non-affiliation disclaimer** in `readme.txt` (trademark rule).
@@ -48,7 +58,9 @@ No Node, no build step. `vendor/` is git-ignored and never ships.
   the unavailable thing as `probe_model_unavailable` — indeterminate, never a credential
   verdict, so it cannot clear last-known-good. Attribution needs positive model evidence
   (`param: "model"`, a model-scoped code, or the model's name plus a "gone" phrase) and is
-  vetoed by a credential-scoped code, so a revoked key is never rescued by model wording.
+  vetoed by a credential-scoped code **or a credential phrase in the message** — `code` and
+  `type` are optional in OpenAI-compatible errors, so a 401 reading "Invalid API key
+  provided" with only `param: model` would otherwise hold a revoked key open for 30 days.
   401 CreditsError and 429 are keyed verdicts and are never downgraded.
 
 ## Release
