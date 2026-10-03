@@ -4,7 +4,7 @@ Tags: ai, artificial-intelligence, connector, opencode, zen
 Requires at least: 7.0
 Tested up to: 7.1.2
 Requires PHP: 8.2
-Stable tag: 0.1.7
+Stable tag: 0.1.8
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -109,6 +109,20 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 == Changelog ==
 
+= 0.1.8 =
+* Fixed: rotating a saved key did not clear its cached availability state.
+  WordPress passes the option name as the THIRD argument to
+  update_option_{$option} but as the FIRST to add_option_ and
+  delete_option_. The cleanup hook read the first argument, so on a key
+  CHANGE it received the previous key text, did not match, and cleared
+  nothing. A rotated key could keep its last-known-good state for up to 30
+  days. Removal and first-time setup were never affected.
+* Fixed: an error naming the credential only in its message text, with no
+  machine-readable code, could be read as "the model was retired" and leave a
+  revoked key marked valid.
+* Improved: a probe failure attributable to the retired PROBE_MODEL now backs
+  off on its own schedule instead of re-probing every 60 seconds in lockstep.
+
 = 0.1.7 =
 * Fixed: credential verification now detects the WordPress AI Client HTTP method enum correctly, so valid keys are no longer treated as unverifiable because of a dynamic SDK method.
 * Improved: temporary server, transport, and rate-limit outcomes preserve the last known good configuration state; Zen free-tier limits are still recognized as a valid key.
@@ -141,6 +155,9 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 * Initial release: Go and Zen providers, allowlisted models with free labels, probe availability, shared-key sync, and Show all models toggle.
 
 == Upgrade Notice ==
+= 0.1.8 =
+<p>No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release fixes key rotation not clearing cached availability state, tightens how a credential error is told apart from a retired probe model, and gives model-drift its own backoff.</p>
+
 
 = 0.1.7 =
 No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release improves key verification, preserves the last known good state during temporary provider failures, and safely ignores malformed model-list entries.
