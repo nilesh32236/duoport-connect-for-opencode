@@ -302,9 +302,26 @@ namespace OpenCodeConnector\Tests\Unit {
 				self::assertStringNotContainsString( 'connectors_ai_', (string) ( $call[0] ?? '' ) );
 			}
 
-			$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/duoport-connect-for-opencode.php' );
-			self::assertStringContainsString( 'opencode_connector_verify_go', $source );
-			self::assertStringContainsString( 'opencode_connector_verify_zen', $source );
+			// The plugin file's per-catalog delete list derives each catalog's
+			// verify keys from the catalog slug rather than hard-coding them, so
+			// "both catalogs are covered" is now a property of Catalog::allKeys()
+			// instead of two literals in the source. Assert the property, which
+			// is what the old literal check was standing in for — a guard that
+			// can only be satisfied by one spelling is a guard on the spelling.
+			//
+			// What the entry file DOES with that list is not asserted here, and
+			// used to be asserted by grepping the file for 'Catalog::allKeys('.
+			// That grep was unsound: the comment above the loop contains the same
+			// string, so swapping allKeys() for a narrower list dropped both
+			// catalogs' verification verdicts from the delete list and the suite
+			// stayed green. SlimBustHooksTest now calls the entry file's hook and
+			// asserts the deleted keys, which is the check that can actually
+			// fail. What remains here is the Catalog half it covers for us.
+			foreach ( array( 'go', 'zen' ) as $catalog ) {
+				$catalog_keys = \OpenCodeConnector\Metadata\Catalog::allKeys( $catalog );
+				self::assertContains( 'opencode_connector_verify_' . $catalog, $catalog_keys );
+				self::assertContains( 'opencode_connector_verify_' . $catalog . '_lock', $catalog_keys );
+			}
 		}
 
 		/**
@@ -341,6 +358,96 @@ namespace OpenCodeConnector\Tests\Unit {
 			self::assertStringNotContainsString( 'get_option( \'connectors_ai_', $probe_source );
 			self::assertStringNotContainsString( 'get_option( "connectors_ai_', $probe_source );
 			self::assertStringNotContainsString( 'update_option( \'connectors_ai_', $probe_source );
+		}
+
+		/**
+		 * A probe that reached nothing must not report verified.
+		 *
+		 * `verified` in a diagnosis means the backend was reached and
+		 * identified — not that the key is good, which is what the top-level
+		 * `state` adjudicates. A concurrent probe holding the stampede lock
+		 * means this call sends nothing at all, so substituting the `unknown`
+		 * verdict for a missing diagnosis asserted that a request had reached
+		 * OpenCode and been understood. It had not been sent.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_a_locked_probe_does_not_report_verified(): void {
+			$this->boot();
+			$ttls = array();
+			$this->stub_transients_stateless( $ttls );
+
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ): mixed {
+					return 'opencode_connector_verify_go_lock' === $key ? 1 : false;
+				}
+			);
+
+			list( $availability, $transporter ) = $this->make_availability( new Response( 200, null ) );
+			$verdict = $availability->verify();
+
+			self::assertSame( 0, $transporter->calls, 'The locked path must not send a request.' );
+			self::assertSame( 'could-not-be-checked', $verdict['state'] );
+			self::assertArrayHasKey( 'verified', $verdict['diagnosis'] );
+			self::assertFalse(
+				(bool) $verdict['diagnosis']['verified'],
+				'No request was sent, so no gateway was reached or identified. "We reached the backend and identified it" must never be asserted about a probe that never left the process.'
+			);
+		}
+
+		/**
+		 * The unrecognised-response verdict keeps saying it reached the backend.
+		 *
+		 * The counterpart to the assertion above, so the fix cannot over-correct
+		 * into claiming that no verdict ever reached a gateway. A 404 came back
+		 * *from* OpenCode: the request arrived and the answer was recognised as
+		 * something the plugin has no rule for, which is exactly what `unknown`
+		 * means. The response says nothing about the credential either way.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_an_unrecognized_response_still_reports_reached(): void {
+			$this->boot();
+			$ttls = array();
+			$this->stub_transients_stateless( $ttls );
+
+			list( $availability ) = $this->make_availability( new Response( 404, null ) );
+			$verdict = $availability->verify();
+
+			self::assertSame( 'could-not-be-checked', $verdict['state'], 'An unrecognised status proves nothing about the credential.' );
+			self::assertSame( 'unknown', $verdict['diagnosis']['state'] );
+			self::assertTrue(
+				(bool) $verdict['diagnosis']['verified'],
+				'The gateway answered, so it was reached and identified. Fail-open here is about the credential, not about whether the request arrived.'
+			);
+		}
+
+		/**
+		 * Reading the last result before any probe has run must not report verified.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_get_last_result_before_any_probe_does_not_report_verified(): void {
+			$this->boot();
+
+			$availability = new OpenCodeProviderAvailability( 'zen' );
+			$last         = $availability->getLastResult();
+
+			self::assertSame(
+				'uncheckable',
+				$last['state'],
+				'No probe has run, so nothing was reached and nothing was learned.'
+			);
+			self::assertFalse(
+				(bool) $last['verified'],
+				'getLastResult() must not default to a verdict that asserts the backend was reached before a request has been sent.'
+			);
 		}
 	}
 }

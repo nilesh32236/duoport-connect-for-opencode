@@ -19,8 +19,23 @@ No Node, no build step. `vendor/` is git-ignored and never ships.
    first one's masked placeholder, the save is reverted, and valid keys are
    rejected. Each catalog keeps its own key (`connectors_ai_opencode_{go,zen}_api_key`).
 2. **Never read or write any `connectors_ai_*` option value.** Cache-bust
-   hooks may subscribe to `update_option_`/`add_option_` hooks but must stay
-   credential-blind (transient deletes only). This was a wp.org review finding.
+   hooks may subscribe to the option-scoped `update_option_`/`add_option_`/
+   `delete_option_` trio but must stay credential-blind (transient deletes
+   only). All three, because deleting an option fires neither of the other two:
+   a handler set missing `delete_option_` lets its caches outlive the thing they
+   describe and wait out a TTL instead. This was a wp.org review finding.
+   **The three hooks do NOT agree on where the option name sits**, so a bust
+   callback must read it from the position that hook actually uses — reading
+   the wrong argument is silent, because the callback then fails its own guard
+   and deletes nothing. Verified against WordPress 7.1.2,
+   `wp-includes/option.php`:
+   `update_option_{option}` is `( $old_value, $value, $option )` — the option
+   name is **third**, and the first argument is a credential; `add_option_`
+   and `delete_option_` pass the option name **first**. Reading argument one
+   everywhere made every key *rotation* a silent no-op. `*_site_option_` is
+   not needed: WP core reads connector keys with `get_option()`
+   (`wp-includes/connectors.php:462`), so they are site options on multisite
+   too.
 3. **Keep versions in sync**: main-file `Version:` header, `VERSION` const,
    `readme.txt` Stable tag + Changelog + Upgrade Notice.
 4. **Keep the non-affiliation disclaimer** in `readme.txt` (trademark rule).
@@ -32,7 +47,21 @@ No Node, no build step. `vendor/` is git-ignored and never ships.
 - `declare(strict_types=1)` + `ABSPATH` guard in every PHP file.
 - All user-facing strings use text domain `duoport-connect-for-opencode`.
 - Availability probe: 2xx → true; 401 + `CreditsError` → true (valid key, no credits);
-  429 → true (throttled: must not lock out valid users); other 4xx/5xx + exceptions → false.
+  429 → true (throttled: must not lock out valid users); any other 4xx the gateway
+  introduces (400/402/403/404/…) and all 5xx/transport exceptions → **fall back to the
+  last-known-good flag**, not `false`. Only a proven invalid or missing key reports not
+  configured. Bucket membership lives in `ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES`;
+  never restate the list at a call site.
+- `PROBE_MODEL` is fleet-wide: every probe on every site sends that one model, so a
+  retirement upstream fails everywhere at once. The probe passes the model to
+  `ConnectionDiagnostics::classify()`, which reports a response that names THAT model as
+  the unavailable thing as `probe_model_unavailable` — indeterminate, never a credential
+  verdict, so it cannot clear last-known-good. Attribution needs positive model evidence
+  (`param: "model"`, a model-scoped code, or the model's name plus a "gone" phrase) and is
+  vetoed by a credential-scoped code **or a credential phrase in the message** — `code` and
+  `type` are optional in OpenAI-compatible errors, so a 401 reading "Invalid API key
+  provided" with only `param: model` would otherwise hold a revoked key open for 30 days.
+  401 CreditsError and 429 are keyed verdicts and are never downgraded.
 
 ## Release
 

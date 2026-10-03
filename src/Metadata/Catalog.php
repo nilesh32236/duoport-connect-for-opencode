@@ -138,11 +138,27 @@ final class Catalog {
 	}
 
 	/**
+	 * The probe result and its stampede lock, without the last-known-good flag.
+	 *
+	 * The split exists so no caller has to select list members by position to
+	 * express "clear the stale verdict but keep the fallback". The last-known-good
+	 * flag is a statement about the credential, and only an event that changes the
+	 * credential may drop it — a display setting does not.
+	 *
+	 * @param string $catalog Catalog slug.
+	 * @return list<string>
+	 */
+	public static function availabilityResultKeys( string $catalog ): array {
+		$base = self::AVAIL_PREFIX . $catalog;
+		return array( $base, $base . '_lock' );
+	}
+
+	/**
 	 * Availability transient keys for one catalog.
 	 *
 	 * Covers the probe result, its stampede lock, and the transient-only
-	 * last-known-good flag, so one call clears everything a settings or key
-	 * change must invalidate for this catalog.
+	 * last-known-good flag, so one call clears everything a key change must
+	 * invalidate for this catalog.
 	 *
 	 * @since 0.1.6
 	 *
@@ -150,8 +166,10 @@ final class Catalog {
 	 * @return list<string>
 	 */
 	public static function availabilityKeys( string $catalog ): array {
-		$base = self::AVAIL_PREFIX . $catalog;
-		return array( $base, $base . '_lock', $base . self::LAST_GOOD_SUFFIX );
+		return array_merge(
+			self::availabilityResultKeys( $catalog ),
+			array( self::AVAIL_PREFIX . $catalog . self::LAST_GOOD_SUFFIX )
+		);
 	}
 
 	/**

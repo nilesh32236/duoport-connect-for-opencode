@@ -95,14 +95,46 @@ configured
 verified
 usable
 state: not_configured | verified | invalid_key | no_credits |
-       rate_limited | free_tier_limit | uncheckable | network_error |
-       server_error | unsupported_model | unsupported_endpoint |
-       unsupported_capability | unknown
+       rate_limited | free_tier_limit | uncheckable | unknown |
+       network_error | server_error
 ```
+
+`classify()` produces `verified`, `invalid_key`, `no_credits`, `rate_limited`, `free_tier_limit`, `uncheckable`, and `unknown`; `not_configured` comes from the separate `notConfigured()` factory. `network_error` and `server_error` are retained so a legacy cached value still resolves fail-open, but the classifier produces neither — a 5xx and a transport failure are both `uncheckable`. The three `unsupported_*` names this list used to carry are not states at all and are gone: nothing in the plugin emits any of them as a `state` (`CapabilityAwareFallback` uses `unsupported_endpoint` as a model-record rejection *reason*, which is a different vocabulary entirely). A list naming a value no code can produce is a contract that cannot be kept, so it is kept to what `ConnectionDiagnostics` actually builds.
 
 `isConfigured()` may remain a compatibility projection. Settings may simplify the value for display, but must not collapse diagnostics before the backend result is produced. Probe responses must be cached briefly, must use the smallest safe request, and must never log the request authorization header.
 
-A could-not-be-checked outcome (5xx, transport failure, concurrent probe) is reported as `uncheckable` with `configured=false` and `verified=false`. It is never cached as the connection result and never clears the transient-only last-known-good flag; it is cached for one short window only so a persistent outage costs one probe per window instead of one probe per call. Quota outcomes are never `uncheckable`: 429 maps to `rate_limited` or `free_tier_limit`, and 401 with a credits error maps to `no_credits`. Only a proven invalid or missing key reports not configured.
+A could-not-be-checked outcome is never cleared from the transient-only last-known-good flag, and never becomes the credential verdict. Membership in that bucket lives in exactly one place, `ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES`, and `isConfigured()` resolves every member through `readLastGood()` rather than deciding per state. Two members, with two different windows:
+
+- `uncheckable` (5xx), `network_error`, and `server_error` are transient — they resolve on their own, so they are cached for one minute and retried quickly. `uncheckable` reports `configured=false` and `verified=false`: the backend was never identified.
+- `unknown` is everything the classifier has no rule for: 400, 402, 403, 404, and any status the gateway introduces later. It is persistent, not transient — a model rename does not undo itself in a minute — so it is cached on the full jittered window. Jitter matters here as much as the length: a window without it would make every affected site re-probe on the same boundary, which is the synchronized stampede the jitter exists to prevent. It reports `configured=false`, because it never adjudicated the credential, and `verified=true`, because the gateway was reached and identified — that is what separates it from `uncheckable`.
+
+Because these states prove nothing about the key, `isConfigured()` falls back to last-known-good rather than reporting a working key as not configured. That is the deliberate trade: an uninterpreted response is not evidence against the credential. Its cost is that the fallback is invisible, so a long-lived verdict can outlive the condition it was issued for — which is why deleting a connector key clears the flag rather than waiting out its TTL. Quota outcomes are never in this bucket: 429 maps to `rate_limited` or `free_tier_limit`, and 401 with a credits error maps to `no_credits`. Only a proven invalid or missing key reports not configured.
+
+#### Which statuses reach `unknown`, and why that is a decision
+
+Recorded explicitly rather than inherited from the classifier's fallthrough, because "whatever the code happens to do" is not a contract anyone can review. The set is fixed by `classify()`, not chosen per status:
+
+| Upstream status | Classifies to | Fails open on the flag |
+| --- | --- | --- |
+| 2xx | `verified` | no — arms the flag |
+| 401 (`CreditsError`) | `no_credits` | no — arms the flag |
+| 401 (anything else) | `invalid_key` | no — clears the flag |
+| 429 (`FreeUsageLimitError`) | `free_tier_limit` | no — arms the flag |
+| 429 (anything else) | `rate_limited` | no — arms the flag |
+| 5xx, transport failure, status 0 | `uncheckable` | yes |
+| **every other status** | `unknown` | **yes** |
+| no key stored | `not_configured` | no — clears the flag |
+
+So the fail-open set is every status that is not 2xx, not 401, not 429, and not 5xx: **400, 402, 403, 404, 405, 407, 408, 409, 410, 422, plus any 4xx the gateway introduces later, plus the 1xx/3xx codes that should not occur and are no more informative than a 400.** In practice 400 and 404 dominate, because an upstream model rename or retirement answers with them.
+
+**Why 402 and 403 fail open, stated once so it is not re-litigated by accident.** Both are defensible as credential problems, and both are routinely *not*:
+
+- **403** is the strongest case for failing closed, and the reason it still must not is that a 403 does not distinguish a revoked key from a plan that lacks the probed model, a retired model, an IP or WAF block, or a gateway policy change. Failing closed disconnects a site whose key works perfectly for every model it is actually entitled to use — the same failure mode as the production bug this PR exists to fix, reached by a different route.
+- **402** signals a billing state, which is a property of the *account*, not a verdict on the credential. Treating it as a credential failure disconnects working keys on a payment hiccup.
+
+The cost of this choice is bounded, and the bound is what makes it acceptable: **failing open does not arm the flag.** `unknown` leaves last-known-good exactly as it found it, so a site with no armed flag still reports not configured, and a site with a live flag keeps it. A genuinely revoked key does not hide behind this — the gateway answers 401, which is a definitive negative and clears the flag immediately. The only thing 402/403 failing open can delay is the *displayed* state of a key that is already unusable, never the clearing of a proven bad one.
+
+Changing which statuses fail open is not a documentation change. It would move work pinned by `UnknownFallbackTest.php`, and belongs in its own PR with its own evidence. This section exists to record the current choice, not to license changing it.
 
 ### Transient key ownership
 

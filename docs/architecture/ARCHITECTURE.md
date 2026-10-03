@@ -2,13 +2,13 @@
 
 **Audit snapshot:** 2026-09-25
 
-**Baseline repository head:** `8bd45a4fe1da7b7f7d1af706d123e92ee52ff060` (`origin/main`)
+**Baseline repository head:** `8bd45a4fe1da7b7f7d1af706d123e92ee52ff060` (`origin/main` at the snapshot - the head this evidence was gathered at, not a claim about the current branch)
 
-**Active campaign PR:** none; RELEASE-003 closeout is complete
+**Active campaign PR:** [#135](https://github.com/nilesh32236/duoport-connect-for-opencode/pull/135) - the availability probe fails open on any response it cannot interpret. Open and unmerged at the time of writing; the probe sections below describe it, this snapshot header predates it.
 
-**Active queue item:** none; `RELEASE-003` / GitHub issue [#98](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/98) is completed after PR #99, tag v0.1.6, and WordPress.org verification
+**Active queue item:** none in flight. PR #135 raised `AVAIL-001` (surface the unrecognised-response verdict in the settings UI) in `refactor-queue.yaml`, where it is recorded as **deferred** - a settings-UI status-label change is deliberately kept out of a live-main bugfix, so it is tracked rather than absorbed. `RELEASE-003` / GitHub issue [#98](https://github.com/nilesh32236/duoport-connect-for-opencode/issues/98) completed earlier, after PR #99, tag v0.1.6, and WordPress.org verification
 
-**Runtime evidence:** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1, plugin 0.1.6; exact release artifact deactivate/reactivate passes, both providers register, image capabilities remain default-deny, settings render 1301 bytes with no secret markers, and authenticated Playwright reaches Plugins, settings persistence, Connectors, and the public site with no network/console errors. WordPress.org API serves 0.1.6 and both verified screenshots; only unrelated `ai-provider-for-*` connector-card 404s remain from earlier runs.
+**Runtime evidence (snapshot only, plugin 0.1.6 - predates PR #135):** WordPress 7.1.2, PHP 8.3.33, WordPress AI Client 1.3.1, plugin 0.1.6; exact release artifact deactivate/reactivate passes, both providers register, image capabilities remain default-deny, settings render 1301 bytes with no secret markers, and authenticated Playwright reaches Plugins, settings persistence, Connectors, and the public site with no network/console errors. WordPress.org API serves 0.1.6 and both verified screenshots; only unrelated `ai-provider-for-*` connector-card 404s remain from earlier runs. No equivalent runtime pass has been run against PR #135, so none is claimed here.
 
 This document is the current architecture source of truth. `class-inventory.json`, `DEPENDENCY-GRAPH.json`, `BOUNDARIES.md`, and `refactor-queue.yaml` are companion artifacts. Older files under `AUDIT/` are historical evidence, not a competing plan.
 
@@ -16,7 +16,7 @@ This document is the current architecture source of truth. `class-inventory.json
 
 The plugin is a small WordPress provider adapter. It registers `opencode-go` and `opencode-zen`, discovers a curated model list, creates WordPress AI Client model objects, and performs the smallest safe availability probe. It does not own a chat UI, conversation store, prompt library, RAG system, vector database, agent runtime, or analytics dashboard.
 
-The WordPress Connectors screen remains the credential owner. The plugin never reads, writes, aliases, or logs `connectors_ai_*` option values. The only permitted connector-option interaction is subscribing to add/update hooks in order to delete plugin-owned transients.
+The WordPress Connectors screen remains the credential owner. The plugin never reads, writes, aliases, or logs `connectors_ai_*` option values. The only permitted connector-option interaction is subscribing to add/update/delete hooks in order to delete plugin-owned transients.
 
 ## Current runtime flow
 
@@ -42,7 +42,9 @@ WordPress AI Client model request
 Availability
   -> transient-cached, max_tokens=1 chat/completions probe
   -> boolean contract: 2xx, 429, and 401 CreditsError are configured
-  -> all other responses/exceptions are not configured
+  -> anything the probe cannot interpret (5xx, transport failure, unrecognised
+     4xx) resolves through the transient last-known-good flag, not false
+  -> only a proven invalid or missing key reports not configured
 ```
 
 Model Radar flow:
