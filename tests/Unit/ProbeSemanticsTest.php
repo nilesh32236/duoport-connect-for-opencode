@@ -89,6 +89,45 @@ namespace OpenCodeConnector\Tests\Unit {
 	}
 
 	/**
+	 * Authentication double whose resolution throws a queued throwable.
+	 *
+	 * Stands in for the ways `getRequestAuthentication()` can fail that have
+	 * nothing to do with the key itself: an unregistered Connectors registry, a
+	 * throwing `connectors_ai_*` filter, a broken SDK bootstrap, a plain
+	 * \Error from a half-installed SDK.
+	 *
+	 * @since 0.1.9
+	 */
+	final class ThrowingProbeAuthentication {
+		/**
+		 * Queued throwable.
+		 *
+		 * @var \Throwable
+		 */
+		private \Throwable $throwable;
+
+		/**
+		 * Constructor.
+		 *
+		 * @param \Throwable $throwable Throwable to raise from the getter.
+		 */
+		public function __construct( \Throwable $throwable ) {
+			$this->throwable = $throwable;
+		}
+
+		/**
+		 * Raise the queued throwable instead of returning an authenticator.
+		 *
+		 * @return mixed
+		 * @throws \Throwable Always.
+		 */
+		public function authenticateRequest( mixed $request ): mixed {
+			unset( $request );
+			throw $this->throwable;
+		}
+	}
+
+	/**
 	 * Probe semantics matrix specs.
 	 *
 	 * @package OpenCodeConnector
@@ -929,6 +968,157 @@ namespace OpenCodeConnector\Tests\Unit {
 			$availability = new OpenCodeProviderAvailability( 'go' );
 
 			self::assertFalse( $availability->isConfigured(), 'Without authentication the provider is not configured.' );
+		}
+
+		/**
+		 * A PROVEN absent key still disconnects and still clears last-known-good.
+		 *
+		 * The counterpart to the spec below, and the guard against over-correcting
+		 * this fix into "every credential-resolution throwable is indeterminate".
+		 * That would be wrong in the other direction: a user who deletes their key
+		 * must stop being reported as connected, and an absent key on a site whose
+		 * gateway is mid-outage must not be papered over by a 30-day flag armed
+		 * before the deletion. Only a *proven* absence gets that power, and this
+		 * pins that it still has it.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_a_proven_absent_key_still_disconnects_and_clears_last_good(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			$last_good = 'opencode_connector_avail_go_last_good';
+			$cleared   = array();
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( $last_good ): mixed {
+					return $last_good === $key ? 1 : false;
+				}
+			);
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->alias(
+				static function ( string $key ) use ( &$cleared ): bool {
+					$cleared[] = $key;
+					return true;
+				}
+			);
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			// No authentication injected: the SDK trait raises its
+			// "no request authentication configured" signal, which is the one
+			// shape that genuinely means the key is absent.
+			$unkeyed = new OpenCodeProviderAvailability( 'go' );
+			self::assertSame( 'not_configured', $unkeyed->diagnose()['state'] );
+			self::assertFalse(
+				$unkeyed->isConfigured(),
+				'A proven absent key reports not-connected, with or without a stale flag.'
+			);
+			self::assertContains( $last_good, $cleared, 'A proven absent key may clear last-known-good.' );
+		}
+
+		/**
+		 * Only an explicit "authentication is not configured" signal counts.
+		 *
+		 * This is the rule the fix turns on. `getRequestAuthentication()` is
+		 * third-party surface and it can throw for reasons that say nothing
+		 * about the credential — an unregistered Connectors registry, a
+		 * throwing `connectors_ai_*` filter, an autoload or SDK bootstrap
+		 * fault. Mapping every \Throwable to a proven bad key contradicted the
+		 * plugin's own published rule and paid for it in the worst currency
+		 * available: `writeLastGood(false)` deletes the 30-day last-known-good
+		 * transient, so an infrastructure blip left a site reporting
+		 * not-connected with nothing to explain why.
+		 *
+		 * \Error is excluded BEFORE the message is read. \Error and its
+		 * subclasses mean the process is broken, not that a user left a field
+		 * blank, and their messages are code-shaped — letting a string match
+		 * there would re-open the hole this closes.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_credential_throwable_classification_is_narrow(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			$classify = new \ReflectionMethod( OpenCodeProviderAvailability::class, 'is_missing_credential_throwable' );
+			$classify->setAccessible( true );
+
+			$absent = array(
+				'the SDK trait signal'            => new \RuntimeException( 'No request authentication configured.' ),
+				'the shipped SDK signal'          => new \RuntimeException( 'RequestAuthenticationInterface instance not set. Make sure you use the AiClient class for all requests.' ),
+				'a generic wiring message'        => new \RuntimeException( 'Request authentication is not configured for opencode-go.' ),
+			);
+			foreach ( $absent as $label => $exception ) {
+				self::assertTrue( $classify->invoke( null, $exception ), $label . ' proves the credential is absent.' );
+			}
+
+			// Everything that merely failed to be READ must be indeterminate.
+			$indeterminate = array(
+				'a throwing filter'              => new \RuntimeException( 'A connectors_ai_* filter threw.' ),
+				'an unregistered registry'        => new \LogicException( 'Connectors registry not registered.' ),
+				'an SDK bootstrap fault'          => new \Error( 'Class "WordPress\\AiClient\\Http\\Client" not found' ),
+				'a type error'                    => new \TypeError( 'Argument 1 must be of type string' ),
+				'a missing call'                  => new \BadMethodCallException( 'Call to undefined method getSetting()' ),
+				'a credential phrase in an Error' => new \Error( 'No request authentication configured.' ),
+				'an empty message'                => new \RuntimeException( '' ),
+			);
+			foreach ( $indeterminate as $label => $exception ) {
+				self::assertFalse( $classify->invoke( null, $exception ), $label . ' proves nothing about the credential.' );
+			}
+		}
+
+		/**
+		 * An authentication-layer fault never clears last-known-good.
+		 *
+		 * Reachable end to end without reaching into private state: the
+		 * authenticator itself throws while the request is being signed. The
+		 * probe must classify that as could-not-be-checked — the same bucket a
+		 * 5xx lands in — and leave the 30-day flag alone. A fault anywhere in
+		 * the credential path, not just in the getter, must cost one probe and
+		 * not the site its connection.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_an_authentication_fault_preserves_last_known_good(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			$last_good = 'opencode_connector_avail_go_last_good';
+			$cleared   = array();
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( $last_good ): mixed {
+					return $last_good === $key ? 1 : false;
+				}
+			);
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->alias(
+				static function ( string $key ) use ( &$cleared ): bool {
+					$cleared[] = $key;
+					return true;
+				}
+			);
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			$availability->setHttpTransporter( new FakeProbeTransporter( new Response( 200, null ) ) );
+			$availability->setRequestAuthentication( new ThrowingProbeAuthentication( new \Error( 'SDK bootstrap failed' ) ) );
+
+			self::assertSame( 'uncheckable', $availability->diagnose()['state'] );
+			self::assertTrue(
+				$availability->isConfigured(),
+				'A fault while signing the request is not evidence about the key.'
+			);
+			self::assertNotContains( $last_good, $cleared, 'A credential-path fault must never clear the 30-day flag.' );
 		}
 
 		/**

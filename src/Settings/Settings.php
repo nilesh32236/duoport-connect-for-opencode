@@ -276,11 +276,25 @@ final class Settings {
 	/**
 	 * Render settings page.
 	 *
+	 * Capability is enforced at the callback, not only at the registration
+	 * site. `menu()` already passes `manage_options` to `add_options_page()`,
+	 * and core's `user_can_access_admin_page()` enforces it, so today this is
+	 * defence in depth rather than a live bypass. It is worth having at the
+	 * method anyway: `render()` calls `fetchProviderStatus()`, which drives the
+	 * registry into `isProviderConfigured()` and can therefore trigger a real
+	 * outbound probe to the OpenCode gateway. That effect belongs behind the
+	 * capability check, not behind a menu registration some future caller
+	 * might not go through — the same pattern the plugin entry file already
+	 * uses for its own admin output.
+	 *
 	 * @since 0.1.0
 	 *
 	 * @return void
 	 */
 	public function render(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to view this page.', 'duoport-connect-for-opencode' ) );
+		}
 		$opts   = get_option( \OpenCodeConnector\OPTION_NAME, array( 'show_all_models' => false ) );
 		$status = $this->fetchProviderStatus();
 		$go_ok  = $status['go'];
