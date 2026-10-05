@@ -120,8 +120,17 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 * Fixed: an error naming the credential only in its message text, with no
   machine-readable code, could be read as "the model was retired" and leave a
   revoked key marked valid.
-* Improved: a probe failure attributable to the retired PROBE_MODEL now backs
+* Improved: a probe failure that names PROBE_MODEL in its message text now backs
   off on its own schedule instead of re-probing every 60 seconds in lockstep.
+  No model has been retired. PROBE_MODEL is still sent on every probe; this
+  release only adds handling for a future retirement.
+* Behaviour to be aware of: when a gateway answers with a response this plugin
+  has no rule for, the dashboard shows the last known good state rather than
+  "Not connected". That state was recorded by an earlier successful check and
+  lasts up to 30 days, so a key revoked at the provider can still read as
+  connected until it expires. Run Verify to refresh it. Every response this
+  plugin does recognise, including an explicit invalid-key or not-configured
+  code, is reported immediately.
 
 = 0.1.7 =
 * Fixed: credential verification now detects the WordPress AI Client HTTP method enum correctly, so valid keys are no longer treated as unverifiable because of a dynamic SDK method.
@@ -156,7 +165,7 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 == Upgrade Notice ==
 = 0.1.8 =
-<p>No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release fixes key rotation not clearing cached availability state, tightens how a credential error is told apart from a retired probe model, and gives model-drift its own backoff.</p>
+<p>No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release fixes key rotation not clearing cached availability state, improves how a credential error is told apart from a probe-model mention, gives model-drift its own backoff, and keeps showing the last known good state for up to 30 days when a gateway answers with a response the plugin has no rule for.</p>
 
 
 = 0.1.7 =
