@@ -128,9 +128,10 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
   has no rule for, the dashboard shows the last known good state rather than
   "Not connected". That state was recorded by an earlier successful check and
   lasts up to 30 days, so a key revoked at the provider can still read as
-  connected until it expires. It clears on the next check that returns a state
-  the plugin recognises, so the practical fix for a key you know is bad is to
-  remove it and enter the replacement. Any response the plugin does recognise,
+  connected until it expires. A check that returns a state the plugin does
+  recognise clears it, but verdicts are cached for about five minutes, so the
+  dashboard can keep the old state until that expires. The practical fix for a
+  key you know is bad is to remove it and enter the replacement. Any response the plugin does recognise,
   including an explicit invalid-key or not-configured code, clears it - but
   verdicts are cached for about five minutes, so the dashboard can still show
   the old state until that expires. A failure naming PROBE_MODEL is treated the
