@@ -128,9 +128,11 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
   has no rule for, the dashboard shows the last known good state rather than
   "Not connected". That state was recorded by an earlier successful check and
   lasts up to 30 days, so a key revoked at the provider can still read as
-  connected until it expires. Run Verify to refresh it. Every response this
-  plugin does recognise, including an explicit invalid-key or not-configured
-  code, is reported immediately.
+  connected until it expires. It clears on the next check that returns a state
+  the plugin recognises, so the practical fix for a key you know is bad is to
+  remove it and enter the replacement. Every response this plugin does
+  recognise, including an explicit invalid-key or not-configured code, is
+  reported immediately.
 
 = 0.1.7 =
 * Fixed: credential verification now detects the WordPress AI Client HTTP method enum correctly, so valid keys are no longer treated as unverifiable because of a dynamic SDK method.
