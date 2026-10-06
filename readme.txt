@@ -125,11 +125,11 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
   result and overwriting what was known before. No model has been retired.
   PROBE_MODEL is still sent on every probe; this release only adds handling for
   a future retirement.
-* Behaviour to be aware of: when the provider answers with something this plugin
-  has no rule for, the dashboard keeps showing the last result it did understand,
-  for up to 30 days, rather than reporting the key as disconnected. A provider
-  that stops answering may therefore not be noticed straight away. Removing the
-  key and entering it again clears the stored state immediately.
+* Behaviour to be aware of: when the gateway answers with a response this plugin
+  has no rule for, the stored availability state is left alone rather than
+  replaced, and it is kept for up to 30 days. A gateway that stops answering may
+  therefore not be reported promptly. Removing the key and entering it again
+  clears the stored state.
 
 = 0.1.7 =
 * Fixed: credential verification now detects the WordPress AI Client HTTP method enum correctly, so valid keys are no longer treated as unverifiable because of a dynamic SDK method.
@@ -164,7 +164,7 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 == Upgrade Notice ==
 = 0.1.8 =
-<p>No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release fixes key rotation not clearing cached availability state, improves how a credential error is told apart from a probe-model mention, gives model-drift its own backoff, and keeps showing the last known good state for up to 30 days when a gateway answers with a response the plugin has no rule for.</p>
+<p>No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release fixes key rotation not clearing cached availability state, and stops a gateway response the plugin has no rule for overwriting the last availability state it did understand. Removing a key and entering it again clears that state.</p>
 
 
 = 0.1.7 =
