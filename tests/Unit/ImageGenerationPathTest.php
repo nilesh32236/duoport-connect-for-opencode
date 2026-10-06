@@ -247,6 +247,75 @@ namespace OpenCodeConnector\Tests\Unit {
 	}
 
 	/**
+	 * Image editor double emulating decode-then-encode.
+	 *
+	 * A real `wp_get_image_editor()` loads the pixels and writes a fresh
+	 * container, so whatever followed the final chunk of the source file cannot
+	 * survive. That is the behaviour `ImageAttachmentSaver::reencode_image()`
+	 * depends on and the whole reason the write path goes through an editor
+	 * instead of `wp_upload_bits()` — so the double reproduces it rather than
+	 * echoing its input back, which would make the assertions below vacuous.
+	 */
+	final class ImageGenerationPathTest_FakeEditor {
+		/**
+		 * Bytes this "decoder" produces for the saved container.
+		 *
+		 * @var string
+		 */
+		private string $encoded;
+
+		/**
+		 * Path the editor was opened from.
+		 *
+		 * @var string
+		 */
+		public string $loaded_from = '';
+
+		/**
+		 * Destination handed to save().
+		 *
+		 * @var string
+		 */
+		public string $saved_to = '';
+
+		/**
+		 * MIME type handed to save().
+		 *
+		 * @var string
+		 */
+		public string $saved_mime = '';
+
+		/**
+		 * Constructor.
+		 *
+		 * @param string $encoded Bytes written by save().
+		 */
+		public function __construct( string $encoded ) {
+			$this->encoded = $encoded;
+		}
+
+		/**
+		 * Write the re-encoded container and report it like WP's editors do.
+		 *
+		 * @param string $target   Destination path.
+		 * @param string $mime_type Requested output MIME type.
+		 * @return array{path:string,file:string}
+		 */
+		public function save( string $target, string $mime_type = '' ): array {
+			$this->saved_to   = $target;
+			$this->saved_mime = $mime_type;
+			file_put_contents( $target, $this->encoded );
+			return array(
+				'path'      => $target,
+				'file'      => $target,
+				'width'     => 1,
+				'height'    => 1,
+				'mime-type' => '' === $mime_type ? 'image/png' : $mime_type,
+			);
+		}
+	}
+
+	/**
 	 * Image-generation path specs.
 	 */
 	final class ImageGenerationPathTest extends MonkeyTestCase {
@@ -482,14 +551,71 @@ namespace OpenCodeConnector\Tests\Unit {
 
 		/**
 		 * Validation rejects bytes whose sniffed content differs from the claim.
+		 *
+		 * The rejection reason for a payload that is a real image of a
+		 * DIFFERENT allowlisted format is `opencode_image_mime_mismatch`, which is
+		 * more informative than the structural gate's `opencode_image_unreadable`
+		 * and is what the mismatch branch exists to say. Bytes that are not an
+		 * image at all cannot reach it — see the structural test below.
 		 */
 		public function test_validate_rejects_mime_mismatch(): void {
-			if ( ! class_exists( \finfo::class ) ) {
-				self::markTestSkipped( 'finfo unavailable; content sniffing falls back to the claimed-type allowlist.' );
+			if ( ! function_exists( 'imagecreatefromstring' ) && ! class_exists( \finfo::class ) ) {
+				self::markTestSkipped( 'Neither content signal is available on this build.' );
 			}
-			$mismatch = ImageAttachmentSaver::validate( 'plain text, not an image', 'image/png' );
+			$jpeg = self::tiny_jpeg();
+			if ( '' === $jpeg ) {
+				self::markTestSkipped( 'No JPEG fixture available on this build.' );
+			}
+			$mismatch = ImageAttachmentSaver::validate( $jpeg, 'image/png' );
 			self::assertInstanceOf( \WP_Error::class, $mismatch );
 			self::assertSame( 'opencode_image_mime_mismatch', $mismatch->get_error_code() );
+		}
+
+		/**
+		 * Content that is not a readable image is rejected, never waved through.
+		 *
+		 * `validate()` used to skip its content comparison whenever the finfo
+		 * sniff came back null, which left the caller's allowlisted CLAIM as the
+		 * only gate on a minimal PHP build — and the claim is attacker-controlled.
+		 * The structural read now always runs, so at least one content-derived
+		 * signal is required before anything can reach `wp_upload_bits()`.
+		 *
+		 * @return void
+		 */
+		public function test_validate_never_trusts_the_claim_alone(): void {
+			foreach ( array( 'plain text, not an image', str_repeat( "\0", 32 ), 'GIF89a truncated' ) as $blob ) {
+				$unreadable = ImageAttachmentSaver::validate( $blob, 'image/png' );
+				self::assertInstanceOf( \WP_Error::class, $unreadable );
+				self::assertSame(
+					'opencode_image_unreadable',
+					$unreadable->get_error_code(),
+					'Nothing but the claim says this is a PNG, which is not evidence.'
+				);
+			}
+		}
+
+		/**
+		 * Minimal 1x1 JPEG fixture, when one can be produced on this build.
+		 *
+		 * @return string Raw JPEG bytes, or an empty string when unavailable.
+		 */
+		private static function tiny_jpeg(): string {
+			$hardcoded = base64_decode(
+				'/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/9oACAEBAAA/AP/Z',
+				true
+			);
+			if ( is_string( $hardcoded ) && '' !== $hardcoded ) {
+				return $hardcoded;
+			}
+			if ( ! function_exists( 'imagecreatetruecolor' ) || ! function_exists( 'imagejpeg' ) ) {
+				return '';
+			}
+			$image = imagecreatetruecolor( 1, 1 );
+			ob_start();
+			imagejpeg( $image, null, 100 );
+			$bytes = (string) ob_get_clean();
+			imagedestroy( $image );
+			return $bytes;
 		}
 
 		/**
@@ -501,6 +627,55 @@ namespace OpenCodeConnector\Tests\Unit {
 			$raw = base64_decode( 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', true );
 			self::assertIsString( $raw );
 			return $raw;
+		}
+
+		/**
+		 * A well-formed PNG carrying an appended PHP payload.
+		 *
+		 * Every content check this plugin had before the re-encode was added
+		 * reads a header, so this buffer passes all of them: finfo reports
+		 * `image/png`, `getimagesize()` reports `image/png` with sane
+		 * dimensions, and the payload sits after the final IEND chunk where no
+		 * parser is looking.
+		 *
+		 * @return string Polyglot PNG bytes.
+		 */
+		private static function png_with_appended_payload(): string {
+			return self::tiny_png() . "\n<?php echo 7; ?>\n";
+		}
+
+		/**
+		 * Stub wp_tempnam() and wp_get_image_editor() with a decode/encode double.
+		 *
+		 * @param string|null $encoded Bytes the "editor" writes back, or null to
+		 *                              make the editor unavailable (fail-closed).
+		 * @return array{0:ImageGenerationPathTest_FakeEditor|null,1:list<string>}
+		 *         The editor double and the temp paths it was handed.
+		 */
+		private function stub_image_editor( ?string $encoded ): array {
+			$paths  = array();
+			$editor = null === $encoded ? null : new ImageGenerationPathTest_FakeEditor( $encoded );
+
+			Functions\when( 'wp_tempnam' )->alias(
+				static function ( string $filename = '' ) use ( &$paths ): string {
+					unset( $filename );
+					$path = tempnam( sys_get_temp_dir(), 'opencode-test-' );
+					if ( false !== $path ) {
+						$paths[] = $path;
+					}
+					return false === $path ? '' : $path;
+				}
+			);
+			if ( null !== $editor ) {
+				Functions\when( 'wp_get_image_editor' )->alias(
+					static function ( string $path ) use ( $editor ): ImageGenerationPathTest_FakeEditor {
+						$editor->loaded_from = $path;
+						return $editor;
+					}
+				);
+			}
+
+			return array( $editor, $paths );
 		}
 
 		/**
@@ -544,6 +719,7 @@ namespace OpenCodeConnector\Tests\Unit {
 					return (string) ( $args[0] ?? '' );
 				}
 			);
+			$this->stub_image_editor( self::tiny_png() );
 			Functions\when( 'wp_upload_bits' )->justReturn( array( 'error' => 'disk full' ) );
 
 			$result = ImageAttachmentSaver::save_to_media_library( self::tiny_png(), 'image/png', 'sunset' );
@@ -561,8 +737,9 @@ namespace OpenCodeConnector\Tests\Unit {
 					return (string) ( $args[0] ?? '' );
 				}
 			);
-			$seen_upload = null;
-			$seen_insert = null;
+			list( $editor ) = $this->stub_image_editor( self::tiny_png() );
+			$seen_upload    = null;
+			$seen_insert    = null;
 			Functions\when( 'wp_upload_bits' )->alias(
 				static function ( ...$args ) use ( &$seen_upload ): array {
 					$seen_upload = $args;
@@ -594,6 +771,99 @@ namespace OpenCodeConnector\Tests\Unit {
 			self::assertSame( 'image/png', $seen_insert[0]['post_mime_type'] );
 			self::assertSame( '/uploads/sunset.png', $seen_insert[1] );
 			self::assertSame( array( 123, array( 'file' => 'sunset.png' ) ), $meta_seen );
+			self::assertSame(
+				self::tiny_png(),
+				(string) $seen_upload[2],
+				'Only a re-encoding of the decoded image may be written, never the transmitted buffer.'
+			);
+
+			// wp_tempnam() returns an extension-less path and WordPress's editors
+			// pick their OUTPUT FORMAT from the destination's extension, so a
+			// target without one would quietly re-encode a PNG as a JPEG.
+			self::assertInstanceOf( ImageGenerationPathTest_FakeEditor::class, $editor );
+			self::assertStringEndsWith( '.png', (string) $editor->saved_to );
+			self::assertSame( 'image/png', $editor->saved_mime );
+		}
+
+		/**
+		 * A PNG polyglot is stored re-encoded, so no appended payload reaches uploads.
+		 *
+		 * This is the finding that mattered. The allowlist, the finfo sniff and
+		 * getimagesize() all read a header, so a well-formed PNG with a PHP
+		 * payload appended after its last chunk satisfies every one of them and
+		 * used to be written into a web-served uploads directory verbatim.
+		 *
+		 * The double decodes and re-encodes the way GD/Imagick does, so the
+		 * payload cannot survive — and the assertion is on the bytes handed to
+		 * `wp_upload_bits()`, which is the boundary the hole was on.
+		 *
+		 * @return void
+		 */
+		public function test_appended_payload_is_stripped_before_upload(): void {
+			Functions\when( 'current_user_can' )->justReturn( true );
+			Functions\when( 'sanitize_file_name' )->alias(
+				static function ( ...$args ): string {
+					return (string) ( $args[0] ?? '' );
+				}
+			);
+			$this->stub_image_editor( self::tiny_png() );
+
+			$polyglot = self::png_with_appended_payload();
+			// The payload really does pass every header-level check — which is
+			// exactly why validate() alone cannot be the fix.
+			self::assertTrue(
+				ImageAttachmentSaver::validate( $polyglot, 'image/png' ),
+				'A polyglot passes header sniffing by construction; the re-encode is the control, not this.'
+			);
+
+			$written = null;
+			Functions\when( 'wp_upload_bits' )->alias(
+				static function ( ...$args ) use ( &$written ): array {
+					$written = (string) $args[2];
+					return array(
+						'file'  => '/uploads/polyglot.png',
+						'url'   => 'https://example.test/uploads/polyglot.png',
+						'error' => false,
+					);
+				}
+			);
+			Functions\when( 'wp_insert_attachment' )->justReturn( 7 );
+			Functions\when( 'wp_generate_attachment_metadata' )->justReturn( array( 'file' => 'polyglot.png' ) );
+			Functions\when( 'wp_update_attachment_metadata' )->justReturn( true );
+
+			$result = ImageAttachmentSaver::save_to_media_library( $polyglot, 'image/png', 'polyglot' );
+			self::assertSame( 7, $result );
+			self::assertIsString( $written );
+			self::assertNotSame( $polyglot, $written, 'The transmitted buffer must never be written as-is.' );
+			self::assertStringNotContainsString( '<?php', (string) $written, 'The appended payload must not survive into uploads.' );
+		}
+
+		/**
+		 * No image editor means fail closed, never store the buffer as-is.
+		 *
+		 * The alternative to re-encoding is writing the transmitted bytes, and
+		 * doing that only when no editor exists inverts the risk: the hosts least
+		 * likely to have GD or Imagick would be the ones with no guard at all.
+		 *
+		 * @return void
+		 */
+		public function test_save_fails_closed_without_an_image_editor(): void {
+			Functions\when( 'current_user_can' )->justReturn( true );
+			Functions\when( 'sanitize_file_name' )->alias(
+				static function ( ...$args ): string {
+					return (string) ( $args[0] ?? '' );
+				}
+			);
+			$this->stub_image_editor( null );
+			Functions\when( 'wp_upload_bits' )->alias(
+				static function ( ...$args ): array {
+					self::fail( 'Nothing may be written when the image cannot be re-encoded.' );
+				}
+			);
+
+			$result = ImageAttachmentSaver::save_to_media_library( self::png_with_appended_payload(), 'image/png' );
+			self::assertInstanceOf( \WP_Error::class, $result );
+			self::assertSame( 'opencode_image_decode', $result->get_error_code() );
 		}
 
 		/**
