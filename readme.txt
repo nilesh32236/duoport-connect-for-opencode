@@ -120,10 +120,11 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 * Fixed: an error naming the credential only in its message text, with no
   machine-readable code, could be read as "the model was retired" and leave a
   revoked key marked valid.
-* Improved: a probe failure whose message names PROBE_MODEL is now handled on a
-  longer, separate schedule rather than the normal one. No model has been retired.
-  PROBE_MODEL is still sent on every probe; this release only adds handling for a
-  future retirement.
+* Fixed: a provider error naming PROBE_MODEL in its message text is now treated
+  as telling us nothing about the key, instead of being recorded as a fresh
+  result and overwriting what was known before. No model has been retired.
+  PROBE_MODEL is still sent on every probe; this release only adds handling for
+  a future retirement.
 * Behaviour to be aware of: when the provider answers with something this plugin
   has no rule for, the dashboard keeps showing the last result it did understand,
   for up to 30 days, rather than reporting the key as disconnected. A provider
