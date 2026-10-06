@@ -49,6 +49,19 @@ final class ImageAttachmentSaver {
 	public const MAX_BYTES = 10485760;
 
 	/**
+	 * Maximum decoded pixel count (width x height, 25 megapixels).
+	 *
+	 * Bounds the pixel buffer BEFORE anything decodes it: PHP memory
+	 * exhaustion is not Throwable, so a decompression bomb (a tiny file
+	 * declaring gigapixel dimensions) cannot be caught after the fact.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @var int
+	 */
+	public const MAX_PIXELS = 25000000;
+
+	/**
 	 * Whether a MIME type is accepted.
 	 *
 	 * @since 0.1.4
@@ -219,6 +232,66 @@ final class ImageAttachmentSaver {
 	}
 
 	/**
+	 * Header-only pixel dimensions of a payload.
+	 *
+	 * Reads the container header via `getimagesizefromstring()` without
+	 * decoding any pixels, so calling it cannot exhaust memory no matter
+	 * what dimensions the header declares. Returns null when the buffer
+	 * has no parseable image header — callers fail closed on null.
+	 *
+	 * Never throws.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param string $image_bytes Raw bytes.
+	 * @return array{0:int,1:int}|null Width and height, or null when unknown.
+	 */
+	private static function image_dimensions( string $image_bytes ): ?array {
+		try {
+			if ( ! function_exists( 'getimagesizefromstring' ) ) {
+				return null;
+			}
+			$info = @getimagesizefromstring( $image_bytes ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Unparseable buffer is an answer, not a fault.
+			if ( ! is_array( $info ) || ! isset( $info[0], $info[1] ) || ! is_int( $info[0] ) || ! is_int( $info[1] ) ) {
+				return null;
+			}
+			if ( $info[0] <= 0 || $info[1] <= 0 ) {
+				return null;
+			}
+			return array( $info[0], $info[1] );
+		} catch ( \Throwable ) {
+			return null;
+		}
+	}
+
+	/**
+	 * MIME type for a file extension, restricted to the allowlist.
+	 *
+	 * Inverse of `ImageMime::extensionFor()` for the output-identity check:
+	 * maps what the editor actually wrote (its output path's extension) back
+	 * to a MIME type. Returns null for anything outside the allowlist, so an
+	 * unexpected output format fails closed downstream.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param string $extension File extension without the dot.
+	 * @return string|null Allowlisted MIME type, or null when unmapped.
+	 */
+	private static function mime_for_extension( string $extension ): ?string {
+		$ext = strtolower( trim( $extension ) );
+		if ( 'png' === $ext ) {
+			return 'image/png';
+		}
+		if ( 'jpg' === $ext || 'jpeg' === $ext ) {
+			return 'image/jpeg';
+		}
+		if ( 'webp' === $ext ) {
+			return 'image/webp';
+		}
+		return null;
+	}
+
+	/**
 	 * Re-encode a payload so only decoded image data survives.
 	 *
 	 * The reason this exists. Everything upstream of it — the allowlist, the
@@ -239,16 +312,28 @@ final class ImageAttachmentSaver {
 	 * hosts least likely to be running an editor, which is the wrong way round:
 	 * it makes the guard's strength depend on a detail of the environment.
 	 *
-	 * Every temporary file created here is removed on every path.
+	 * Every temporary file created here is removed on every path, including
+	 * the editor's actual output file when `save()` rewrites the destination
+	 * extension under output-format filters.
 	 *
 	 * @since 0.1.9
 	 *
 	 * @param string $image_bytes    Raw image bytes.
 	 * @param string $detected_mime  MIME type identified from the content.
-	 * @return string|\WP_Error Re-encoded bytes, or WP_Error on any failure.
+	 * @return array{bytes:string,mime:string}|\WP_Error Re-encoded bytes plus the MIME type of what the editor actually wrote, or WP_Error on any failure.
 	 */
-	private static function reencode_image( string $image_bytes, string $detected_mime ): string|\WP_Error {
+	private static function reencode_image( string $image_bytes, string $detected_mime ): array|\WP_Error {
 		if ( ! self::is_allowed_mime( $detected_mime ) ) {
+			return self::decode_error();
+		}
+		// Pixel-dimension cap BEFORE anything decodes a pixel. PHP memory
+		// exhaustion is not Throwable, so no try/catch below could survive a
+		// decompression bomb; image_dimensions() reads the header only.
+		$dimensions = self::image_dimensions( $image_bytes );
+		if ( null === $dimensions ) {
+			return self::decode_error();
+		}
+		if ( $dimensions[0] * $dimensions[1] > self::MAX_PIXELS ) {
 			return self::decode_error();
 		}
 		$tmp_files = array();
@@ -304,11 +389,23 @@ final class ImageAttachmentSaver {
 			// The MIME type is passed explicitly as well, so the output format
 			// does not depend on either an extension or a per-editor default.
 			$saved = $editor->save( $target, $detected_mime );
+			// WP_Image_Editor::save() may rewrite the destination extension
+			// under output-format filters, so the bytes can land beside
+			// $target rather than at it. From here on, cleanup AND identity
+			// derive from the editor's ACTUAL output path, never the requested
+			// one — otherwise the real file leaks on every path below while
+			// only the never-created requested path is unlinked.
+			$actual_target = $target;
+			if ( is_array( $saved ) && isset( $saved['path'] ) && is_string( $saved['path'] ) && '' !== $saved['path'] ) {
+				$actual_target = $saved['path'];
+			}
+			if ( ! in_array( $actual_target, $tmp_files, true ) ) {
+				$tmp_files[] = $actual_target;
+			}
 			if ( ! is_array( $saved ) ) {
 				return self::decode_error();
 			}
-			$saved_path  = isset( $saved['path'] ) && is_string( $saved['path'] ) ? $saved['path'] : $target;
-			$raw_encoded = is_readable( $saved_path ) ? file_get_contents( $saved_path ) : false; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local scratch file the image editor just wrote, not a URL.
+			$raw_encoded = is_readable( $actual_target ) ? file_get_contents( $actual_target ) : false; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local scratch file the image editor just wrote, not a URL.
 			$encoded     = is_string( $raw_encoded ) ? $raw_encoded : '';
 			if ( '' === $encoded ) {
 				return self::decode_error();
@@ -323,15 +420,32 @@ final class ImageAttachmentSaver {
 					)
 				);
 			}
-			// The re-encoded buffer is the new ground truth: re-identify it and
-			// require that it is still the format it claims to be, so a decoder
-			// that emitted something unexpected cannot be written under a .png
-			// name just because the input was a PNG.
+			// The re-encoded buffer is the new ground truth, but the format it
+			// must match is what the editor ACTUALLY wrote — its reported
+			// output type and the actual output path's extension — not the
+			// input. A site filtering the editor's default output format to
+			// another allowlisted type performs a safe, fully-decoded save;
+			// rejecting it against the input mime would be a false
+			// opencode_image_decode. Content still has to agree with at least
+			// one of those two output signals, so a decoder that emitted
+			// something unexpected cannot pass under any name.
+			$reported_mime = null;
+			if ( isset( $saved['mime-type'] ) && is_string( $saved['mime-type'] ) ) {
+				$reported      = strtolower( trim( $saved['mime-type'] ) );
+				$reported_mime = '' === $reported ? null : $reported;
+			}
+			$path_mime    = self::mime_for_extension( (string) pathinfo( $actual_target, PATHINFO_EXTENSION ) );
 			$encoded_mime = self::detect_mime( $encoded ) ?? self::structural_mime( $encoded );
-			if ( null === $encoded_mime || $encoded_mime !== $detected_mime ) {
+			if ( null === $encoded_mime || ! self::is_allowed_mime( $encoded_mime ) ) {
 				return self::decode_error();
 			}
-			return $encoded;
+			if ( $encoded_mime !== $reported_mime && $encoded_mime !== $path_mime ) {
+				return self::decode_error();
+			}
+			return array(
+				'bytes' => $encoded,
+				'mime'  => $encoded_mime,
+			);
 		} catch ( \Throwable ) {
 			return self::decode_error();
 		} finally {
@@ -365,8 +479,9 @@ final class ImageAttachmentSaver {
 	 *
 	 * The bytes written are the re-encoding of the decoded image, never the
 	 * transmitted buffer — see `reencode_image()` — and both the file
-	 * extension and the registered `post_mime_type` are derived from the
-	 * decoded format rather than from the caller's claim.
+	 * extension and the registered `post_mime_type` follow what the editor
+	 * actually wrote rather than the caller's claim, so a site filtering the
+	 * editor's output format still gets a consistently-named attachment.
 	 *
 	 * @since 0.1.4
 	 *
@@ -406,12 +521,17 @@ final class ImageAttachmentSaver {
 			return $encoded;
 		}
 
-		$extension = ImageMime::extensionFor( $decoded_mime );
-		$base      = sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) );
+		// Content wins over the claim to the end: extension and attachment
+		// MIME follow the re-encoded output, which under an output-format
+		// filter can legitimately differ from the input.
+		$encoded_bytes = $encoded['bytes'];
+		$encoded_mime  = $encoded['mime'];
+		$extension     = ImageMime::extensionFor( $encoded_mime );
+		$base          = sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) );
 		if ( '' === $base ) {
 			$base = 'opencode-image';
 		}
-		$upload = wp_upload_bits( $base . '.' . $extension, null, $encoded );
+		$upload = wp_upload_bits( $base . '.' . $extension, null, $encoded_bytes );
 		if ( ! empty( $upload['error'] ) ) {
 			return new \WP_Error( 'opencode_image_upload', (string) $upload['error'] );
 		}
@@ -424,7 +544,7 @@ final class ImageAttachmentSaver {
 
 		$attachment_id = wp_insert_attachment(
 			array(
-				'post_mime_type' => $decoded_mime,
+				'post_mime_type' => $encoded_mime,
 				'post_title'     => $base,
 				'post_status'    => 'inherit',
 			),
