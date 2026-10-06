@@ -35,7 +35,7 @@ against a single list:
 | Symbol | What it does |
 |---|---|
 | `OpenCodeProviderAvailability::isProbeModelDrift()` | Predicate deciding that a verdict means the probe model was refused, not the credential; triggers a retry with a second reviewed paid model. |
-| inline `array( 400, 404 )` | The drift-status list, written as a literal inside `isProbeModelDrift()`. |
+| inline `array( 400, 404 )` | The drift-status list, written as a literal inside `isProbeModelDrift()`. **Superseded at the branch tip:** commit `8156d0c` replaced the literal with the exported constant `ConnectionDiagnostics::PROBE_MODEL_DRIFT_STATUSES`, read by both `isProbeModelDrift()` and `ConnectionDiagnostics::isDenyEligibleStatus()`. |
 | `OpenCodeProviderAvailability::SETTLED_STATES` | `array( 'probe_model_unavailable' )`; the verdict set that is a settled drift signal. |
 | `ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES` | Bucket holding `probe_model_unavailable` and `unknown`, so neither clears last-known-good. |
 | `ConnectionDiagnostics::probeModelUnavailable()` | Factory for the `probe_model_unavailable` verdict. |
@@ -64,6 +64,15 @@ literal. In this codebase that constant belongs beside the state vocabulary it
 qualifies — `ConnectionDiagnostics`, which already owns the single home for what a
 probe verdict means. Then a status added to the drift set is automatically denied
 by the exemption, and no second edit can forget it.
+
+**Implemented at the branch tip:** commit `8156d0c` ships exactly this shape —
+`ConnectionDiagnostics::PROBE_MODEL_DRIFT_STATUSES` (`array( 400, 404 )`), read by
+`OpenCodeProviderAvailability::isProbeModelDrift()` and by
+`ConnectionDiagnostics::isDenyEligibleStatus()` (which returns false for listed
+statuses), with `tests/Unit/ConnectionDiagnosticsTest.php` iterating the constant
+directly (`test_deny_filter_never_reaches_the_drift_statuses`), so a newly added
+status is covered automatically. The "future work" framing above describes the
+state before that commit, not the tip.
 
 The asymmetry that makes this worth enforcing: the retry path failing is a
 **liveness** bug (a site cannot recover), while the deny path failing closed is a
@@ -122,8 +131,8 @@ section 5 first.
 ## 7. Checklist for a future implementation
 
 - [ ] Drift is carried on the verdict as a first-class dimension, not re-derived from `state` + `status`.
-- [ ] The drift-status set is **one exported constant**, read by every consumer.
-- [ ] A ratchet asserts each call site references that constant and holds no literal copy.
+- [x] The drift-status set is **one exported constant**, read by every consumer. — satisfied at `8156d0c` (`PROBE_MODEL_DRIFT_STATUSES`, both call sites verified).
+- [x] A ratchet asserts each call site references that constant and holds no literal copy. — satisfied at `8156d0c` (deny tests iterate the constant itself).
 - [ ] The ratchet has a mutation proof per call site: break one side, watch exactly one test fail.
 - [ ] Any tightening posture is tested in both directions — that it denies what it claims, and that every recovery shape still reaches its recovery path.
 - [ ] The gate is behavioural, not source-level only: a test that runs the probe end to end and asserts the retry still happens.
