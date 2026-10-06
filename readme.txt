@@ -120,10 +120,15 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 * Fixed: an error naming the credential only in its message text, with no
   machine-readable code, could be read as "the model was retired" and leave a
   revoked key marked valid.
-* Improved: a probe failure that names PROBE_MODEL in its message text now backs
-  off on its own schedule instead of re-probing every 60 seconds in lockstep.
-  No model has been retired. PROBE_MODEL is still sent on every probe; this
-  release only adds handling for a future retirement.
+* Improved: a probe failure whose message names PROBE_MODEL is now handled on a
+  longer, separate schedule rather than the normal one. No model has been retired.
+  PROBE_MODEL is still sent on every probe; this release only adds handling for a
+  future retirement.
+* Behaviour to be aware of: when the provider answers with something this plugin
+  has no rule for, the dashboard keeps showing the last result it did understand,
+  for up to 30 days, rather than reporting the key as disconnected. A provider
+  that stops answering may therefore not be noticed straight away. Removing the
+  key and entering it again clears the stored state immediately.
 
 = 0.1.7 =
 * Fixed: credential verification now detects the WordPress AI Client HTTP method enum correctly, so valid keys are no longer treated as unverifiable because of a dynamic SDK method.
