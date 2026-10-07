@@ -4,7 +4,7 @@
  * Description:       Connect OpenCode Go and Zen (including free models) to WordPress 7.0 AI.
  * Requires at least: 7.0
  * Requires PHP:      8.2
- * Version:           0.1.7
+ * Version:           0.1.8
  * Author:            Nilesh Kanzariya
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
@@ -23,7 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-const VERSION     = '0.1.7';
+const VERSION     = '0.1.8';
 const OPTION_NAME = 'opencode_connector_settings';
 
 require_once __DIR__ . '/src/autoload.php';
@@ -170,12 +170,48 @@ add_action(
 // valid keys were rejected with "It was not possible to connect to the
 // provider using this key." Separate settings keep every validation against
 // the real submitted key.
-$opencode_connector_bust = static function (): void {
-	// Single source of truth: Metadata\Catalog::allTransientKeys() (a
-	// dependency-free class safe to load without SDK traits). Fallback
-	// literals below run only when the class cannot autoload.
-	if ( class_exists( Metadata\Catalog::class ) && method_exists( Metadata\Catalog::class, 'allTransientKeys' ) ) {
-		foreach ( Metadata\Catalog::allTransientKeys() as $opencode_connector_key ) {
+// Busts ONLY the transients for the connector whose option fired the hook.
+//
+// Scoped per catalog on purpose. The delete list used to be
+// Catalog::allTransientKeys(), which is every key for both catalogs — correct
+// for uninstall.php, wrong here. Both connectors' last-known-good flags are
+// independent 30-day fail-open fallbacks, so deleting or rotating the Go key
+// also destroyed Zen's. Since `unknown` never re-arms the flag, a Zen gateway
+// currently answering 400/402/403/404 lost its fallback permanently and Zen
+// reported not-configured until a *keyed* response arrived — this PR's exact
+// defect, reached through a sibling's key rotation.
+//
+// WP core does NOT pass the option name in the same position on all three of
+// these hooks, and reading the wrong argument is completely silent. Verified
+// against WordPress 7.1.2, wp-includes/option.php:
+//
+// option.php:1019 do_action( "update_option_{$option}", $old_value, $value, $option );
+// option name THIRD; argument one is the PREVIOUS CREDENTIAL.
+// option.php:1176 do_action( "add_option_{$option}", $option, $value );
+// option name FIRST.
+// option.php:1264 do_action( "delete_option_{$option}", $option );
+// option name FIRST.
+//
+// This closure used to read argument one for all three, which is correct twice
+// out of three. On `update_option_` it was therefore handed an API key string,
+// failed the `_go_`/`_zen_` guard below, and returned before deleting anything.
+// No error, no notice: every key ROTATION silently deleted nothing, so the
+// last-known-good flag describing the OLD key survived its full 30-day window
+// and `isConfigured()` kept reporting the old credential's verdict about the
+// new one. add and delete were unaffected, which is why the suite stayed green.
+//
+// So each hook gets its own closure that pulls the option name from the
+// position core actually uses for THAT hook, registered with an
+// `$accepted_args` wide enough for it to arrive. `update_option_` therefore
+// takes 3. Tests/Unit/SlimBustHooksTest.php fires all three in core's real
+// order, truncated to the registered `$accepted_args`, and gives each hook its
+// own recorder.
+$opencode_connector_bust_catalog = static function ( string $opencode_connector_catalog ): void {
+	// Single source of truth: Metadata\Catalog::allKeys() (a dependency-free
+	// class safe to load without SDK traits). Fallback literals below run only
+	// when the class cannot autoload.
+	if ( class_exists( Metadata\Catalog::class ) && method_exists( Metadata\Catalog::class, 'allKeys' ) ) {
+		foreach ( Metadata\Catalog::allKeys( $opencode_connector_catalog ) as $opencode_connector_key ) {
 			delete_transient( $opencode_connector_key );
 			if ( function_exists( 'delete_site_transient' ) ) {
 				delete_site_transient( $opencode_connector_key );
@@ -184,18 +220,14 @@ $opencode_connector_bust = static function (): void {
 		unset( $opencode_connector_key );
 		return;
 	}
+	$opencode_connector_base = 'opencode_connector_avail_' . $opencode_connector_catalog;
 	foreach (
 		array(
-			'opencode_connector_avail_go',
-			'opencode_connector_avail_zen',
-			'opencode_connector_avail_go_lock',
-			'opencode_connector_avail_zen_lock',
-			'opencode_connector_avail_go_last_good',
-			'opencode_connector_avail_zen_last_good',
-			'opencode_connector_verify_go',
-			'opencode_connector_verify_zen',
-			'opencode_connector_verify_go_lock',
-			'opencode_connector_verify_zen_lock',
+			$opencode_connector_base,
+			$opencode_connector_base . '_lock',
+			$opencode_connector_base . '_last_good',
+			'opencode_connector_verify_' . $opencode_connector_catalog,
+			'opencode_connector_verify_' . $opencode_connector_catalog . '_lock',
 		) as $opencode_connector_key
 	) {
 		delete_transient( $opencode_connector_key );
@@ -203,13 +235,80 @@ $opencode_connector_bust = static function (): void {
 			delete_site_transient( $opencode_connector_key );
 		}
 	}
-	unset( $opencode_connector_key );
+	unset( $opencode_connector_key, $opencode_connector_base );
 };
+
+// Resolve the catalog from the option name core passed, or null when this is
+// not a connector key the closures below are registered for. Deleting both
+// catalogs there would reintroduce the over-bust the per-catalog scoping
+// removes.
+$opencode_connector_catalog_of = static function ( string $opencode_connector_option ): ?string {
+	if ( str_contains( $opencode_connector_option, '_zen_' ) ) {
+		return 'zen';
+	}
+	if ( str_contains( $opencode_connector_option, '_go_' ) ) {
+		return 'go';
+	}
+	return null;
+};
+
 foreach ( array( 'connectors_ai_opencode_go_api_key', 'connectors_ai_opencode_zen_api_key' ) as $opencode_connector_setting ) {
-	add_action( 'update_option_' . $opencode_connector_setting, $opencode_connector_bust );
-	add_action( 'add_option_' . $opencode_connector_setting, $opencode_connector_bust );
+	// add_option_{$option} -- ( $option, $value ). Option name first.
+	add_action(
+		'add_option_' . $opencode_connector_setting,
+		static function ( $opencode_connector_option = '', $opencode_connector_value = null ) use ( $opencode_connector_catalog_of, $opencode_connector_bust_catalog ): void {
+			// The value is a credential. Accept it only so the signature matches
+			// core's arity; it is never read (AGENTS.md hard rule 2).
+			unset( $opencode_connector_value );
+			$opencode_connector_catalog = $opencode_connector_catalog_of( (string) $opencode_connector_option );
+			if ( null !== $opencode_connector_catalog ) {
+				$opencode_connector_bust_catalog( $opencode_connector_catalog );
+			}
+		},
+		10,
+		1
+	);
+
+	// update_option_{$option} -- ( $old_value, $value, $option ). Option name
+	// THIRD. The first two arguments are credentials and are never read; the
+	// third is only reachable because `$accepted_args` is 3.
+	add_action(
+		'update_option_' . $opencode_connector_setting,
+		static function ( $opencode_connector_old_value = null, $opencode_connector_value = null, $opencode_connector_option = '' ) use ( $opencode_connector_catalog_of, $opencode_connector_bust_catalog ): void {
+			unset( $opencode_connector_old_value, $opencode_connector_value );
+			$opencode_connector_catalog = $opencode_connector_catalog_of( (string) $opencode_connector_option );
+			if ( null !== $opencode_connector_catalog ) {
+				$opencode_connector_bust_catalog( $opencode_connector_catalog );
+			}
+		},
+		10,
+		3
+	);
+
+	// delete_option_{$option} -- ( $option ). A key can also leave by deletion
+	// rather than update: uninstalling the Connectors feature, a migration,
+	// WP-CLI, or another plugin calling delete_option(). Neither of the hooks
+	// above fires then, so the last-known-good flag would outlive the key it
+	// describes by its full 30-day TTL. That flag is what the
+	// unrecognised-response fallback reads, so a site that deleted its key
+	// would keep reporting connected for a month off a verdict about a
+	// credential that no longer exists. WP's REST settings controller deletes
+	// the option outright when the field is cleared
+	// (class-wp-rest-settings-controller.php:201), so this is the hook the
+	// "clear my key in the UI" path actually takes.
+	add_action(
+		'delete_option_' . $opencode_connector_setting,
+		static function ( $opencode_connector_option = '' ) use ( $opencode_connector_catalog_of, $opencode_connector_bust_catalog ): void {
+			$opencode_connector_catalog = $opencode_connector_catalog_of( (string) $opencode_connector_option );
+			if ( null !== $opencode_connector_catalog ) {
+				$opencode_connector_bust_catalog( $opencode_connector_catalog );
+			}
+		},
+		10,
+		1
+	);
 }
-unset( $opencode_connector_bust, $opencode_connector_setting );
+unset( $opencode_connector_bust_catalog, $opencode_connector_catalog_of, $opencode_connector_setting );
 
 // Settings bootstrap.
 add_action(

@@ -116,4 +116,104 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 		);
 		self::assertStringNotContainsString( 'sensitive response', (string) json_encode( $result ) );
 	}
+
+	/**
+	 * An unrecognised response must not assert the credential is configured.
+	 *
+	 * `unknown()` is a per-probe verdict with no memory: it cannot know whether
+	 * a last-known-good flag exists, so it cannot claim the credential is set
+	 * up. `isConfigured()` is the surface that resolves the same probe through
+	 * that flag and returns false on a cold cache. If `configured` also read
+	 * true, the two public surfaces would disagree and every consumer of this
+	 * array would get an unconditional fail-open that the boolean projection
+	 * deliberately withholds.
+	 *
+	 * `verified` stays true: the gateway was reached and identified, which is
+	 * exactly what separates this verdict from `uncheckable()`.
+	 *
+	 * @return void
+	 */
+	public function test_unknown_does_not_assert_configured(): void {
+		$diagnostics = new ConnectionDiagnostics();
+		$unknown     = $diagnostics->classify( 404 );
+
+		self::assertSame( 'unknown', $unknown['state'] );
+		self::assertFalse(
+			$unknown['configured'],
+			'An unrecognised response never adjudicated the credential, so it must not report configured = true.'
+		);
+		self::assertTrue(
+			$unknown['verified'],
+			'The gateway was reached and identified; that is what separates `unknown` from `uncheckable`.'
+		);
+		self::assertFalse( $unknown['usable'] );
+
+		// A definitive negative keeps the same shape: reached, but not configured.
+		$invalid = $diagnostics->classify( 401, array( 'error' => array( 'type' => 'InvalidApiKey' ) ) );
+		self::assertFalse( $invalid['configured'] );
+		self::assertTrue( $invalid['verified'] );
+
+		// An unreachable gateway is the one state that is not verified.
+		self::assertFalse( $diagnostics->classify( 0, null, new \RuntimeException( 'down' ) )['verified'] );
+	}
+
+	/**
+	 * `verify_state()` reads the published buckets instead of restating them.
+	 *
+	 * The defect these buckets document was one missing entry in one of two
+	 * hand-maintained lists. `verify_state()` is the remaining second copy: it
+	 * spelled both lists out inline, so a state added to the vocabulary would
+	 * still be silently forgotten there and every probe outcome would be
+	 * bucketed by hand.
+	 *
+	 * The two lists are equal by value, so no behavioural assertion can tell
+	 * the copies apart — the duplicate literals themselves are the defect, so
+	 * the assertion is that they are gone from that method body.
+	 *
+	 * @return void
+	 */
+	public function test_verify_state_has_no_hand_maintained_state_lists(): void {
+		$source = (string) file_get_contents( __DIR__ . '/../../src/Availability/ConnectionDiagnostics.php' );
+
+		$start = strpos( $source, 'public function verify_state' );
+		self::assertNotFalse( $start, 'verify_state() must exist.' );
+
+		// Slice just this method body: from its signature to whichever member
+		// comes next, so a literal elsewhere in the class cannot fail this.
+		$next_public  = strpos( $source, "\n\tpublic function ", $start );
+		$next_private = strpos( $source, "\n\tprivate function ", $start );
+		$ends         = array_filter(
+			array( $next_public, $next_private ),
+			static fn( $offset ): bool => false !== $offset
+		);
+		$end = $ends ? min( $ends ) : strlen( $source );
+		$body = substr( $source, $start, $end - $start );
+
+		// The defect was a second copy of each list spelled out inline. The
+		// method still legitimately *returns* 'valid' and 'invalid_key', so the
+		// assertion targets the list literals, not the return values.
+		self::assertDoesNotMatchRegularExpression(
+			'/in_array\(\s*\$state,\s*array\(/',
+			$body,
+			'verify_state() must read the published buckets, not a hand-maintained array.'
+		);
+		foreach ( array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit', 'invalid_key', 'not_configured' ) as $state ) {
+			self::assertStringNotContainsString(
+				"array( '" . $state . "'",
+				$body,
+				"verify_state() must not restate the state list containing '{$state}'."
+			);
+		}
+
+		self::assertStringContainsString(
+			'self::KEYED_STATES',
+			$body,
+			'verify_state() must read the keyed bucket constant.'
+		);
+		self::assertStringContainsString(
+			'self::DEFINITIVE_NEGATIVE_STATES',
+			$body,
+			'verify_state() must read the definitive-negative bucket constant.'
+		);
+	}
 }

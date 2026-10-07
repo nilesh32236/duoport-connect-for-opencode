@@ -38,9 +38,9 @@ final class ReleaseScriptTest extends MonkeyTestCase {
 		$main = (string) file_get_contents( $root . '/duoport-connect-for-opencode.php' );
 		$readme = (string) file_get_contents( $root . '/readme.txt' );
 
-		self::assertStringContainsString( 'Version:           0.1.7', $main );
-		self::assertStringContainsString( "const VERSION     = '0.1.7';", $main );
-		self::assertStringContainsString( 'Stable tag: 0.1.7', $readme );
+		self::assertStringContainsString( 'Version:           0.1.8', $main );
+		self::assertStringContainsString( "const VERSION     = '0.1.8';", $main );
+		self::assertStringContainsString( 'Stable tag: 0.1.8', $readme );
 		self::assertStringContainsString( 'Tested up to: 7.1.2', $readme );
 		$changelog_heading = '== Changelog ==';
 		$notice_heading    = '== Upgrade Notice ==';
@@ -53,8 +53,8 @@ final class ReleaseScriptTest extends MonkeyTestCase {
 		}
 		$changelog = substr( $readme, $changelog_at + strlen( $changelog_heading ), $notice_at - ( $changelog_at + strlen( $changelog_heading ) ) );
 		$notice    = substr( $readme, $notice_at + strlen( $notice_heading ) );
-		self::assertStringContainsString( '= 0.1.7 =', $changelog );
-		self::assertStringContainsString( '= 0.1.7 =', $notice );
+		self::assertStringContainsString( '= 0.1.8 =', $changelog );
+		self::assertStringContainsString( '= 0.1.8 =', $notice );
 	}
 
 	/**
