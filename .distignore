@@ -32,3 +32,4 @@ AGENTS.md
 AUDIT/
 .phpunit.result.cache
 /.wordpress-org/
+opencode-autoload-guard-probe.php

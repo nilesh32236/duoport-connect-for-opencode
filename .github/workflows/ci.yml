@@ -21,21 +21,12 @@ on:
       - '.github/reviewer-dependency.json'
   pull_request:
     branches: ["main", "master"]
-    paths:
-      - '**.php'
-      - 'composer.json'
-      - 'composer.lock'
-      - 'phpcs.xml'
-      - 'phpunit.xml.dist'
-      - '.github/workflows/*.yml'
-      - '.github/workflows/*.yaml'
-      - '.github/scripts/*.php'
-      - '.github/scripts/*.sh'
-      - 'tests/Unit/*.sh'
-      - 'scripts/build-release.sh'
-      - '.distignore'
-      - 'docs/architecture/DEPENDENCY-GRAPH.json'
-      - '.github/reviewer-dependency.json'
+    # NOTE: no `paths:` filter here on purpose. The branch ruleset requires
+    # PHPCS + PHPUnit contexts on every PR, and path filters silently skip CI
+    # for docs-only PRs — leaving required checks permanently unreported and
+    # the PR unmergeable (observed on #143: readme-only diff, CI never ran).
+    # CI minutes cost less than an unsatisfiable gate. The `push:` filter
+    # above stays: post-merge runs are informational, not gating.
 
 permissions:
   contents: read

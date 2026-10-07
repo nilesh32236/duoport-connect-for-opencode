@@ -43,7 +43,14 @@ final class ReviewerDependencyTest extends MonkeyTestCase {
 		self::assertStringContainsString( 'sha256sum -c', $source );
 
 		$ci = (string) file_get_contents( dirname( __DIR__, 2 ) . '/.github/workflows/ci.yml' );
-		self::assertSame( 2, substr_count( $ci, "'.github/workflows/*.yaml'" ) );
+		// Exactly one occurrence: the `push:` trigger's self-coverage. The
+		// `pull_request:` trigger is intentionally pathless (PR #146) so the
+		// ruleset-required PHPCS + PHPUnit contexts report on every PR —
+		// path filters silently skipped CI for docs-only diffs, leaving
+		// required checks permanently unreported. Zero occurrences would mean
+		// workflow edits no longer run CI anywhere; this assertion still
+		// catches that.
+		self::assertSame( 1, substr_count( $ci, "'.github/workflows/*.yaml'" ) );
 	}
 
 	/**

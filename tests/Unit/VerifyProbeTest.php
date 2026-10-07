@@ -221,6 +221,84 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
+		 * An infrastructure fault must never be cached as a credential verdict.
+		 *
+		 * `verify()` used to catch every \Throwable around credential resolution
+		 * and cache `invalid_key` for five minutes. Credential resolution is
+		 * third-party surface: a throwing `connectors_ai_*` filter, an
+		 * unregistered Connectors registry, an SDK bootstrap fault. Any of those
+		 * cached as `invalid_key` renders an infrastructure fault on the settings
+		 * page as a credential verdict this plugin never actually received — and
+		 * the five-minute cache means it re-renders on every page load until
+		 * something changes.
+		 *
+		 * The other half matters equally: an unrecognised throwable must not be
+		 * a route to a fatal or to a silent pass. It lands on
+		 * `could-not-be-checked`, which is the state that says "nobody learned
+		 * anything about the key".
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_verify_never_caches_an_infrastructure_fault_as_invalid_key(): void {
+			$this->boot();
+
+			$verdicts = array();
+			$stored   = array();
+			Functions\when( 'get_transient' )->justReturn( false );
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ) use ( &$stored ): bool {
+					$stored[ $key ] = $value;
+					return true;
+				}
+			);
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$unkeyed = new OpenCodeProviderAvailability( 'go' );
+			$unkeyed->setHttpTransporter( new VerifyCapturingTransporter( new Response( 200, null ) ) );
+			$verdicts['proven absent key'] = $unkeyed->verify();
+
+			self::assertSame(
+				'invalid_key',
+				$verdicts['proven absent key']['state'],
+				'A proven absent key stays a credential verdict; the fix must not over-correct into "always indeterminate".'
+			);
+
+			// The classifier is the seam the two branches share, so assert it
+			// both ways: an infrastructure-shaped throwable is not evidence about
+			// the key, and an \Error is not evidence about anything, even when its
+			// message happens to read like a missing credential.
+			$classify = new \ReflectionMethod( OpenCodeProviderAvailability::class, 'is_missing_credential_throwable' );
+			$classify->setAccessible( true );
+
+			$infrastructure = array(
+				'a throwing filter'       => new \RuntimeException( 'A connectors_ai_* filter threw.' ),
+				'an unregistered registry' => new \LogicException( 'Connectors registry not registered.' ),
+				'a missing method'         => new \BadMethodCallException( 'Call to undefined method url()' ),
+				'an Error'                 => new \Error( 'Class not found' ),
+			);
+			foreach ( $infrastructure as $label => $exception ) {
+				self::assertFalse(
+					$classify->invoke( null, $exception ),
+					$label . ' must be routed to could-not-be-checked, not invalid_key.'
+				);
+			}
+
+			self::assertSame(
+				'invalid_key',
+				$classify->invoke( null, new \RuntimeException( 'No request authentication configured.' ) ) ? 'invalid_key' : 'could-not-be-checked',
+				'The SDK\'s own missing-authentication signal is the one that keeps the credential verdict.'
+			);
+
+			// Nothing but the three safe fields is ever cached, whichever branch ran.
+			$cached = $stored['opencode_connector_verify_go'] ?? null;
+			self::assertIsArray( $cached );
+			self::assertSame( array( 'state', 'diagnosis', 'catalog' ), array_keys( $cached ) );
+		}
+
+		/**
 		 * Cached verdicts are reused within the TTL without a new request.
 		 *
 		 * @return void
