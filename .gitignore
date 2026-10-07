@@ -9,3 +9,4 @@
 *.log
 .DS_Store
 Thumbs.db
+opencode-autoload-guard-probe.php

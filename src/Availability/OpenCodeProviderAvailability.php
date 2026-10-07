@@ -65,6 +65,38 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	const PROBE_MODEL = 'deepseek-v4-flash';
 
 	/**
+	 * Narrow patterns that identify "the credential is absent" in a throwable.
+	 *
+	 * Matched case-insensitively against the throwable's own message, and only
+	 * for throwables that are NOT \Error — see
+	 * is_missing_credential_throwable() for why the class of the throwable
+	 * carries more weight than the text in its message.
+	 *
+	 * Deliberately a whitelist. Every entry names the request authentication as
+	 * unset, which is the only failure of `getRequestAuthentication()` that is a
+	 * statement about the credential rather than about the process; the first
+	 * two are verbatim the shipped SDK's and the SDK stub's wording.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @var list<string>
+	 */
+	private const MISSING_CREDENTIAL_PATTERNS = array(
+		// Verbatim from the shipped SDK trait.
+		'requestauthenticationinterface instance not set',
+		// Verbatim from the bundled SDK stub and any double built on it.
+		'no request authentication',
+		// Generic phrasings a host integration may produce.
+		'request authentication is not set',
+		'request authentication not set',
+		'request authentication is not configured',
+		'request authentication not configured',
+		'no api key configured',
+		'api key is not configured',
+		'api key not configured',
+	);
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 0.1.0
@@ -130,6 +162,71 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	}
 
 	/**
+	 * Whether a throwable raised while resolving credentials PROVES the key is absent.
+	 *
+	 * `getRequestAuthentication()` is third-party SDK surface, and it can throw
+	 * for a great many reasons that say nothing whatsoever about the credential:
+	 * the Connectors registry not being registered yet, a `connectors_ai_*`
+	 * filter that throws, an autoload or SDK bootstrap fault, a plain \Error
+	 * from a half-installed SDK. This class used to catch every \Throwable on
+	 * that path and call it a proven bad key, which contradicted the rule the
+	 * rest of this file is built around ("only a proven invalid or missing key
+	 * reports not configured") and paid for it in the worst currency available:
+	 * `writeLastGood(false)` deletes the 30-day last-known-good transient, so an
+	 * infrastructure blip on a site whose gateway was about to answer 400/404
+	 * anyway left it reporting not-connected with nothing to explain why.
+	 *
+	 * So the default here is the conservative one: an unrecognised throwable is
+	 * treated as "the key could not be read", which routes to `uncheckable()`
+	 * and therefore falls back on last-known-good instead of adjudicating the
+	 * credential. Only an explicit, narrow "authentication is not configured"
+	 * signal counts as an absent key.
+	 *
+	 * \Error is excluded before the message is even read. \Error and its
+	 * subclasses (\TypeError, \BadMethodCallException, \ParseError) mean the
+	 * PROCESS is broken, not that a user left a field blank, and their messages
+	 * are code-shaped rather than credential-shaped; letting a string match
+	 * there would re-open the hole this closes.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param \Throwable $exception Throwable raised while resolving credentials.
+	 * @return bool True only when the credential is proven absent.
+	 */
+	private static function is_missing_credential_throwable( \Throwable $exception ): bool {
+		if ( $exception instanceof \Error ) {
+			return false;
+		}
+		$message = strtolower( $exception->getMessage() );
+		if ( '' === $message ) {
+			return false;
+		}
+		foreach ( self::MISSING_CREDENTIAL_PATTERNS as $pattern ) {
+			if ( str_contains( $message, $pattern ) ) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Read or construct the diagnostics collaborator safely.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @return ConnectionDiagnostics|null
+	 */
+	private function diagnostics_or_null(): ?ConnectionDiagnostics {
+		try {
+			return $this->diagnostics();
+		} catch ( \Throwable $exception ) {
+			unset( $exception );
+			// Never fatal: an unbuildable helper degrades to "unchecked".
+			return null;
+		}
+	}
+
+	/**
 	 * Run or reuse the detailed, credential-blind probe result.
 	 *
 	 * @return array<string, mixed>
@@ -168,7 +265,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return array<string, mixed>
 	 */
 	public function verify(): array {
-		$diagnostics = class_exists( ConnectionDiagnostics::class ) ? $this->diagnostics() : null;
+		$diagnostics = class_exists( ConnectionDiagnostics::class ) ? $this->diagnostics_or_null() : null;
 		$tkey        = Catalog::VERIFY_PREFIX . $this->catalog;
 		$lock_key    = $tkey . '_lock';
 
@@ -193,8 +290,15 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 
 		try {
 			$this->getRequestAuthentication();
-		} catch ( \Throwable ) {
-			$verdict = $this->verify_result( 'invalid_key', null, $diagnostics );
+		} catch ( \Throwable $exception ) {
+			// Same split as probe(): only a PROVEN absent credential is an
+			// `invalid_key` verdict. Any other throwable here is an
+			// infrastructure fault — a throwing filter, an unregistered
+			// Connectors registry, a broken SDK bootstrap — and caching it as
+			// `invalid_key` for five minutes renders that fault on the settings
+			// page as a credential verdict the plugin never actually received.
+			$state   = self::is_missing_credential_throwable( $exception ) ? 'invalid_key' : 'could-not-be-checked';
+			$verdict = $this->verify_result( $state, null, $diagnostics );
 			$this->store_verify_verdict( $tkey, $lock_key, $verdict );
 			return $verdict;
 		}
@@ -292,8 +396,10 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * and it reports `verified = false`.
 	 *
 	 * `invalid_key` is the one branch that keeps a verdict of its own: the
-	 * probe never got as far as sending because the key could not be read at
-	 * all, which is a statement about the credential rather than about reach.
+	 * probe never got as far as sending because the credential was PROVEN
+	 * absent, which is a statement about the key rather than about reach. A
+	 * credential-resolution fault that proves nothing takes
+	 * `could-not-be-checked` instead and lands on `uncheckable()` here.
 	 *
 	 * @since 0.1.6
 	 *
@@ -399,6 +505,16 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		try {
 			$this->getRequestAuthentication();
 		} catch ( \Throwable $exception ) {
+			// Credential resolution failed, which is NOT the same as the
+			// credential being absent — see is_missing_credential_throwable().
+			// Only the proven-absent case is allowed to report not-configured,
+			// and only it may clear the 30-day last-known-good flag. Everything
+			// else is an infrastructure fault that proves nothing about the key,
+			// so it degrades to could-not-be-checked and leaves the flag alone.
+			if ( ! self::is_missing_credential_throwable( $exception ) ) {
+				$this->last_result = $diagnostics->uncheckable();
+				return $this->last_result;
+			}
 			$this->last_result = $diagnostics->notConfigured();
 			$this->writeLastGood( false );
 			return $this->last_result;
