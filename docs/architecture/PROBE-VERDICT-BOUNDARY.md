@@ -1,14 +1,25 @@
-# Probe verdict boundary: four constraints from a failed three-cycle branch
+# Probe verdict boundary: six constraints from a failed three-cycle branch
 
 **Status:** constraint on future work, not a fix and not a plan. Nothing here is pending.
+
+**Landing status (origin/main):** §1 is fixed on main — the fail-open-by-omission
+contract it prescribes shipped in PR #137 (commit `4efc9b0`, 17 files,
++3708/−157), which carried the full drift-recovery subsystem, not only the
+unknown-bucket fix. §2 is partially implemented (`probe_model_unavailable` is
+now a first-class verdict state; the re-deriving predicate remains). §3 below is
+written against the actual merged call order in both write sites. §§4–5 remain
+open, and the AGENTS.md / ARCHITECTURE.md contract split flagged in review is
+reconciled on main (both state fail-open to last-known-good).
 
 **Subject:** `src/Availability/ConnectionDiagnostics.php` (the verdict vocabulary) and
 `src/Availability/OpenCodeProviderAvailability.php` (what does with a verdict).
 
 This records what three review cycles of PR #134 cost, because the findings were
 cheap and the patterns behind them are not. That branch is closed unmerged and
-preserved on the remote (`fix/probe-unknown-fallback-and-drift-recovery`); only
-the `unknown` bucket fix was extracted, as its own small PR.
+preserved on the remote (`fix/probe-unknown-fallback-and-drift-recovery`); the
+extracted fix landed as PR #137 (`4efc9b0`), which shipped the unknown-bucket
+fail-open together with the whole drift-recovery subsystem — not, as an earlier
+draft of this note said, the bucket fix alone.
 
 ---
 
@@ -29,11 +40,20 @@ return false;   // <- `unknown` landed here
 and a sibling site cleared last-known-good from a bare `else`, so any state
 nobody had classified cleared the flag and failed **closed**. A 400 or 404 — what
 OpenCode returns after it renames or retires a model — disconnected working keys
-on the default branch.
+on the default branch. That was the live defect at the time of writing; it is
+**fixed on main** by PR #137 (`4efc9b0`), which implements exactly the shape
+below — `isConfigured()` tests `KEYED_STATES`, then
+`COULD_NOT_BE_CHECKED_STATES`, then `DEFINITIVE_NEGATIVE_STATES`, and falls
+through to `readLastGood()` (`OpenCodeProviderAvailability.php:137-161`),
+mirrored in the diagnostics decision path (`ConnectionDiagnostics.php:441-444`)
+and ratcheted by `UnknownBucketRatchetTest` (bucket membership, disjointness,
+untouched flag).
 
 **The constraint:** membership of a bucket must never be what decides a
 credential outcome. Write the decision as positive membership tests on both
-sides, and let everything unclassified fall through to the fail-open verdict:
+sides, and let everything unclassified fall through to the fail-open verdict
+(schematic — the shipped form on main names `KEYED_STATES` and
+`DEFINITIVE_NEGATIVE_STATES`, `ConnectionDiagnostics.php:66,120`):
 
 ```php
 if ( in_array( $state, KEYED_STATES, true ) ) { return true; }
@@ -51,7 +71,17 @@ The settings status line has the same rule in a different medium — see §4.
 
 An opt-in filter, `duoport_probe_deny_unrecognized`, was written to downgrade an
 unrecognised response to a definitive `invalid_key`. It was abandoned rather than
-merged disabled.
+merged disabled. (Verified absent from main: no trace of the filter name in
+`src/` — this note is the only place it survives.)
+
+**Landing status:** partially implemented on main. Drift is now a first-class
+verdict state: `PROBE_MODEL_UNAVAILABLE_STATE`
+(`ConnectionDiagnostics.php:56`) is classified from the response (`:518`) and
+sits in both `COULD_NOT_BE_CHECKED_STATES` (`:91`) and
+`PERSISTENT_UNCHECKABLE_STATES` (`:111`). What remains is the second half of
+the prescription below: drift is still re-derived afterwards by the
+`isProbeModelDrift()` predicate (`:334`, private, on main) reading the
+single-home lists, not carried on the verdict itself.
 
 A deny path must be told which responses it must **not** intercept, because those
 are the ones drift recovery needs. Three review cycles found three instances of
@@ -90,20 +120,24 @@ fact is what let the three findings in §2 through review in a single session �
 neither copy was wrong in the same commit as the other. When a fact is consumed
 in more than one place, publish it once and read it from there.
 
-**One lock ordering, and ratchet it.** The stampede lock and the verdict cache
-must be written in one order on *every* exit: cache the verdict, then release
-the lock. Releasing first leaves an instant in which neither the lock nor the
-cached verdict covers the request, and a caller landing there starts a full
-duplicate probe round — two requests for one logical check.
+**One lock ordering, and ratchet it.** Both merged write sites release the
+stampede lock *before* caching the verdict: `probe()` calls
+`deleteCached( $lock_key )` and only then caches the verdict
+(`OpenCodeProviderAvailability.php:483-631`), and `store_verify_verdict()`
+calls `delete_transient( $lock_key )` before `set_transient( $tkey, ... )`
+(`:448-480`). An earlier draft of this note stated the reverse order
+(cache-then-release) and credited PR #134 with an ordering test; both claims
+were wrong against the merged tree — no lock-ordering assertion exists
+anywhere under `tests/` (verified by grep).
 
 This is not visible in the final state. Both orders produce identical outcomes,
-so only a recording of the **call order** can see it. PR #134 established the
-invariant in `probe()` and added an ordering test, then left
-`store_verify_verdict()` with the inverse ordering — a review finding had named
-both as identical, and one was fixed and one was not. The constraint: **when an
-ordering invariant is established in one place, every place with the same
-sequence is suspect until checked**, and the check is an assertion on order, not
-on outcome.
+so only a recording of the **call order** can see it. The constraint:
+**release-then-cache, identically, on every exit of every site with this
+sequence** — a caller landing between the two calls finds neither lock nor
+fresh verdict and starts a full duplicate probe round — and the check is an
+assertion on order, not on outcome. When such an invariant is established in
+one place, every place with the same sequence is suspect until checked; the
+ratchet test itself is still missing and must be added, not cited.
 
 ## 4. The user-facing line is a verdict, not a boolean
 
@@ -143,8 +177,10 @@ least likely to be grepped.
 
 ## 6. Process note
 
-Three cycles produced six findings, then four, then eight. The count going *up*
-in the last cycle is the signal that the branch had grown past what one review
-could hold, not that the reviewer became less accurate. The extract that followed
-— the one live bug, alone, with the test that was written before the fix and run
-against unfixed `main` — is what this branch was worth.
+Review cycles kept producing more findings each round. A count going *up* late
+in review is the signal that the branch had grown past what one review could
+hold, not that the reviewer became less accurate. (Exact per-cycle counts are
+author recollection, unverifiable from the repository, and deliberately not
+stated here.) The extract that followed — the one live bug, alone, with the
+test that was written before the fix and run against unfixed `main` — is what
+this branch was worth.
