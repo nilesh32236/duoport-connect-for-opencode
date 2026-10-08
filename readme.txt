@@ -93,6 +93,10 @@ By default, only reviewed chat/completions models are shown. Zen may include exp
 
 No. Requires WordPress 7.0+ and PHP 8.2+. On older installs an admin notice is shown and registration is skipped.
 
+= Why does the dashboard still say "connected" when the provider is answering with an error? =
+
+When the gateway answers with a response this plugin has no rule for (for example a new status or error shape), the dashboard keeps the value from the last successful check instead of flipping to "not connected", so an unrecognised reply does not disconnect a working key. That stored value is written only by a successful check, lasts up to 30 days from that check (each new success extends it), and the probe result itself is cached for roughly five minutes, so a change can lag behind the gateway by that much. Only a recognised credential answer (an invalid or missing key) clears the stored value; a failure naming the probed model also leaves it alone, and a catalog that never checked successfully still reads "not connected". If the stored value looks stale, change or re-enter the key for that catalog on Settings → Connectors, which clears it, or wait for a later probe to return a definitive answer.
+
 = Is DuoPort affiliated with OpenCode? =
 
 No. DuoPort is an independent WordPress integration and is not endorsed by OpenCode or Anomaly Innovations, Inc.
@@ -126,10 +130,18 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
   PROBE_MODEL is still sent on every probe; this release only adds handling for
   a future retirement.
 * Behaviour to be aware of: when the gateway answers with a response this plugin
-  has no rule for, the stored availability state is left alone rather than
-  replaced, and it is kept for up to 30 days. A gateway that stops answering may
-  therefore not be reported promptly. Removing the key and entering it again
-  clears the stored state.
+  has no rule for, the dashboard keeps reporting the last successful check
+  ("connected") instead of flipping to "not connected", so an unrecognised
+  reply or outage does not disconnect a working key. That stored value is
+  written only by a successful check and lasts up to 30 days from that check
+  (each new success extends it), plus roughly five minutes of cached probe
+  result before a new probe is sent, so a change can lag behind the gateway
+  by that much. Only a recognised credential answer (an invalid or missing
+  key) clears the stored value; a failure naming the probed model leaves it
+  alone too, and a catalog that never checked successfully still reads "not
+  connected". Changing or re-entering the key for that catalog on
+  Settings → Connectors clears the stored state; otherwise wait for a later
+  probe to return a definitive answer.
 
 = 0.1.7 =
 * Fixed: credential verification now detects the WordPress AI Client HTTP method enum correctly, so valid keys are no longer treated as unverifiable because of a dynamic SDK method.
