@@ -110,7 +110,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fix Issue
-        uses: nilesh32236/opencode-ai-reviewer@6dd173ae5fb309ec80221b7e639f6d93193e98a7 # v1.22.2+6dd173a
+        uses: nilesh32236/opencode-ai-reviewer@eb38eb88235ade5068817f03aa40156894d687a8 # v1.23.3
         with:
           mode: fix
           github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -230,7 +230,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: AI Code Review
-        uses: nilesh32236/opencode-ai-reviewer@6dd173ae5fb309ec80221b7e639f6d93193e98a7 # v1.22.2+6dd173a
+        uses: nilesh32236/opencode-ai-reviewer@eb38eb88235ade5068817f03aa40156894d687a8 # v1.23.3
         with:
           mode: review
           github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
@@ -345,7 +345,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: AI Fix
-        uses: nilesh32236/opencode-ai-reviewer@6dd173ae5fb309ec80221b7e639f6d93193e98a7 # v1.22.2+6dd173a
+        uses: nilesh32236/opencode-ai-reviewer@eb38eb88235ade5068817f03aa40156894d687a8 # v1.23.3
         with:
           mode: fix
           github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
