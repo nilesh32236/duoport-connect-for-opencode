@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Http\ClientUserAgent;
+use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use WordPress\AiClient\Messages\Enums\ModalityEnum;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\DTO\Response;
@@ -55,7 +57,15 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	/**
 	 * Create a request for the provider.
 	 *
+	 * Go `/models` requests carry the plugin User-Agent so they no longer
+	 * appear as the default WordPress UA. No session header is sent here:
+	 * the listing is a headerless GET with no chat or image context to
+	 * derive a session from, and inventing one would be a fake identity.
+	 * Zen requests are sent unchanged. Header failures fall back to a
+	 * headerless send; never fatal.
+	 *
 	 * @since 0.1.0
+	 * @since 0.1.9 Added client User-Agent on the Go path.
 	 *
 	 * @param HttpMethodEnum $method HTTP method.
 	 * @param string         $path   Request path.
@@ -65,6 +75,14 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	 */
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
 		$cls = $this->providerClass();
+		if ( OpenCodeGoProvider::class === $cls && class_exists( ClientUserAgent::class ) && method_exists( ClientUserAgent::class, 'inject_into_headers' ) ) {
+			try {
+				$headers = ClientUserAgent::inject_into_headers( $headers );
+			} catch ( \Throwable $user_agent_exception ) {
+				unset( $user_agent_exception );
+				// Fail-open: leave headers unchanged when User-Agent injection fails.
+			}
+		}
 		return new Request( $method, $cls::url( $path ), $headers, $data );
 	}
 
