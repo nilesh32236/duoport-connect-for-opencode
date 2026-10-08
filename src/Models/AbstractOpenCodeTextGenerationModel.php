@@ -16,11 +16,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-use OpenCodeConnector\Http\GoRequestHeaders;
 use OpenCodeConnector\Metadata\CapabilityAwareFallback;
+use OpenCodeConnector\Metadata\Catalog;
 use OpenCodeConnector\Metadata\ModelRegistry;
-use OpenCodeConnector\Providers\OpenCodeGoProvider;
-use OpenCodeConnector\Providers\OpenCodeZenProvider;
+use OpenCodeConnector\Transport\BuildsProviderRequest;
 use OpenCodeConnector\Transport\EndpointRoute;
 use OpenCodeConnector\Transport\UnsupportedEndpointFamilyException;
 use WordPress\AiClient\Providers\Http\DTO\Request;
@@ -34,6 +33,8 @@ use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCo
  * @since 0.1.0
  */
 abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompatibleTextGenerationModel {
+	use BuildsProviderRequest;
+
 	/**
 	 * Fallback model selected during tool preparation for the next request.
 	 *
@@ -108,32 +109,76 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
 		$cls               = $this->providerClass();
 		$prepared_model_id = $this->prepared_route_model_id;
-		$model_id          = null !== $prepared_model_id ? $prepared_model_id : $this->route_model_id();
-		$catalog           = $this->catalog_key_for_tool_gate();
-		if ( '' === $model_id || '' === $catalog ) {
-			throw new UnsupportedEndpointFamilyException( 'Model route metadata is unavailable.' );
+		$capability        = null !== $prepared_model_id || ( is_array( $data ) && ! empty( $data['tools'] ) ) ? 'tools' : 'text';
+		$route             = $this->selectRouteModel( $capability, $prepared_model_id );
+		if ( '' !== $route['reason'] ) {
+			throw new UnsupportedEndpointFamilyException(
+				'no_candidate' === $route['reason']
+					? 'No verified model candidate is available for this route.'
+					: 'Model route metadata is unavailable.'
+			);
 		}
-		$capability = null !== $prepared_model_id || ( is_array( $data ) && ! empty( $data['tools'] ) ) ? 'tools' : 'text';
-		$selection  = $this->fallbackSelector()->select(
+		$model_id = $route['model_id'];
+		$catalog  = $route['catalog'];
+		if ( is_array( $data ) ) {
+			$data['model'] = $model_id;
+		}
+		$path = EndpointRoute::pathForModel( $model_id, $catalog );
+		if ( Catalog::GO === $catalog ) {
+			$headers = $this->goHeaders( $headers, $data );
+		}
+		$request                       = $this->buildProviderRequest( $cls, $method, $path, $headers, $data );
+		$this->prepared_route_model_id = null;
+		return $request;
+	}
+
+	/**
+	 * Select the route model for a capability through the fallback selector.
+	 *
+	 * Single owner for the fallback-selection block createRequest() and
+	 * prepareToolsParam() each wrote by hand: both resolved the bound
+	 * catalog, both called select() with the same fallback list, and both
+	 * null-checked the selection — but with different failure semantics
+	 * that have to stay semantically in step. Callers interpret the same
+	 * result with their own fail-open/fail-closed behaviour.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string      $capability  Required capability key.
+	 * @param string|null $prepared_id Pre-selected model ID, if any.
+	 * @return array{model_id: string, catalog: string, reason: string} Empty reason on success;
+	 *                                                                  `unavailable` when the model ID or catalog
+	 *                                                                  cannot be resolved, `no_candidate` when no
+	 *                                                                  verified candidate exists.
+	 */
+	private function selectRouteModel( string $capability, ?string $prepared_id ): array {
+		$model_id = null !== $prepared_id ? $prepared_id : $this->route_model_id();
+		$catalog  = $this->catalog_key_for_tool_gate();
+		if ( '' === $model_id || '' === $catalog ) {
+			return array(
+				'model_id' => '',
+				'catalog'  => $catalog,
+				'reason'   => 'unavailable',
+			);
+		}
+		$selection = $this->fallbackSelector()->select(
 			$catalog,
 			$model_id,
 			$capability,
 			$this->fallback_model_ids()
 		);
 		if ( ! is_string( $selection['selected_id'] ?? null ) ) {
-			throw new UnsupportedEndpointFamilyException( 'No verified model candidate is available for this route.' );
+			return array(
+				'model_id' => '',
+				'catalog'  => $catalog,
+				'reason'   => 'no_candidate',
+			);
 		}
-		$model_id = $selection['selected_id'];
-		if ( is_array( $data ) ) {
-			$data['model'] = $model_id;
-		}
-		$path = EndpointRoute::pathForModel( $model_id, $catalog );
-		if ( OpenCodeGoProvider::class === $cls ) {
-			$headers = GoRequestHeaders::for_go( $headers, $data );
-		}
-		$request                       = new Request( $method, $cls::url( $path ), $headers, $data, $this->getRequestOptions() );
-		$this->prepared_route_model_id = null;
-		return $request;
+		return array(
+			'model_id' => $selection['selected_id'],
+			'catalog'  => $catalog,
+			'reason'   => '',
+		);
 	}
 
 	/**
@@ -186,21 +231,12 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			if ( ! class_exists( ModelRegistry::class ) || ! method_exists( ModelRegistry::class, 'supports' ) ) {
 				return array();
 			}
-			$model_id = $this->model_id_for_tool_gate();
-			$catalog  = $this->catalog_key_for_tool_gate();
-			if ( '' === $model_id || '' === $catalog ) {
+			$route = $this->selectRouteModel( 'tools', null );
+			if ( '' !== $route['reason'] ) {
 				return array();
 			}
-			$selection = $this->fallbackSelector()->select(
-				$catalog,
-				$model_id,
-				'tools',
-				$this->fallback_model_ids()
-			);
-			if ( ! is_string( $selection['selected_id'] ?? null ) ) {
-				return array();
-			}
-			$model_id = $selection['selected_id'];
+			$model_id = $route['model_id'];
+			$catalog  = $route['catalog'];
 			if ( ! ModelRegistry::supports( $model_id, $catalog, 'tools' ) ) {
 				return array();
 			}
@@ -371,9 +407,11 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	/**
 	 * Resolve the catalog key for the tool-capability gate.
 	 *
-	 * Derived from the bound provider class (Go vs Zen) so models never
-	 * share or alias catalog keys. Returns an empty string when
-	 * unresolvable so the caller fails open to plain text. Never throws.
+	 * Derived from the bound provider class (Go vs Zen) through
+	 * Catalog::providerClassFor() so models never share or alias catalog
+	 * keys and never default an unrecognised provider to a catalog.
+	 * Returns an empty string when unresolvable so the caller fails open to
+	 * plain text. Never throws.
 	 *
 	 * @since 0.1.4
 	 *
@@ -388,11 +426,10 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			if ( ! is_string( $cls ) || '' === $cls ) {
 				return '';
 			}
-			if ( OpenCodeZenProvider::class === $cls ) {
-				return \OpenCodeConnector\Metadata\Catalog::ZEN;
-			}
-			if ( OpenCodeGoProvider::class === $cls ) {
-				return \OpenCodeConnector\Metadata\Catalog::GO;
+			foreach ( Catalog::ALL as $slug ) {
+				if ( Catalog::providerClassFor( $slug ) === $cls ) {
+					return $slug;
+				}
 			}
 		} catch ( \Throwable ) {
 			return '';

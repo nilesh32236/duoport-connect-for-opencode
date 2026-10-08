@@ -83,7 +83,7 @@ final class Settings {
 	public function bustCaches( $old_value, $new_value ): void {
 		if ( ( $old_value['show_all_models'] ?? false ) !== ( $new_value['show_all_models'] ?? false ) ) {
 			$this->clearModelCaches();
-			$this->clearAvailabilityCaches();
+			self::clearAvailabilityCaches();
 		}
 	}
 
@@ -99,7 +99,7 @@ final class Settings {
 	public function bustCachesAdd( string $option, $value ): void {
 		unset( $option, $value );
 		$this->clearModelCaches();
-		$this->clearAvailabilityCaches();
+		self::clearAvailabilityCaches();
 	}
 
 	/**
@@ -113,7 +113,7 @@ final class Settings {
 	 */
 	public function bustCachesDelete(): void {
 		$this->clearModelCaches();
-		$this->clearAvailabilityCaches();
+		self::clearAvailabilityCaches();
 	}
 
 	/**
@@ -257,7 +257,10 @@ final class Settings {
 			// Use non-blocking check: transient-backed isConfigured() already has
 			// stampede lock + jitter; avoid double HTTP on render by tolerating exceptions.
 			foreach ( \OpenCodeConnector\Metadata\Catalog::ALL as $catalog ) {
-				$provider_id = 'opencode-' . $catalog;
+				$provider_id = \OpenCodeConnector\Metadata\Catalog::providerId( $catalog );
+				if ( '' === $provider_id ) {
+					continue;
+				}
 				try {
 					$status[ $catalog ] = (bool) $registry->isProviderConfigured( $provider_id );
 				} catch ( \Throwable ) {
@@ -328,7 +331,7 @@ final class Settings {
 				</tr></table>
 				<?php submit_button(); ?>
 			</form>
-			<p><a href="https://opencode.ai/auth" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Get an API key', 'duoport-connect-for-opencode' ); ?></a></p>
+			<p><a href="<?php echo esc_url( \OpenCodeConnector\Metadata\Catalog::AUTH_URL ); ?>" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Get an API key', 'duoport-connect-for-opencode' ); ?></a></p>
 		</div>
 		<?php
 	}

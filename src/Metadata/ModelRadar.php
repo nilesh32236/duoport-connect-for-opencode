@@ -23,6 +23,40 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class ModelRadar {
 
 	/**
+	 * Catalog source URLs used by the shipped radar report.
+	 *
+	 * Derived from the Catalog base URLs so host changes stay in one place.
+	 * (A const expression cannot call Catalog::modelsUrl(), so the map spells
+	 * out the same `/models` suffix the helper appends; the drift-check test
+	 * asserts both spellings agree.)
+	 *
+	 * @var array<string, string>
+	 */
+	private const SOURCES = array(
+		Catalog::GO  => Catalog::GO_BASE_URL . '/models',
+		Catalog::ZEN => Catalog::ZEN_BASE_URL . '/models',
+	);
+
+	/**
+	 * Internal change-row scaffolding keys stripped before publication.
+	 *
+	 * BuildChangeRow() carries the already-extracted fold inputs on the row
+	 * so summarizeResult() can consume them; every key listed here is
+	 * removed in one loop before the row ships. A new scaffolding key must
+	 * be added here or it leaks into the report JSON.
+	 *
+	 * @var list<string>
+	 */
+	private const SCAFFOLDING_KEYS = array(
+		'_is_retired',
+		'_free_name',
+		'_free_explicit',
+		'_unsupported',
+		'_status',
+		'_states',
+	);
+
+	/**
 	 * Watch collaborator (test seam; defaults to canonical).
 	 *
 	 * @var CatalogWatch|null
@@ -39,25 +73,6 @@ final class ModelRadar {
 	public function __construct( ?CatalogWatch $watch = null ) {
 		$this->watch_override = $watch;
 	}
-
-	/**
-	 * Catalog source URLs used by the shipped radar report.
-	 *
-	 * Derived from the Catalog base URLs so host changes stay in one place.
-	 *
-	 * @var array<string, string>
-	 */
-	private const SOURCES = array(
-		Catalog::GO  => Catalog::GO_BASE_URL . '/models',
-		Catalog::ZEN => Catalog::ZEN_BASE_URL . '/models',
-	);
-
-	/**
-	 * Verification states that can support a reviewed route.
-	 *
-	 * @var list<string>
-	 */
-	private const SUPPORTED_STATUSES = array( 'legacy-verified', 'verified' );
 
 	/**
 	 * Build a safe, machine-readable report from public discovery rows.
@@ -227,30 +242,16 @@ final class ModelRadar {
 	/**
 	 * Build a safe report for an unreachable catalog.
 	 *
+	 * The summary counter set is defined exactly once in emptySummary():
+	 * hand-copying it here a second time let the two schemas drift apart
+	 * under one schema_version.
+	 *
 	 * @return array<string, mixed>
 	 */
 	private function unreachable_report(): array {
 		return array(
 			'unreachable' => true,
-			'summary'     => array(
-				'discovered'              => 0,
-				'supported'               => 0,
-				'free_supported'          => 0,
-				'registry_candidates'     => 0,
-				'unsupported'             => 0,
-				'verification_required'   => 0,
-				'new'                     => 0,
-				'retired'                 => 0,
-				'free_candidates'         => 0,
-				'retired_free_candidates' => 0,
-				'free_name_candidates'    => 0,
-				'explicit_free_evidence'  => 0,
-				'endpoint_change'         => 0,
-				'capability_change'       => 0,
-				'metadata_change'         => 0,
-				'free_change'             => 0,
-				'malformed'               => 0,
-			),
+			'summary'     => $this->emptySummary(),
 			'changes'     => array(),
 		);
 	}
@@ -397,7 +398,11 @@ final class ModelRadar {
 	 * Fold one change row into the summary counters.
 	 *
 	 * Reads the private `_`-prefixed scaffolding keys carried by
-	 * buildChangeRow(); they are stripped before the report is returned.
+	 * buildChangeRow() (enumerated in SCAFFOLDING_KEYS) and strips them in
+	 * one loop before the report is returned, so a new scaffolding key
+	 * cannot leak into the shipped JSON. Retired rows take an early return:
+	 * only the retired counters apply to them, which removes the repeated
+	 * `! $is_retired` guard on every live-catalog counter.
 	 *
 	 * @since 0.1.6
 	 *
@@ -412,26 +417,31 @@ final class ModelRadar {
 		$unsupported   = (bool) ( $row['_unsupported'] ?? false );
 		$status        = (string) ( $row['_status'] ?? '' );
 		$states        = is_array( $row['_states'] ?? null ) ? $row['_states'] : array();
-		unset( $row['_is_retired'], $row['_free_name'], $row['_free_explicit'], $row['_unsupported'], $row['_status'], $row['_states'] );
+		foreach ( self::SCAFFOLDING_KEYS as $scaffolding_key ) {
+			unset( $row[ $scaffolding_key ] );
+		}
 
 		if ( $is_retired ) {
 			++$summary['retired'];
-		} else {
-			++$summary['discovered'];
+			if ( (bool) ( $row['free_candidate'] ?? false ) ) {
+				++$summary['retired_free_candidates'];
+			}
+			return;
 		}
-		if ( ! $is_retired && (bool) ( $row['registry_candidate'] ?? false ) ) {
+		++$summary['discovered'];
+		if ( (bool) ( $row['registry_candidate'] ?? false ) ) {
 			++$summary['registry_candidates'];
 		}
-		if ( ! $is_retired && (bool) ( $row['supported'] ?? false ) ) {
+		if ( (bool) ( $row['supported'] ?? false ) ) {
 			++$summary['supported'];
 		}
-		if ( ! $is_retired && (bool) ( $row['supported'] ?? false ) && (bool) ( $row['free_registry'] ?? false ) ) {
+		if ( (bool) ( $row['supported'] ?? false ) && (bool) ( $row['free_registry'] ?? false ) ) {
 			++$summary['free_supported'];
 		}
-		if ( ! $is_retired && $unsupported ) {
+		if ( $unsupported ) {
 			++$summary['unsupported'];
 		}
-		if ( ! $is_retired && 'verification_required' === $status ) {
+		if ( 'verification_required' === $status ) {
 			++$summary['verification_required'];
 		}
 		foreach ( array(
@@ -441,27 +451,27 @@ final class ModelRadar {
 			'metadata_changed'   => 'metadata_change',
 			'free_changed'       => 'free_change',
 		) as $state => $counter ) {
-			if ( ! $is_retired && in_array( $state, $states, true ) ) {
+			if ( in_array( $state, $states, true ) ) {
 				++$summary[ $counter ];
 			}
 		}
-		if ( ! $is_retired && $free_name && ! $free_explicit ) {
+		if ( $free_name && ! $free_explicit ) {
 			++$summary['free_name_candidates'];
 		}
-		if ( ! $is_retired && $free_explicit ) {
+		if ( $free_explicit ) {
 			++$summary['explicit_free_evidence'];
 		}
 		if ( (bool) ( $row['free_candidate'] ?? false ) ) {
-			if ( $is_retired ) {
-				++$summary['retired_free_candidates'];
-			} else {
-				++$summary['free_candidates'];
-			}
+			++$summary['free_candidates'];
 		}
 	}
 
 	/**
 	 * Whether a reviewed record has a supported endpoint and verification.
+	 *
+	 * Verification delegates to ModelRegistry, which owns the reviewed
+	 * vocabulary, so the radar cannot disagree with the registry about
+	 * what "reviewed" means.
 	 *
 	 * @param array<string, mixed>|null $record Registry record.
 	 * @return bool
@@ -469,7 +479,7 @@ final class ModelRadar {
 	private function is_supported( ?array $record ): bool {
 		return null !== $record
 			&& ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED !== ( $record['endpoint_family'] ?? '' )
-			&& in_array( $record['verification_status'] ?? '', self::SUPPORTED_STATUSES, true );
+			&& ModelRegistry::isVerified( $record );
 	}
 
 	/**

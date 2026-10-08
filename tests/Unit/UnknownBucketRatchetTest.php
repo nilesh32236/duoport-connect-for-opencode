@@ -92,42 +92,46 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
-		 * The probe reads the published bucket, not its own copy of the list.
-		 *
-		 * The bug was one missing entry in one of two hand-maintained lists. Reading
-		 * the published bucket removes the second copy, so the next state added to
-		 * the vocabulary cannot be forgotten at a call site.
-		 *
-		 * The assertion is on the SHAPE OF THE DEFECT — a hand-maintained array at
-		 * a decision point — not on how many times the constant appears. An
-		 * earlier version of this test asserted `substr_count === 2`, which meant
-		 * the test would have failed the first time anyone added a legitimate third
-		 * decision point: it would have blocked the correct fix rather than the
-		 * regression it was written for.
-		 *
-		 * @return void
-		 */
-		public function test_probe_reads_the_published_bucket(): void {
-			$source = (string) file_get_contents(
-				dirname( __DIR__, 2 ) . '/src/Availability/OpenCodeProviderAvailability.php'
-			);
+	 * The probe reads the published bucket, not its own copy of the list.
+	 *
+	 * The bug was one missing entry in one of two hand-maintained lists. Reading
+	 * the published bucket removes the second copy, so the next state added to
+	 * the vocabulary cannot be forgotten at a call site.
+	 *
+	 * The assertion is on the SHAPE OF THE DEFECT — a hand-maintained array at
+	 * a decision point — not on how many times the constant appears. An
+	 * earlier version of this test asserted `substr_count === 2`, which meant
+	 * the test would have failed the first time anyone added a legitimate third
+	 * decision point: it would have blocked the correct fix rather than the
+	 * regression it was written for.
+	 *
+	 * Call sites consult the buckets through the isConfiguredState() /
+	 * isUncheckableState() helpers (which read the constants), so either
+	 * spelling counts as reading the published bucket.
+	 *
+	 * @return void
+	 */
+	public function test_probe_reads_the_published_bucket(): void {
+		$source = (string) file_get_contents(
+			dirname( __DIR__, 2 ) . '/src/Availability/OpenCodeProviderAvailability.php'
+		);
 
-			self::assertDoesNotMatchRegularExpression(
-				'/in_array\(\s*\$state,\s*array\(/',
-				$source,
-				'A hand-maintained copy of the bucket list at a decision point is what let `unknown` go missing.'
-			);
+		self::assertDoesNotMatchRegularExpression(
+			'/in_array\(\s*\$state,\s*array\(/',
+			$source,
+			'A hand-maintained copy of the bucket list at a decision point is what let `unknown` go missing.'
+		);
 
-			// A floor, not a count: each bucket the probe branches on must actually
-			// be consulted by production code.
-			foreach ( array( 'KEYED_STATES', 'COULD_NOT_BE_CHECKED_STATES' ) as $constant ) {
-				self::assertGreaterThan(
-					0,
-					substr_count( $source, 'ConnectionDiagnostics::' . $constant ),
-					$constant . ' must be read by the probe, not merely declared.'
-				);
-			}
+		// A floor, not a count: each bucket the probe branches on must actually
+		// be consulted by production code, either as the constant or through
+		// the helper that reads it.
+		foreach ( array( 'KEYED_STATES' => 'isConfiguredState', 'COULD_NOT_BE_CHECKED_STATES' => 'isUncheckableState' ) as $constant => $helper ) {
+			self::assertTrue(
+				substr_count( $source, 'ConnectionDiagnostics::' . $constant ) + substr_count( $source, 'ConnectionDiagnostics::' . $helper ) > 0,
+				$constant . ' (or ' . $helper . ') must be read by the probe, not merely declared.'
+			);
 		}
+	}
 
 		/**
 		 * A state in NO bucket leaves last-known-good untouched.

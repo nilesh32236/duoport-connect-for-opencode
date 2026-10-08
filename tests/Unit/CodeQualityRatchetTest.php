@@ -63,8 +63,9 @@ final class CodeQualityRatchetTest extends MonkeyTestCase {
 	public function test_tool_gate_uses_exact_provider_classes(): void {
 		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Models/AbstractOpenCodeTextGenerationModel.php' );
 
-		self::assertStringContainsString( 'OpenCodeGoProvider::class === $cls', $source );
-		self::assertStringContainsString( 'OpenCodeZenProvider::class === $cls', $source );
+		// The gate resolves the catalog through the single Catalog mapping
+		// (exact class identity per slug) instead of substring matching.
+		self::assertStringContainsString( 'Catalog::providerClassFor', $source );
 		self::assertStringNotContainsString( 'stripos( $cls, \'zen\' )', $source );
 		self::assertStringNotContainsString( 'stripos( $cls, \'go\' )', $source );
 	}
@@ -80,14 +81,26 @@ final class CodeQualityRatchetTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * The shared Go header helper is the single text/image header seam.
+	 * The shared request trait is the single text/image/directory seam.
 	 */
 	public function test_text_and_image_models_share_go_header_helper(): void {
 		$root = dirname( __DIR__, 2 );
 
 		foreach ( array( 'AbstractOpenCodeTextGenerationModel.php', 'AbstractOpenCodeImageGenerationModel.php' ) as $name ) {
 			$source = (string) file_get_contents( $root . '/src/Models/' . $name );
-			self::assertStringContainsString( 'GoRequestHeaders::for_go', $source, $name . ' must use the shared helper.' );
+			self::assertStringContainsString( 'BuildsProviderRequest', $source, $name . ' must use the shared request trait.' );
+			self::assertStringContainsString( 'buildProviderRequest(', $source, $name . ' must build through the shared helper.' );
 		}
+
+		// The metadata directory is the third copy the trait replaced: it
+		// must build through the same helper so transport options cannot
+		// drift again.
+		$directory = (string) file_get_contents( $root . '/src/Metadata/AbstractOpenCodeModelMetadataDirectory.php' );
+		self::assertStringContainsString( 'BuildsProviderRequest', $directory, 'The metadata directory must use the shared request trait.' );
+		self::assertStringContainsString( 'buildProviderRequest(', $directory, 'The metadata directory must build through the shared helper.' );
+
+		// And the trait itself is where the Go header pair lives exactly once.
+		$trait = (string) file_get_contents( $root . '/src/Transport/BuildsProviderRequest.php' );
+		self::assertStringContainsString( 'GoRequestHeaders::for_go', $trait, 'The shared trait must own the Go header call.' );
 	}
 }

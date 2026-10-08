@@ -26,12 +26,22 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	/**
 	 * Provider ID.
 	 *
+	 * Mirrors Catalog::providerId( Catalog::ZEN ); see OpenCodeGoProvider
+	 * for why the constant form exists alongside providerId().
+	 *
+	 * @since 0.1.8
+	 */
+	const PROVIDER_ID = 'opencode-zen';
+
+	/**
+	 * Provider ID.
+	 *
 	 * @since 0.1.0
 	 *
 	 * @return string
 	 */
 	protected static function providerId(): string {
-		return 'opencode-zen';
+		return self::PROVIDER_ID;
 	}
 
 	/**

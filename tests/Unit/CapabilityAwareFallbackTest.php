@@ -262,12 +262,22 @@ final class CapabilityAwareFallbackTest extends MonkeyTestCase {
 		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Models/AbstractOpenCodeTextGenerationModel.php' );
 
 		self::assertStringContainsString( 'CapabilityAwareFallback', $source );
-		self::assertStringContainsString( "->select(", $source );
+		self::assertStringContainsString( 'selectRouteModel(', $source );
 		self::assertStringContainsString( 'fallback_model_ids()', $source );
-		self::assertLessThan(
-			strpos( $source, 'EndpointRoute::pathForModel' ),
-			strpos( $source, '->select(' )
-		);
+
+		// Ordering is asserted inside createRequest()'s own body: the shared
+		// selectRouteModel() helper lives after it in the file, so a whole
+		// file strpos comparison would measure helper placement, not call
+		// order on the request path.
+		$start = strpos( $source, 'function createRequest(' );
+		self::assertNotFalse( $start, 'createRequest() must exist.' );
+		$end = strpos( $source, "\n\tprivate function ", (int) $start );
+		$body = substr( $source, (int) $start, ( false === $end ? strlen( $source ) : $end ) - (int) $start );
+		$select_at = strpos( $body, 'selectRouteModel(' );
+		$route_at  = strpos( $body, 'EndpointRoute::pathForModel' );
+		self::assertNotFalse( $select_at, 'createRequest() must select the route model.' );
+		self::assertNotFalse( $route_at, 'createRequest() must route through EndpointRoute.' );
+		self::assertLessThan( $route_at, $select_at );
 	}
 
 	/**

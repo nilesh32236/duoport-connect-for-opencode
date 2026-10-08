@@ -16,8 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-use OpenCodeConnector\Http\GoRequestHeaders;
-use OpenCodeConnector\Providers\OpenCodeGoProvider;
+use OpenCodeConnector\Metadata\Catalog;
+use OpenCodeConnector\Transport\BuildsProviderRequest;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleImageGenerationModel;
@@ -26,9 +26,11 @@ use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCo
  * Shared image generation model (images/generations).
  *
  * @package OpenCodeConnector
- * @since 0.1.4
+ * @since 0.1.0
  */
 abstract class AbstractOpenCodeImageGenerationModel extends AbstractOpenAiCompatibleImageGenerationModel {
+	use BuildsProviderRequest;
+
 	/**
 	 * Provider class FQCN.
 	 *
@@ -58,9 +60,29 @@ abstract class AbstractOpenCodeImageGenerationModel extends AbstractOpenAiCompat
 	 */
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
 		$cls = $this->providerClass();
-		if ( OpenCodeGoProvider::class === $cls ) {
-			$headers = GoRequestHeaders::for_go( $headers, $data );
+		if ( Catalog::GO === $this->catalogKeyForHeaders( $cls ) ) {
+			$headers = $this->goHeaders( $headers, $data );
 		}
-		return new Request( $method, $cls::url( $path ), $headers, $data, $this->getRequestOptions() );
+		return $this->buildProviderRequest( $cls, $method, $path, $headers, $data );
+	}
+
+	/**
+	 * Resolve the catalog slug for header selection from a provider class.
+	 *
+	 * An unrecognised class resolves to an empty string (headers stay
+	 * untouched) instead of silently taking the Zen branch.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $cls Provider class FQCN.
+	 * @return string
+	 */
+	private function catalogKeyForHeaders( string $cls ): string {
+		foreach ( Catalog::ALL as $slug ) {
+			if ( Catalog::providerClassFor( $slug ) === $cls ) {
+				return $slug;
+			}
+		}
+		return '';
 	}
 }

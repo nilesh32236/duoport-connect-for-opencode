@@ -37,7 +37,9 @@ No Node, no build step. `vendor/` is git-ignored and never ships.
    (`wp-includes/connectors.php:462`), so they are site options on multisite
    too.
 3. **Keep versions in sync**: main-file `Version:` header, `VERSION` const,
-   `readme.txt` Stable tag + Changelog + Upgrade Notice.
+   `readme.txt` Stable tag + Changelog + Upgrade Notice, and
+   `ClientUserAgent::FALLBACK_VERSION` (the User-Agent copy used on partial
+   bootstraps; pinned by `CodeQualityRatchetTest`).
 4. **Keep the non-affiliation disclaimer** in `readme.txt` (trademark rule).
 
 ## Conventions

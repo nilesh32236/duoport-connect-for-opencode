@@ -80,13 +80,15 @@ add_action(
 			if ( ! is_object( $registry ) || ! method_exists( $registry, 'isProviderConfigured' ) ) {
 				return;
 			}
+			// Provider IDs resolve through Catalog so the entry file cannot
+			// drift from the providers' own IDs (see PROVIDER_ID constants).
 			try {
-				$go_configured = (bool) $registry->isProviderConfigured( 'opencode-go' );
+				$go_configured = (bool) $registry->isProviderConfigured( Metadata\Catalog::providerId( Metadata\Catalog::GO ) );
 			} catch ( \Throwable $e ) {
 				$go_configured = false;
 			}
 			try {
-				$zen_configured = (bool) $registry->isProviderConfigured( 'opencode-zen' );
+				$zen_configured = (bool) $registry->isProviderConfigured( Metadata\Catalog::providerId( Metadata\Catalog::ZEN ) );
 			} catch ( \Throwable $e ) {
 				$zen_configured = false;
 			}

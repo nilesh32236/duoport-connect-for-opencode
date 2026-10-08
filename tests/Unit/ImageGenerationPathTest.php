@@ -3,9 +3,9 @@
  * Image-generation path specs.
  *
  * The WordPress AI Client SDK is a runtime dependency (WordPress 7.0+) and is
- * not installed in vendor/, so this file defines minimal guarded SDK stubs in
- * their real namespaces before exercising the plugin classes. Each stub only
- * implements the surface the plugin code touches.
+ * not installed in vendor/, so the shared Fixtures/SdkStubs.php stand-ins
+ * cover every SDK surface this file touches. No stubs are declared inline:
+ * a second copy here would silently diverge from the fixture.
  *
  * Covered:
  * - ModelAllowlist::isImageCapable() fail-open (empty IMAGE set: inert path,
@@ -23,186 +23,11 @@
 
 declare(strict_types=1);
 
-// Single source for the shared SDK stand-ins (HttpMethodEnum, Request with
-// header/data/URL getters, AbstractApiProvider::url()). This file adds only
-// the stubs SdkStubs does not declare; overlapping definitions were removed
-// so test execution order can never swap a weaker stub in first.
+// Single source for the shared SDK stand-ins (see Fixtures/SdkStubs.php).
+// Nothing is declared inline: a second copy here would silently diverge
+// from the fixture and keep exercising a different SDK shape.
 namespace OpenCodeConnector\Tests\Unit\Bootstrap {
 	require_once __DIR__ . '/Fixtures/SdkStubs.php';
-}
-
-namespace WordPress\AiClient\Providers\Models\Enums {
-	if ( ! class_exists( __NAMESPACE__ . '\ModalityEnum' ) ) {
-		class ModalityEnum {
-			private string $value;
-			private function __construct( string $value ) {
-				$this->value = $value;
-			}
-			public static function text(): self {
-				return new self( 'text' );
-			}
-			public static function image(): self {
-				return new self( 'image' );
-			}
-			public function getValue(): string {
-				return $this->value;
-			}
-		}
-	}
-
-	if ( ! class_exists( __NAMESPACE__ . '\OptionEnum' ) ) {
-		class OptionEnum {
-			private string $value;
-			private function __construct( string $value ) {
-				$this->value = $value;
-			}
-			public static function __callStatic( string $name, array $args ): self {
-				return new self( $name );
-			}
-			public function getValue(): string {
-				return $this->value;
-			}
-		}
-	}
-}
-
-namespace WordPress\AiClient\Messages\Enums {
-	if ( ! class_exists( __NAMESPACE__ . '\ModalityEnum' ) ) {
-		class ModalityEnum {
-			private string $value;
-			private function __construct( string $value ) {
-				$this->value = $value;
-			}
-			public static function text(): self {
-				return new self( 'text' );
-			}
-			public static function image(): self {
-				return new self( 'image' );
-			}
-			public function getValue(): string {
-				return $this->value;
-			}
-		}
-	}
-}
-
-namespace WordPress\AiClient\Providers\Models\DTO {
-	use WordPress\AiClient\Providers\Models\Enums\CapabilityEnum;
-
-	if ( ! class_exists( __NAMESPACE__ . '\SupportedOption' ) ) {
-		class SupportedOption {
-			private $option;
-			private array $allowed;
-			public function __construct( $option, array $allowed = array() ) {
-				$this->option  = $option;
-				$this->allowed = $allowed;
-			}
-			public function getOption() {
-				return $this->option;
-			}
-			public function getAllowedValues(): array {
-				return $this->allowed;
-			}
-		}
-	}
-
-	if ( ! class_exists( __NAMESPACE__ . '\ModelMetadata' ) ) {
-		class ModelMetadata {
-			private string $id;
-			private string $name;
-			private array $caps;
-			private array $opts;
-			public function __construct( string $id = 'test-model', string $name = 'Test', array $caps = array(), array $opts = array() ) {
-				$this->id   = $id;
-				$this->name = $name;
-				$this->caps = $caps;
-				$this->opts = $opts;
-			}
-			public function getId(): string {
-				return $this->id;
-			}
-			public function getName(): string {
-				return $this->name;
-			}
-			/**
-			 * @return CapabilityEnum[]
-			 */
-			public function getSupportedCapabilities(): array {
-				return $this->caps;
-			}
-			public function getSupportedOptions(): array {
-				return $this->opts;
-			}
-		}
-	}
-}
-
-namespace WordPress\AiClient\Providers\Models\Contracts {
-	if ( ! interface_exists( __NAMESPACE__ . '\ModelInterface' ) ) {
-		interface ModelInterface {
-		}
-	}
-}
-
-namespace WordPress\AiClient\Providers\DTO {
-	if ( ! class_exists( __NAMESPACE__ . '\ProviderMetadata' ) ) {
-		class ProviderMetadata {
-		}
-	}
-}
-
-namespace WordPress\AiClient\Common\Exception {
-	if ( ! class_exists( __NAMESPACE__ . '\RuntimeException' ) ) {
-		class RuntimeException extends \RuntimeException {
-		}
-	}
-}
-
-namespace WordPress\AiClient\Providers\OpenAiCompatibleImplementation {
-	use WordPress\AiClient\Providers\Models\Contracts\ModelInterface;
-
-	if ( ! class_exists( __NAMESPACE__ . '\AbstractOpenAiCompatibleTextGenerationModel' ) ) {
-		abstract class AbstractOpenAiCompatibleTextGenerationModel implements ModelInterface {
-			public function __construct( $metadata = null, $provider = null ) {
-			}
-		}
-	}
-
-	if ( ! class_exists( __NAMESPACE__ . '\AbstractOpenAiCompatibleImageGenerationModel' ) ) {
-		abstract class AbstractOpenAiCompatibleImageGenerationModel implements ModelInterface {
-			public function __construct( $metadata = null, $provider = null ) {
-			}
-		}
-	}
-
-	if ( ! class_exists( __NAMESPACE__ . '\AbstractOpenAiCompatibleModelMetadataDirectory' ) ) {
-		abstract class AbstractOpenAiCompatibleModelMetadataDirectory {
-		}
-	}
-}
-
-namespace WordPress\AiClient\Providers\Http\DTO {
-	if ( ! class_exists( __NAMESPACE__ . '\Response' ) ) {
-		class Response {
-			private array $data;
-			public function __construct( array $data = array() ) {
-				$this->data = $data;
-			}
-			public function getData(): array {
-				return $this->data;
-			}
-		}
-	}
-}
-
-namespace WordPress\AiClient\Providers\Http\Exception {
-	if ( ! class_exists( __NAMESPACE__ . '\ResponseException' ) ) {
-		class ResponseException extends \RuntimeException {
-			public static function fromMissingData( string $provider, string $key ): self {
-				return new self( sprintf( 'Missing %s from %s.', $key, $provider ) );
-			}
-		}
-	}
 }
 
 namespace OpenCodeConnector\Tests\Unit {
@@ -595,22 +420,22 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
-		 * Minimal 1x1 JPEG fixture, when one can be produced on this build.
+		 * Minimal 1x1 JPEG fixture, generated at runtime.
+		 *
+		 * The bytes are produced with GD on every run so no stored
+		 * high-entropy blob sits in the test source for secret scanners
+		 * to flag — this is image content, never a credential.
 		 *
 		 * @return string Raw JPEG bytes, or an empty string when unavailable.
 		 */
 		private static function tiny_jpeg(): string {
-			$hardcoded = base64_decode(
-				'/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/9oACAEBAAA/AP/Z',
-				true
-			);
-			if ( is_string( $hardcoded ) && '' !== $hardcoded ) {
-				return $hardcoded;
-			}
 			if ( ! function_exists( 'imagecreatetruecolor' ) || ! function_exists( 'imagejpeg' ) ) {
 				return '';
 			}
 			$image = imagecreatetruecolor( 1, 1 );
+			if ( false === $image ) {
+				return '';
+			}
 			ob_start();
 			imagejpeg( $image, null, 100 );
 			$bytes = (string) ob_get_clean();
