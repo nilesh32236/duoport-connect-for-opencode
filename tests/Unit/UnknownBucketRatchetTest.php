@@ -447,11 +447,12 @@ namespace OpenCodeConnector\Tests\Unit {
 		/**
 		 * A keyed success arms the flag as a timestamped string sentinel.
 		 *
-		 * The sentinel is the string `'1'`, not int `1`: the int comes back
-		 * from the options table as a string, which defeats
-		 * `update_option()`'s equality short-circuit and costs a pointless
-		 * options-row UPDATE on every keyed probe. The timestamp is what
-		 * bounds the fallback by age. Neither changes the rolling 30-day TTL.
+		 * The sentinel is the string `'1'`, not int `1`, so the stored type
+		 * stays stable across the database round-trip. It does not skip the
+		 * value-row write — `ts` changes on every keyed success, so each
+		 * rewrite moves both rows, and that rewrite is what keeps the
+		 * rolling 30-day TTL rolling. The timestamp is what bounds the
+		 * fallback by age (timestamped shapes only).
 		 *
 		 * @return void
 		 */

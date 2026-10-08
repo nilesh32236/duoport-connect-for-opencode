@@ -115,6 +115,33 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	private const LAST_GOOD_MAX_AGE = 172800;
 
 	/**
+	 * Guarded jitter source for probe cache windows.
+	 *
+	 * `wp_rand()` is pluggable and therefore both absent and throwing are
+	 * real: a throwing rand must cost the jitter, never the probe. Every
+	 * call site in this class consults the jitter through here so a new
+	 * window cannot reintroduce an unguarded `wp_rand()` by copying the
+	 * older `function_exists`-only shape.
+	 *
+	 * @since 0.1.10
+	 *
+	 * @param int $min Minimum spread (inclusive).
+	 * @param int $max Maximum spread (inclusive).
+	 * @return int Drawn spread, or 0 when `wp_rand()` is unavailable or throws.
+	 */
+	private static function rand_spread( int $min, int $max ): int {
+		if ( ! function_exists( 'wp_rand' ) ) {
+			return 0;
+		}
+		try {
+			return wp_rand( $min, $max );
+		} catch ( \Throwable $rand_exception ) {
+			unset( $rand_exception );
+			return 0;
+		}
+	}
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 0.1.0
@@ -546,33 +573,6 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 				unset( $classify_exception );
 				return null;
 			}
-		}
-	}
-
-	/**
-	 * Guarded jitter source for probe cache windows.
-	 *
-	 * `wp_rand()` is pluggable and therefore both absent and throwing are
-	 * real: a throwing rand must cost the jitter, never the probe. Every
-	 * call site in this class consults the jitter through here so a new
-	 * window cannot reintroduce an unguarded `wp_rand()` by copying the
-	 * older `function_exists`-only shape.
-	 *
-	 * @since 0.1.10
-	 *
-	 * @param int $min Minimum spread (inclusive).
-	 * @param int $max Maximum spread (inclusive).
-	 * @return int Drawn spread, or 0 when `wp_rand()` is unavailable or throws.
-	 */
-	private static function rand_spread( int $min, int $max ): int {
-		if ( ! function_exists( 'wp_rand' ) ) {
-			return 0;
-		}
-		try {
-			return (int) wp_rand( $min, $max );
-		} catch ( \Throwable $rand_exception ) {
-			unset( $rand_exception );
-			return 0;
 		}
 	}
 

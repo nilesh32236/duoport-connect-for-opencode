@@ -84,7 +84,8 @@ final class Catalog {
 	 * Holds a timestamped string sentinel (`array( 'v' => '1', 'ts' => ... )`),
 	 * never a `connectors_ai_*` option value, so a key rotation cannot leak
 	 * through it. Legacy int/string shapes predate the timestamp and still
-	 * read as armed.
+	 * read as armed with no age bound; the fallback age cap binds
+	 * timestamped shapes only.
 	 *
 	 * @since 0.1.6
 	 */
