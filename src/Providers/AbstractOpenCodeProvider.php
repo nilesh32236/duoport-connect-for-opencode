@@ -17,6 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use OpenCodeConnector\Availability\OpenCodeProviderAvailability;
+use OpenCodeConnector\Metadata\Catalog;
 use OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory;
 use OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory;
 use OpenCodeConnector\Models\OpenCodeGoImageGenerationModel;
@@ -127,10 +128,51 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	}
 
 	/**
-	 * Model class for a capability family in the bound catalog.
+	 * Catalog-bound class variant for a role.
 	 *
-	 * Single source of truth for the catalog → model-class mapping; adding a
-	 * catalog or model family means editing this map only.
+	 * Single source of truth for every catalog → class mapping in this
+	 * file (model classes per capability family and the metadata directory
+	 * class): adding a catalog means extending this map only, instead of
+	 * editing one ternary per role. An unrecognised catalog key falls back
+	 * to the Zen variant — the binding subclasses hardcode their key from
+	 * Catalog, so an unknown value here is a programming error that the
+	 * availability layer (which fails closed on unknown slugs) surfaces,
+	 * not a branch this file can adjudicate.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $role Variant role (`model-image`, `model-text`, `directory`).
+	 * @return string Class FQCN.
+	 */
+	private static function variantClassFor( string $role ): string {
+		$catalog = static::catalogKey();
+		$map     = array(
+			'model-image' => array(
+				Catalog::GO  => OpenCodeGoImageGenerationModel::class,
+				Catalog::ZEN => OpenCodeZenImageGenerationModel::class,
+			),
+			'model-text'  => array(
+				Catalog::GO  => OpenCodeGoTextGenerationModel::class,
+				Catalog::ZEN => OpenCodeZenTextGenerationModel::class,
+			),
+			'directory'   => array(
+				Catalog::GO  => OpenCodeGoModelMetadataDirectory::class,
+				Catalog::ZEN => OpenCodeZenModelMetadataDirectory::class,
+			),
+		);
+		if ( isset( $map[ $role ][ $catalog ] ) ) {
+			return $map[ $role ][ $catalog ];
+		}
+		$fallbacks = array(
+			'model-image' => OpenCodeZenImageGenerationModel::class,
+			'model-text'  => OpenCodeZenTextGenerationModel::class,
+			'directory'   => OpenCodeZenModelMetadataDirectory::class,
+		);
+		return $fallbacks[ $role ] ?? OpenCodeZenModelMetadataDirectory::class;
+	}
+
+	/**
+	 * Model class for a capability family in the bound catalog.
 	 *
 	 * @since 0.1.6
 	 *
@@ -138,11 +180,7 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * @return string Model class FQCN.
 	 */
 	private static function modelClassFor( string $family ): string {
-		$is_go = \OpenCodeConnector\Metadata\Catalog::GO === static::catalogKey();
-		if ( 'image' === $family ) {
-			return $is_go ? OpenCodeGoImageGenerationModel::class : OpenCodeZenImageGenerationModel::class;
-		}
-		return $is_go ? OpenCodeGoTextGenerationModel::class : OpenCodeZenTextGenerationModel::class;
+		return self::variantClassFor( 'image' === $family ? 'model-image' : 'model-text' );
 	}
 
 	/**
@@ -233,7 +271,7 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 			static::providerId(),
 			static::displayName(),
 			ProviderTypeEnum::cloud(),
-			'https://opencode.ai/auth',
+			Catalog::AUTH_URL,
 			RequestAuthenticationMethod::apiKey(),
 		);
 		$ai_version = defined( AiClient::class . '::VERSION' ) ? AiClient::VERSION : '1.0.0';
@@ -277,8 +315,6 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * @return string Directory class FQCN.
 	 */
 	private static function directoryClassFor(): string {
-		return \OpenCodeConnector\Metadata\Catalog::GO === static::catalogKey()
-			? OpenCodeGoModelMetadataDirectory::class
-			: OpenCodeZenModelMetadataDirectory::class;
+		return self::variantClassFor( 'directory' );
 	}
 }

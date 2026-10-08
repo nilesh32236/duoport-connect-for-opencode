@@ -147,58 +147,18 @@ namespace WordPress\AiClient\Providers\Http\DTO {
 			public function getUrl(): string {
 				return $this->url;
 			}
-		}
-	}
-}
 
-namespace WordPress\AiClient\Providers\Models\Contracts {
-	if ( ! interface_exists( \WordPress\AiClient\Providers\Models\Contracts\ModelInterface::class ) ) {
-		/**
-		 * Minimal model contract.
-		 */
-		interface ModelInterface {
-		}
-	}
-}
-
-namespace WordPress\AiClient\Providers\OpenAiCompatibleImplementation {
-	if ( ! class_exists( \WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleTextGenerationModel::class ) ) {
-		/**
-		 * Minimal OpenAI-compatible model stub.
-		 */
-		abstract class AbstractOpenAiCompatibleTextGenerationModel implements \WordPress\AiClient\Providers\Models\Contracts\ModelInterface {
 			/**
 			 * Transport options.
 			 *
 			 * @return array
 			 */
-			protected function getRequestOptions(): array {
-				return array();
+			public function getOptions(): array {
+				return $this->options;
 			}
 		}
 	}
-}
 
-namespace WordPress\AiClient\Providers\ApiBasedImplementation {
-	if ( ! class_exists( \WordPress\AiClient\Providers\ApiBasedImplementation\AbstractApiProvider::class ) ) {
-		/**
-		 * Minimal API provider stub.
-		 */
-		abstract class AbstractApiProvider {
-			/**
-			 * Build an endpoint URL.
-			 *
-			 * @param string $path Request path.
-			 * @return string
-			 */
-			public static function url( string $path ): string {
-				return 'https://example.test/' . ltrim( $path, '/' );
-			}
-		}
-	}
-}
-
-namespace WordPress\AiClient\Providers\Http\DTO {
 	if ( ! class_exists( \WordPress\AiClient\Providers\Http\DTO\Response::class ) ) {
 		/**
 		 * Minimal response DTO stub.
@@ -257,6 +217,97 @@ namespace WordPress\AiClient\Providers\Http\DTO {
 			 */
 			public function getData(): mixed {
 				return $this->data;
+			}
+		}
+	}
+}
+
+namespace WordPress\AiClient\Providers\Models\Contracts {
+	if ( ! interface_exists( \WordPress\AiClient\Providers\Models\Contracts\ModelInterface::class ) ) {
+		/**
+		 * Minimal model contract.
+		 */
+		interface ModelInterface {
+		}
+	}
+}
+
+namespace WordPress\AiClient\Providers\OpenAiCompatibleImplementation {
+	if ( ! class_exists( \WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleTextGenerationModel::class ) ) {
+		/**
+		 * Minimal OpenAI-compatible text model stub.
+		 */
+		abstract class AbstractOpenAiCompatibleTextGenerationModel implements \WordPress\AiClient\Providers\Models\Contracts\ModelInterface {
+			/**
+			 * Constructor.
+			 *
+			 * @param mixed $metadata Model metadata (unused).
+			 * @param mixed $provider Provider metadata (unused).
+			 */
+			public function __construct( $metadata = null, $provider = null ) {
+				unset( $metadata, $provider );
+			}
+
+			/**
+			 * Transport options.
+			 *
+			 * @return array
+			 */
+			protected function getRequestOptions(): array {
+				return array();
+			}
+		}
+	}
+
+	if ( ! class_exists( \WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleImageGenerationModel::class ) ) {
+		/**
+		 * Minimal OpenAI-compatible image model stub.
+		 */
+		abstract class AbstractOpenAiCompatibleImageGenerationModel implements \WordPress\AiClient\Providers\Models\Contracts\ModelInterface {
+			/**
+			 * Constructor.
+			 *
+			 * @param mixed $metadata Model metadata (unused).
+			 * @param mixed $provider Provider metadata (unused).
+			 */
+			public function __construct( $metadata = null, $provider = null ) {
+				unset( $metadata, $provider );
+			}
+
+			/**
+			 * Transport options.
+			 *
+			 * @return array
+			 */
+			protected function getRequestOptions(): array {
+				return array();
+			}
+		}
+	}
+
+	if ( ! class_exists( \WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleModelMetadataDirectory::class ) ) {
+		/**
+		 * Minimal OpenAI-compatible metadata directory base stub.
+		 */
+		abstract class AbstractOpenAiCompatibleModelMetadataDirectory {
+		}
+	}
+}
+
+namespace WordPress\AiClient\Providers\ApiBasedImplementation {
+	if ( ! class_exists( \WordPress\AiClient\Providers\ApiBasedImplementation\AbstractApiProvider::class ) ) {
+		/**
+		 * Minimal API provider stub.
+		 */
+		abstract class AbstractApiProvider {
+			/**
+			 * Build an endpoint URL.
+			 *
+			 * @param string $path Request path.
+			 * @return string
+			 */
+			public static function url( string $path ): string {
+				return 'https://example.test/' . ltrim( $path, '/' );
 			}
 		}
 	}
@@ -450,6 +501,332 @@ namespace WordPress\AiClient\Providers\Http\Traits {
 			 */
 			public function setRequestAuthentication( mixed $authentication ): void {
 				$this->request_authentication_stub = $authentication;
+			}
+		}
+	}
+}
+
+namespace WordPress\AiClient\Providers\Models\Enums {
+	if ( ! class_exists( \WordPress\AiClient\Providers\Models\Enums\ModalityEnum::class ) ) {
+		/**
+		 * Minimal modality enum stub.
+		 */
+		class ModalityEnum {
+			/**
+			 * Modality value.
+			 *
+			 * @var string
+			 */
+			private string $value;
+
+			/**
+			 * Constructor.
+			 *
+			 * @param string $value Modality name.
+			 */
+			private function __construct( string $value ) {
+				$this->value = $value;
+			}
+
+			/**
+			 * Text modality.
+			 *
+			 * @return self
+			 */
+			public static function text(): self {
+				return new self( 'text' );
+			}
+
+			/**
+			 * Image modality.
+			 *
+			 * @return self
+			 */
+			public static function image(): self {
+				return new self( 'image' );
+			}
+
+			/**
+			 * Modality value.
+			 *
+			 * @return string
+			 */
+			public function getValue(): string {
+				return $this->value;
+			}
+		}
+	}
+
+	if ( ! class_exists( \WordPress\AiClient\Providers\Models\Enums\OptionEnum::class ) ) {
+		/**
+		 * Minimal supported-option enum stub (magic factories).
+		 */
+		class OptionEnum {
+			/**
+			 * Option value.
+			 *
+			 * @var string
+			 */
+			private string $value;
+
+			/**
+			 * Constructor.
+			 *
+			 * @param string $value Option name.
+			 */
+			private function __construct( string $value ) {
+				$this->value = $value;
+			}
+
+			/**
+			 * Serve the magic static factories.
+			 *
+			 * @param string $name Factory name.
+			 * @param array  $args Factory arguments (unused).
+			 * @return self
+			 */
+			public static function __callStatic( string $name, array $args ): self {
+				unset( $args );
+				return new self( $name );
+			}
+
+			/**
+			 * Option value.
+			 *
+			 * @return string
+			 */
+			public function getValue(): string {
+				return $this->value;
+			}
+		}
+	}
+}
+
+namespace WordPress\AiClient\Messages\Enums {
+	if ( ! class_exists( \WordPress\AiClient\Messages\Enums\ModalityEnum::class ) ) {
+		/**
+		 * Minimal messages modality enum stub.
+		 */
+		class ModalityEnum {
+			/**
+			 * Modality value.
+			 *
+			 * @var string
+			 */
+			private string $value;
+
+			/**
+			 * Constructor.
+			 *
+			 * @param string $value Modality name.
+			 */
+			private function __construct( string $value ) {
+				$this->value = $value;
+			}
+
+			/**
+			 * Text modality.
+			 *
+			 * @return self
+			 */
+			public static function text(): self {
+				return new self( 'text' );
+			}
+
+			/**
+			 * Image modality.
+			 *
+			 * @return self
+			 */
+			public static function image(): self {
+				return new self( 'image' );
+			}
+
+			/**
+			 * Modality value.
+			 *
+			 * @return string
+			 */
+			public function getValue(): string {
+				return $this->value;
+			}
+		}
+	}
+}
+
+namespace WordPress\AiClient\Providers\Models\DTO {
+	if ( ! class_exists( \WordPress\AiClient\Providers\Models\DTO\SupportedOption::class ) ) {
+		/**
+		 * Minimal supported-option DTO stub.
+		 */
+		class SupportedOption {
+			/**
+			 * Option.
+			 *
+			 * @var mixed
+			 */
+			private $option;
+
+			/**
+			 * Allowed values.
+			 *
+			 * @var array
+			 */
+			private array $allowed;
+
+			/**
+			 * Constructor.
+			 *
+			 * @param mixed $option  Option.
+			 * @param array $allowed Allowed values.
+			 */
+			public function __construct( $option, array $allowed = array() ) {
+				$this->option  = $option;
+				$this->allowed = $allowed;
+			}
+
+			/**
+			 * Option.
+			 *
+			 * @return mixed
+			 */
+			public function getOption() {
+				return $this->option;
+			}
+
+			/**
+			 * Allowed values.
+			 *
+			 * @return array
+			 */
+			public function getAllowedValues(): array {
+				return $this->allowed;
+			}
+		}
+	}
+
+	if ( ! class_exists( \WordPress\AiClient\Providers\Models\DTO\ModelMetadata::class ) ) {
+		/**
+		 * Minimal model-metadata DTO stub.
+		 */
+		class ModelMetadata {
+			/**
+			 * Model id.
+			 *
+			 * @var string
+			 */
+			private string $id;
+
+			/**
+			 * Display name.
+			 *
+			 * @var string
+			 */
+			private string $name;
+
+			/**
+			 * Capabilities.
+			 *
+			 * @var array
+			 */
+			private array $caps;
+
+			/**
+			 * Options.
+			 *
+			 * @var array
+			 */
+			private array $opts;
+
+			/**
+			 * Constructor.
+			 *
+			 * @param string $id   Model id.
+			 * @param string $name Display name.
+			 * @param array  $caps Capabilities.
+			 * @param array  $opts Options.
+			 */
+			public function __construct( string $id = 'test-model', string $name = 'Test', array $caps = array(), array $opts = array() ) {
+				$this->id   = $id;
+				$this->name = $name;
+				$this->caps = $caps;
+				$this->opts = $opts;
+			}
+
+			/**
+			 * Model id.
+			 *
+			 * @return string
+			 */
+			public function getId(): string {
+				return $this->id;
+			}
+
+			/**
+			 * Display name.
+			 *
+			 * @return string
+			 */
+			public function getName(): string {
+				return $this->name;
+			}
+
+			/**
+			 * Supported capabilities.
+			 *
+			 * @return array
+			 */
+			public function getSupportedCapabilities(): array {
+				return $this->caps;
+			}
+
+			/**
+			 * Supported options.
+			 *
+			 * @return array
+			 */
+			public function getSupportedOptions(): array {
+				return $this->opts;
+			}
+		}
+	}
+}
+
+namespace WordPress\AiClient\Providers\DTO {
+	if ( ! class_exists( \WordPress\AiClient\Providers\DTO\ProviderMetadata::class ) ) {
+		/**
+		 * Minimal provider-metadata DTO stub.
+		 */
+		class ProviderMetadata {
+		}
+	}
+}
+
+namespace WordPress\AiClient\Common\Exception {
+	if ( ! class_exists( \WordPress\AiClient\Common\Exception\RuntimeException::class ) ) {
+		/**
+		 * Minimal common runtime exception stub.
+		 */
+		class RuntimeException extends \RuntimeException {
+		}
+	}
+}
+
+namespace WordPress\AiClient\Providers\Http\Exception {
+	if ( ! class_exists( \WordPress\AiClient\Providers\Http\Exception\ResponseException::class ) ) {
+		/**
+		 * Minimal response exception stub.
+		 */
+		class ResponseException extends \RuntimeException {
+			/**
+			 * Build the missing-data exception.
+			 *
+			 * @param string $provider Provider name.
+			 * @param string $key      Missing key.
+			 * @return self
+			 */
+			public static function fromMissingData( string $provider, string $key ): self {
+				return new self( sprintf( 'Missing %s from %s.', $key, $provider ) );
 			}
 		}
 	}

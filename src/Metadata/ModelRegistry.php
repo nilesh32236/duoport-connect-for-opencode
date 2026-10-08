@@ -28,6 +28,19 @@ final class ModelRegistry {
 	private const VERIFICATION_STATUS = 'legacy-verified';
 
 	/**
+	 * Verification states accepted as reviewed.
+	 *
+	 * Single owner for the "reviewed" vocabulary: CapabilityAwareFallback
+	 * and ModelRadar both delegate here, so a status the registry can
+	 * assign cannot be rejected by one of its consumers.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @var list<string>
+	 */
+	public const VERIFIED_STATUSES = array( 'legacy-verified', 'verified' );
+
+	/**
 	 * Date of the last reviewed compatibility mapping.
 	 */
 	private const LAST_VERIFIED = '2026-09-24';
@@ -93,7 +106,7 @@ final class ModelRegistry {
 	 * @return string
 	 */
 	private static function endpointFamily( string $id, string $catalog ): string {
-		if ( 'zen' === $catalog && in_array( $id, self::UNSUPPORTED_ZEN_MODELS, true ) ) {
+		if ( Catalog::ZEN === $catalog && in_array( $id, self::UNSUPPORTED_ZEN_MODELS, true ) ) {
 			return self::ENDPOINT_FAMILY_UNSUPPORTED;
 		}
 		return self::ENDPOINT_FAMILY;
@@ -147,6 +160,20 @@ final class ModelRegistry {
 			}
 		}
 		return $records;
+	}
+
+	/**
+	 * Whether a registry record counts as reviewed.
+	 *
+	 * Single owner for the "reviewed" predicate behind VERIFIED_STATUSES.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param array<string, mixed> $record Registry record.
+	 * @return bool
+	 */
+	public static function isVerified( array $record ): bool {
+		return in_array( $record['verification_status'] ?? '', self::VERIFIED_STATUSES, true );
 	}
 
 	/**

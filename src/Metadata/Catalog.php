@@ -89,6 +89,17 @@ final class Catalog {
 	const LAST_GOOD_SUFFIX = '_last_good';
 
 	/**
+	 * Account signup URL shown wherever the plugin links to key creation.
+	 *
+	 * Single source of truth so a host change cannot leave a stale link on
+	 * one surface: the provider metadata, the settings page, and readme.txt
+	 * all describe this same destination.
+	 *
+	 * @since 0.1.8
+	 */
+	const AUTH_URL = 'https://opencode.ai/auth';
+
+	/**
 	 * Base URLs per catalog (without the trailing /models path).
 	 *
 	 * @since 0.1.6
@@ -135,6 +146,56 @@ final class Catalog {
 	public static function modelsUrl( string $catalog ): string {
 		$base = self::baseUrl( $catalog );
 		return '' === $base ? '' : $base . '/models';
+	}
+
+	/**
+	 * Provider ID for a catalog.
+	 *
+	 * Single source of truth for the `opencode-{slug}` provider IDs: the
+	 * providers return these from `providerId()`, and Settings plus the
+	 * entry-file notice resolve them through here instead of concatenating
+	 * `'opencode-' . $catalog` a second time. Returns an empty string for an
+	 * unknown slug so callers fail closed instead of querying an ID that
+	 * does not exist.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $catalog Catalog slug.
+	 * @return string Provider ID, or empty string for unknown catalogs.
+	 */
+	public static function providerId( string $catalog ): string {
+		if ( ! self::isValid( $catalog ) ) {
+			return '';
+		}
+		return 'opencode-' . $catalog;
+	}
+
+	/**
+	 * Provider class FQCN for a catalog.
+	 *
+	 * Single source of truth for the catalog-slug to provider-class mapping
+	 * that the availability probes, the provider base class, and the model
+	 * identity gate each re-derived inline. Returns an empty string for an
+	 * unknown slug so callers fail closed instead of silently defaulting to
+	 * the Zen branch.
+	 *
+	 * The class names are compile-time `::class` constants, which resolve
+	 * without triggering the autoloader, so this dependency-free class stays
+	 * load-safe from Settings, bust hooks, and uninstall.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $catalog Catalog slug.
+	 * @return string Provider class FQCN, or empty string for unknown catalogs.
+	 */
+	public static function providerClassFor( string $catalog ): string {
+		if ( self::GO === $catalog ) {
+			return \OpenCodeConnector\Providers\OpenCodeGoProvider::class;
+		}
+		if ( self::ZEN === $catalog ) {
+			return \OpenCodeConnector\Providers\OpenCodeZenProvider::class;
+		}
+		return '';
 	}
 
 	/**

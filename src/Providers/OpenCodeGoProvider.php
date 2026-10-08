@@ -26,12 +26,23 @@ final class OpenCodeGoProvider extends AbstractOpenCodeProvider {
 	/**
 	 * Provider ID.
 	 *
+	 * Mirrors Catalog::providerId( Catalog::GO ); the constant form lets
+	 * non-SDK callers (and the ID-agreement ratchet) resolve the ID without
+	 * concatenating the slug.
+	 *
+	 * @since 0.1.8
+	 */
+	const PROVIDER_ID = 'opencode-go';
+
+	/**
+	 * Provider ID.
+	 *
 	 * @since 0.1.0
 	 *
 	 * @return string
 	 */
 	protected static function providerId(): string {
-		return 'opencode-go';
+		return self::PROVIDER_ID;
 	}
 
 	/**

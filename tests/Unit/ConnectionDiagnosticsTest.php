@@ -206,14 +206,14 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 		}
 
 		self::assertStringContainsString(
-			'self::KEYED_STATES',
+			'self::isConfiguredState',
 			$body,
-			'verify_state() must read the keyed bucket constant.'
+			'verify_state() must read the keyed bucket through the state helper.'
 		);
 		self::assertStringContainsString(
-			'self::DEFINITIVE_NEGATIVE_STATES',
+			'self::isDefinitiveNegativeState',
 			$body,
-			'verify_state() must read the definitive-negative bucket constant.'
+			'verify_state() must read the definitive-negative bucket through the state helper.'
 		);
 	}
 }

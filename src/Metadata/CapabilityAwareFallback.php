@@ -25,13 +25,6 @@ final class CapabilityAwareFallback {
 	private const MAX_CANDIDATES = 8;
 
 	/**
-	 * Verification states accepted for fallback.
-	 *
-	 * @var list<string>
-	 */
-	private const VERIFIED_STATUSES = array( 'legacy-verified', 'verified' );
-
-	/**
 	 * Only the complete transport family currently implemented.
 	 */
 	private const IMPLEMENTED_ENDPOINT = 'chat';
@@ -72,11 +65,11 @@ final class CapabilityAwareFallback {
 		}
 
 		$endpoint   = (string) ( $primary['record']['endpoint_family'] ?? '' );
-		$seen       = array();
+		$context    = new CandidateContext( $catalog, $endpoint, $capability );
 		$rejected   = array();
 		$candidates = array_merge( array( $primary_id ), $fallback_ids );
 		foreach ( array_slice( $candidates, 0, self::MAX_CANDIDATES ) as $candidate_id ) {
-			$verdict = $this->evaluateCandidate( $candidate_id, $catalog, $endpoint, $capability, $seen );
+			$verdict = $this->evaluateCandidate( $candidate_id, $context );
 			if ( isset( $verdict['record'] ) ) {
 				return array(
 					'selected'    => $verdict['record'],
@@ -134,20 +127,23 @@ final class CapabilityAwareFallback {
 	/**
 	 * Evaluate one candidate ID against the primary contract.
 	 *
-	 * Marks seen IDs in $seen (by reference) to detect cycles. Returns either
+	 * Cycle detection lives in the context object rather than a
+	 * by-reference array parameter, so the "updated in place" mechanism is
+	 * visible in the signature's type instead of a docblock note, and a
+	 * future rule cannot silently shift argument order. Returns either
 	 * `array('record' => ...)` on acceptance or `array('rejection' => ...)`
 	 * on rejection — never throws.
 	 *
 	 * @since 0.1.6
 	 *
-	 * @param mixed               $candidate_id Candidate model ID.
-	 * @param string              $catalog Catalog slug.
-	 * @param string              $endpoint Primary endpoint family.
-	 * @param string              $capability Required capability key.
-	 * @param array<string, bool> $seen Seen candidate IDs (updated in place).
+	 * @param mixed            $candidate_id Candidate model ID.
+	 * @param CandidateContext $context      Per-select evaluation context.
 	 * @return array<string, mixed>
 	 */
-	private function evaluateCandidate( $candidate_id, string $catalog, string $endpoint, string $capability, array &$seen ): array {
+	private function evaluateCandidate( $candidate_id, CandidateContext $context ): array {
+		$catalog    = $context->catalog();
+		$endpoint   = $context->endpoint();
+		$capability = $context->capability();
 		if ( ! is_string( $candidate_id ) || '' === $candidate_id ) {
 			return array(
 				'rejection' => array(
@@ -156,7 +152,7 @@ final class CapabilityAwareFallback {
 				),
 			);
 		}
-		if ( isset( $seen[ $candidate_id ] ) ) {
+		if ( $context->isSeen( $candidate_id ) ) {
 			return array(
 				'rejection' => array(
 					'id'     => $candidate_id,
@@ -164,8 +160,8 @@ final class CapabilityAwareFallback {
 				),
 			);
 		}
-		$seen[ $candidate_id ] = true;
-		$record                = $this->record( $candidate_id, $catalog );
+		$context->markSeen( $candidate_id );
+		$record = $this->record( $candidate_id, $catalog );
 		if ( null === $record ) {
 			return array(
 				'rejection' => array(
@@ -214,11 +210,15 @@ final class CapabilityAwareFallback {
 	/**
 	 * Whether a record has a known verification state.
 	 *
+	 * Delegates to ModelRegistry, which owns the reviewed vocabulary, so
+	 * the selector cannot disagree with the registry about what "reviewed"
+	 * means.
+	 *
 	 * @param array<string, mixed> $record Model record.
 	 * @return bool
 	 */
 	private function is_verified( array $record ): bool {
-		return in_array( $record['verification_status'] ?? '', self::VERIFIED_STATUSES, true );
+		return ModelRegistry::isVerified( $record );
 	}
 
 	/**

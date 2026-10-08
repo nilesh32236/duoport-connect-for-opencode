@@ -14,14 +14,8 @@
 
 declare(strict_types=1);
 
-namespace WordPress\AiClient\Providers\OpenAiCompatibleImplementation {
-	if ( ! class_exists( \WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCompatibleModelMetadataDirectory::class ) ) {
-		/**
-		 * Minimal OpenAI-compatible metadata directory base stub.
-		 */
-		abstract class AbstractOpenAiCompatibleModelMetadataDirectory {
-		}
-	}
+namespace OpenCodeConnector\Tests\Unit\Bootstrap {
+	require_once __DIR__ . '/Fixtures/SdkStubs.php';
 }
 
 namespace OpenCodeConnector\Tests\Unit {

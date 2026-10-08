@@ -19,8 +19,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 use OpenCodeConnector\Http\GoRequestHeaders;
 use OpenCodeConnector\Http\SessionHeader;
 use OpenCodeConnector\Metadata\Catalog;
-use OpenCodeConnector\Providers\OpenCodeGoProvider;
-use OpenCodeConnector\Providers\OpenCodeZenProvider;
 use WordPress\AiClient\Providers\Contracts\ProviderAvailabilityInterface;
 use WordPress\AiClient\Providers\Http\Contracts\WithHttpTransporterInterface;
 use WordPress\AiClient\Providers\Http\Contracts\WithRequestAuthenticationInterface;
@@ -117,6 +115,19 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	private ?ConnectionDiagnostics $diagnostics_override = null;
 
 	/**
+	 * Memoized diagnostics collaborator.
+	 *
+	 * ConnectionDiagnostics is stateless today, so sharing one instance is
+	 * behavior-preserving — and it keeps the seam symmetric (an injected
+	 * override and the canonical instance are both resolved once) so a
+	 * future stateful collaborator does not silently get a fresh instance
+	 * per probe.
+	 *
+	 * @var ConnectionDiagnostics|null
+	 */
+	private ?ConnectionDiagnostics $resolved_diagnostics = null;
+
+	/**
 	 * Whether the provider is configured, preserving the legacy boolean contract.
 	 *
 	 * Fail-open: quota exhaustion, rate limiting, and previously cached
@@ -134,19 +145,19 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		$state  = isset( $result['state'] ) && is_string( $result['state'] ) ? $result['state'] : '';
 		// Definitive, keyed outcomes stay configured. `free_tier_limit` is a
 		// Zen free-tier quota stop, which is still a valid key.
-		if ( in_array( $state, ConnectionDiagnostics::KEYED_STATES, true ) ) {
+		if ( ConnectionDiagnostics::isConfiguredState( $state ) ) {
 			return true;
 		}
 		// Could-not-be-checked outcomes fall back to last-known-good instead of
 		// flipping a valid key to not-connected during an outage.
-		if ( in_array( $state, ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES, true ) ) {
+		if ( ConnectionDiagnostics::isUncheckableState( $state ) ) {
 			return $this->readLastGood();
 		}
 		// Definitive negatives are the only states that may report
 		// not-configured: `invalid_key` is a proven bad credential and
 		// `not_configured` is a proven missing one. Both have adjudicated the
 		// credential, which is what earns them the right to end the call false.
-		if ( in_array( $state, ConnectionDiagnostics::DEFINITIVE_NEGATIVE_STATES, true ) ) {
+		if ( ConnectionDiagnostics::isDefinitiveNegativeState( $state ) ) {
 			return false;
 		}
 		// Everything else is in NO bucket. This used to be a bare `return false`,
@@ -265,27 +276,13 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return array<string, mixed>
 	 */
 	public function verify(): array {
-		$diagnostics = class_exists( ConnectionDiagnostics::class ) ? $this->diagnostics_or_null() : null;
+		$diagnostics = $this->diagnostics_or_null();
 		$tkey        = Catalog::VERIFY_PREFIX . $this->catalog;
 		$lock_key    = $tkey . '_lock';
 
-		if ( function_exists( 'get_transient' ) ) {
-			try {
-				$cached = get_transient( $tkey );
-			} catch ( \Throwable ) {
-				$cached = false;
-			}
-			if ( is_array( $cached ) && isset( $cached['state'] ) && is_string( $cached['state'] ) ) {
-				return $cached;
-			}
-			try {
-				$locked = get_transient( $lock_key );
-			} catch ( \Throwable ) {
-				$locked = false;
-			}
-			if ( false !== $locked ) {
-				return $this->verify_result( 'could-not-be-checked', null, $diagnostics );
-			}
+		$early = $this->readVerifyCache( $tkey, $lock_key, $diagnostics );
+		if ( null !== $early ) {
+			return $early;
 		}
 
 		try {
@@ -312,70 +309,17 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			}
 		}
 
-		$diagnosis = null;
-		$cls       = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
-		// HttpMethodEnum::POST() is a magic factory: the SDK declares it as an
-		// `@method static` annotation and serves it from AbstractEnum::__callStatic,
-		// so method_exists() cannot see it and is permanently false against the
-		// shipped SDK. Probe the backing constant instead, the same rule
-		// AbstractOpenCodeProvider::createProviderMetadata() applies to
-		// ProviderTypeEnum and RequestAuthenticationMethod. `url` is a real
-		// static method on AbstractApiProvider, so method_exists() is correct
-		// for it.
-		$surface_ok = class_exists( $cls ) && method_exists( $cls, 'url' )
-			&& class_exists( Request::class ) && class_exists( HttpMethodEnum::class ) && defined( HttpMethodEnum::class . '::POST' );
-		if ( ! $surface_ok && null !== $diagnostics ) {
-			try {
-				$diagnosis = $diagnostics->classify( 0, null, new \RuntimeException( 'verify surface unavailable' ) );
-			} catch ( \Throwable $surface_exception ) {
-				unset( $surface_exception );
-				$diagnosis = null;
-			}
-		} elseif ( $surface_ok ) {
-			try {
-				$probe_data = array(
-					'model'      => self::PROBE_MODEL,
-					'messages'   => array(
-						array(
-							'role'    => 'user',
-							'content' => 'ping',
-						),
-					),
-					'max_tokens' => 1,
-				);
-				// The Go catalog rejects requests without x-opencode-session, so the
-				// verify probe carries the same stable ping-derived session as the
-				// availability probe plus the plugin User-Agent via the shared Go
-				// header pair. Zen keeps its existing session-only headers.
-				$base_headers = array( 'Content-Type' => 'application/json' );
-				if ( 'go' === $this->catalog && class_exists( GoRequestHeaders::class ) && method_exists( GoRequestHeaders::class, 'for_go' ) ) {
-					$probe_headers = GoRequestHeaders::for_go( $base_headers, $probe_data );
-				} elseif ( class_exists( SessionHeader::class ) && method_exists( SessionHeader::class, 'inject_into_headers' ) ) {
-					$probe_headers = SessionHeader::inject_into_headers( $base_headers, $probe_data );
-				} else {
-					$probe_headers = $base_headers;
-				}
-				$req       = new Request(
-					HttpMethodEnum::POST(),
-					$cls::url( 'chat/completions' ),
-					$probe_headers,
-					$probe_data
-				);
-				$req       = $this->getRequestAuthentication()->authenticateRequest( $req );
-				$res       = $this->getHttpTransporter()->send( $req );
-				$diagnosis = null !== $diagnostics ? $diagnostics->classify( $res->getStatusCode(), $res->getData(), null, self::PROBE_MODEL ) : null;
-			} catch ( \Throwable $exception ) {
-				unset( $exception );
-				if ( null !== $diagnostics ) {
-					try {
-						$diagnosis = $diagnostics->classify( 0, null, new \RuntimeException( 'verify transport failure' ) );
-					} catch ( \Throwable $classify_exception ) {
-						unset( $classify_exception );
-						$diagnosis = null;
-					}
-				}
-			}
+		// An unrecognised catalog fails closed instead of silently probing as
+		// the Zen catalog: the mapping lives in Catalog::providerClassFor()
+		// so a future third catalog cannot fall through to a wrong branch.
+		$cls = Catalog::providerClassFor( $this->catalog );
+		if ( '' === $cls ) {
+			$verdict = $this->verify_result( 'invalid_key', null, $diagnostics );
+			$this->store_verify_verdict( $tkey, $lock_key, $verdict );
+			return $verdict;
 		}
+
+		$diagnosis = $this->sendVerifyProbe( $cls, $diagnostics );
 
 		$state = null !== $diagnostics && null !== $diagnosis ? $diagnostics->verify_state( $diagnosis ) : 'could-not-be-checked';
 		// Explicit fail-open: transport/server/unknown outcomes already map to
@@ -383,6 +327,208 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		$verdict = $this->verify_result( $state, $diagnosis, $diagnostics );
 		$this->store_verify_verdict( $tkey, $lock_key, $verdict );
 		return $verdict;
+	}
+
+	/**
+	 * Read a cached verification verdict or stampede-lock signal.
+	 *
+	 * Returns the verdict to report immediately (a cached verdict, or a
+	 * `could-not-be-checked` verdict when a concurrent probe holds the
+	 * lock), or null when no cache entry applies and the caller should
+	 * proceed to probe. Never throws; an unreadable cache is a miss.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string                     $tkey        Verdict transient key.
+	 * @param string                     $lock_key    Lock transient key.
+	 * @param ConnectionDiagnostics|null $diagnostics Diagnostics helper, if available.
+	 * @return array<string, mixed>|null Verdict to return, or null to proceed.
+	 */
+	private function readVerifyCache( string $tkey, string $lock_key, ?ConnectionDiagnostics $diagnostics ): ?array {
+		if ( ! function_exists( 'get_transient' ) ) {
+			return null;
+		}
+		try {
+			$cached = get_transient( $tkey );
+		} catch ( \Throwable ) {
+			$cached = false;
+		}
+		if ( is_array( $cached ) && isset( $cached['state'] ) && is_string( $cached['state'] ) ) {
+			return $cached;
+		}
+		try {
+			$locked = get_transient( $lock_key );
+		} catch ( \Throwable ) {
+			$locked = false;
+		}
+		if ( false !== $locked ) {
+			return $this->verify_result( 'could-not-be-checked', null, $diagnostics );
+		}
+		return null;
+	}
+
+	/**
+	 * Whether the SDK surface a probe needs is available.
+	 *
+	 * HttpMethodEnum::POST() is a magic factory: the SDK declares it as an
+	 * `@method static` annotation and serves it from AbstractEnum::__callStatic,
+	 * so method_exists() cannot see it and is permanently false against the
+	 * shipped SDK. Probe the backing constant instead, the same rule
+	 * AbstractOpenCodeProvider::createProviderMetadata() applies to
+	 * ProviderTypeEnum and RequestAuthenticationMethod. `url` is a real
+	 * static method on AbstractApiProvider, so method_exists() is correct
+	 * for it.
+	 *
+	 * Shared by verify() and probe() so both probes agree on what "the SDK
+	 * is present" means.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $cls Provider class FQCN.
+	 * @return bool
+	 */
+	private function probeSurfaceAvailable( string $cls ): bool {
+		if ( '' === $cls ) {
+			return false;
+		}
+		return class_exists( $cls ) && method_exists( $cls, 'url' )
+			&& class_exists( Request::class ) && class_exists( HttpMethodEnum::class ) && defined( HttpMethodEnum::class . '::POST' );
+	}
+
+	/**
+	 * Build the one-token probe payload both probes send.
+	 *
+	 * A single owner for the model/messages/max_tokens shape so the
+	 * verification probe and the availability probe cannot drift apart when
+	 * one of them is edited.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function probePayload(): array {
+		return array(
+			'model'      => self::PROBE_MODEL,
+			'messages'   => array(
+				array(
+					'role'    => 'user',
+					'content' => 'ping',
+				),
+			),
+			'max_tokens' => 1,
+		);
+	}
+
+	/**
+	 * Build the headers both probes send.
+	 *
+	 * The Go catalog rejects requests without x-opencode-session, so Go
+	 * probes carry the stable ping-derived session plus the plugin
+	 * User-Agent via the shared Go header pair. Zen probes carry the
+	 * session-only headers. Guarded so a missing helper degrades to fewer
+	 * headers, never a fatal — and kept inside the probe's try region by
+	 * the callers that need it there.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param array<string, mixed> $data Probe payload the session is derived from.
+	 * @return array<string, string>
+	 */
+	private function probeHeaders( array $data ): array {
+		$base_headers = array( 'Content-Type' => 'application/json' );
+		if ( Catalog::GO === $this->catalog ) {
+			try {
+				if ( class_exists( GoRequestHeaders::class ) && method_exists( GoRequestHeaders::class, 'for_go' ) ) {
+					return GoRequestHeaders::for_go( $base_headers, $data );
+				}
+			} catch ( \Throwable $go_header_exception ) {
+				unset( $go_header_exception );
+			}
+		}
+		try {
+			if ( class_exists( SessionHeader::class ) && method_exists( SessionHeader::class, 'inject_into_headers' ) ) {
+				return SessionHeader::inject_into_headers( $base_headers, $data );
+			}
+		} catch ( \Throwable $session_header_exception ) {
+			unset( $session_header_exception );
+		}
+		return $base_headers;
+	}
+
+	/**
+	 * Send the verification HTTP round-trip and classify the outcome.
+	 *
+	 * Flat guard-clause shape instead of the elseif/catch nesting it
+	 * replaces: a surface failure classifies without sending, a transport
+	 * failure classifies as uncheckable, and a classifier failure degrades
+	 * to null so the caller fails open. Never throws.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string                     $cls         Provider class FQCN.
+	 * @param ConnectionDiagnostics|null $diagnostics Diagnostics helper, if available.
+	 * @return array<string, mixed>|null Safe diagnosis, or null when none exists.
+	 */
+	private function sendVerifyProbe( string $cls, ?ConnectionDiagnostics $diagnostics ): ?array {
+		if ( ! $this->probeSurfaceAvailable( $cls ) ) {
+			if ( null === $diagnostics ) {
+				return null;
+			}
+			try {
+				return $diagnostics->classify( 0, null, new \RuntimeException( 'verify surface unavailable' ) );
+			} catch ( \Throwable $surface_exception ) {
+				unset( $surface_exception );
+				return null;
+			}
+		}
+		try {
+			$probe_data    = $this->probePayload();
+			$probe_headers = $this->probeHeaders( $probe_data );
+			$req           = new Request(
+				HttpMethodEnum::POST(),
+				$cls::url( 'chat/completions' ),
+				$probe_headers,
+				$probe_data
+			);
+			$req           = $this->getRequestAuthentication()->authenticateRequest( $req );
+			$res           = $this->getHttpTransporter()->send( $req );
+			return null !== $diagnostics ? $diagnostics->classify( $res->getStatusCode(), $res->getData(), null, self::PROBE_MODEL ) : null;
+		} catch ( \Throwable $exception ) {
+			unset( $exception );
+			if ( null === $diagnostics ) {
+				return null;
+			}
+			try {
+				return $diagnostics->classify( 0, null, new \RuntimeException( 'verify transport failure' ) );
+			} catch ( \Throwable $classify_exception ) {
+				unset( $classify_exception );
+				return null;
+			}
+		}
+	}
+
+	/**
+	 * Add jitter to a cache TTL so probes do not stampede.
+	 *
+	 * Single owner for the TTL+jitter policy both probes share: base window
+	 * plus wp_rand(-60,60) with a 60-second floor. Never throws.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param int $base Base TTL in seconds.
+	 * @return int Jittered TTL in seconds.
+	 */
+	private function jitteredTtl( int $base ): int {
+		$ttl = $base;
+		if ( function_exists( 'wp_rand' ) ) {
+			try {
+				$ttl = $base + wp_rand( -60, 60 );
+			} catch ( \Throwable $rand_exception ) {
+				unset( $rand_exception );
+				$ttl = $base;
+			}
+		}
+		return max( 60, $ttl );
 	}
 
 	/**
@@ -464,17 +610,8 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			return;
 		}
 		$base = defined( 'MINUTE_IN_SECONDS' ) ? 5 * MINUTE_IN_SECONDS : 300;
-		$ttl  = (int) $base;
-		if ( function_exists( 'wp_rand' ) ) {
-			try {
-				$ttl = (int) $base + wp_rand( -60, 60 );
-			} catch ( \Throwable $rand_exception ) {
-				unset( $rand_exception );
-				$ttl = (int) $base;
-			}
-		}
 		try {
-			set_transient( $tkey, $verdict, max( 60, $ttl ) );
+			set_transient( $tkey, $verdict, $this->jitteredTtl( (int) $base ) );
 		} catch ( \Throwable $store_exception ) {
 			unset( $store_exception );
 			// Fail-open: caching must never be fatal.
@@ -487,24 +624,11 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return array<string, mixed>
 	 */
 	private function probe(): array {
-		$tkey   = Catalog::AVAIL_PREFIX . $this->catalog;
-		$cached = $this->getCached( $tkey );
-		if ( is_array( $cached ) && isset( $cached['state'] ) ) {
-			$this->last_result = $cached;
-			return $cached;
-		}
-		if ( false !== $cached && is_bool( $cached ) ) {
-			$this->last_result = $cached ? $this->diagnostics()->verified() : $this->diagnostics()->notConfigured();
-			return $this->last_result;
-		}
-
-		// Stampede protection: short lock so concurrent requests share one probe.
+		$tkey     = Catalog::AVAIL_PREFIX . $this->catalog;
 		$lock_key = $tkey . '_lock';
-		if ( false !== $this->getCached( $lock_key ) ) {
-			// Concurrent probe: surface could-not-be-checked so isConfigured()
-			// can fail open on last-known-good instead of flipping to false.
-			$this->last_result = $this->diagnostics()->uncheckable();
-			return $this->last_result;
+		$early    = $this->readProbeCache( $tkey, $lock_key );
+		if ( null !== $early ) {
+			return $early;
 		}
 
 		$diagnostics = $this->diagnostics();
@@ -529,44 +653,32 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		// Set lock before network I/O (10s).
 		$this->setCached( $lock_key, 1, 10 );
 
-		$cls = 'go' === $this->catalog ? OpenCodeGoProvider::class : OpenCodeZenProvider::class;
+		// An unrecognised catalog fails closed instead of silently probing as
+		// the Zen catalog; see verify() for why the mapping has one home.
+		$cls = Catalog::providerClassFor( $this->catalog );
+		if ( '' === $cls ) {
+			$this->last_result = $diagnostics->notConfigured();
+			$this->writeLastGood( false );
+			return $this->last_result;
+		}
 		// Probe models are chosen to discriminate AUTHENTICATION, not model
 		// availability: paid models answer 401 CreditsError for a valid but
 		// empty-balance key (configured) versus other 401s for a bad key.
 		// Probing a free model instead would fail closed whenever that model
 		// is transiently unavailable upstream (observed live).
-		$probe_model = self::PROBE_MODEL;
-		$probe_data  = array(
-			'model'      => $probe_model,
-			'messages'   => array(
-				array(
-					'role'    => 'user',
-					'content' => 'ping',
-				),
-			),
-			'max_tokens' => 1,
-		);
-		// The Go catalog rejects requests without x-opencode-session (400
-		// MissingSessionID), so the probe carries a stable session value
-		// derived from its own payload. Zen ignores the extra header. The Go
-		// probe additionally carries the plugin User-Agent via the shared Go
-		// header pair; the opencode user agent is never spoofed.
-		$base_headers  = array( 'Content-Type' => 'application/json' );
-		$probe_headers = 'go' === $this->catalog && class_exists( GoRequestHeaders::class )
-			? GoRequestHeaders::for_go( $base_headers, $probe_data )
-			: SessionHeader::inject_into_headers( $base_headers, $probe_data );
+		$probe_model   = self::PROBE_MODEL;
+		$probe_data    = $this->probePayload();
+		$probe_headers = $this->probeHeaders( $probe_data );
 		try {
 			// Construction belongs INSIDE the try. `$cls::url()` is a static call
 			// on the provider class and HttpMethodEnum::POST() is a magic factory
 			// served by __callStatic, so a broken or half-installed SDK throws
 			// \Error or \BadMethodCallException here rather than returning a value
-			// that could be checked. verify() already guards that surface with an
-			// explicit method_exists/defined check for exactly this reason (see
-			// $surface_ok above); probe() had no equivalent, and building the
-			// request outside the try left this as the one path in the class that
-			// fails neither open nor closed — it escaped isConfigured() as an
-			// uncaught throwable and skipped the stampede-lock release below,
-			// leaving every later caller locked out for the lock's full TTL.
+			// that could be checked. Building the request outside the try left
+			// this as the one path in the class that fails neither open nor
+			// closed — it escaped isConfigured() as an uncaught throwable and
+			// skipped the stampede-lock release below, leaving every later
+			// caller locked out for the lock's full TTL.
 			$req               = new Request(
 				HttpMethodEnum::POST(),
 				$cls::url( 'chat/completions' ),
@@ -582,56 +694,106 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 		$this->deleteCached( $lock_key );
 		$state = isset( $this->last_result['state'] ) && is_string( $this->last_result['state'] ) ? $this->last_result['state'] : '';
-		// Could-not-be-checked (5xx, transport failure, concurrent probe, and
-		// any unrecognised response): never write the failure to
-		// last-known-good. The verdict is cached so a persistent condition costs
-		// one probe per window instead of one per call, while isConfigured()
-		// keeps failing open.
-		//
-		// The two kinds of could-not-be-checked get different windows, and the
-		// reason is not only cost. A transport failure or a 5xx resolves on its
-		// own, so the one-minute window notices a recovered gateway quickly.
-		// `unknown` is not transient: the gateway answered with something this
-		// plugin has no rule for, and that does not resolve itself in a minute —
-		// a 404 after an upstream model rename is the standing case.
-		// `probe_model_unavailable` is the same shape for the same reason: the
-		// gateway has said the model this plugin probes with is gone, and it will
-		// still be gone in a minute.
-		//
-		// Both also take the full jittered window because the one-minute branch
-		// has no jitter at all, so routing them there would make every site whose
-		// upstream answered that way re-probe in lockstep on the same 60-second
-		// boundary — precisely the synchronized stampede the jitter below exists
-		// to prevent, introduced by the very fix that is supposed to quieten the
-		// probe. Membership is read from the published list rather than an
-		// `!== UNKNOWN_STATE` test, so adding a third persistent state later
-		// cannot land on the short branch by being forgotten here.
-		if ( in_array( $state, ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES, true ) ) {
-			if ( ! in_array( $state, ConnectionDiagnostics::PERSISTENT_UNCHECKABLE_STATES, true ) ) {
-				$second = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
-				$this->setCached( $tkey, $this->last_result, $second );
-				return $this->last_result;
-			}
-			// Persistent: fall through to the jittered window below, skipping
-			// the last-known-good writes on the way. It must NOT reach them —
-			// neither state proves anything about the key, and writing false here
-			// would destroy last-known-good and reinstate the exact production
-			// bug this PR fixes.
-			$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
-			$jitter = function_exists( 'wp_rand' ) ? wp_rand( -60, 60 ) : 0;
-			$ttl    = 5 * $minute + (int) $jitter;
-			$this->setCached( $tkey, $this->last_result, max( 60, $ttl ) );
+		$this->persistProbeResult( $tkey, $state );
+		return $this->last_result;
+	}
+
+	/**
+	 * Read a cached probe result or stampede-lock signal.
+	 *
+	 * Returns the result to report immediately (a cached verdict with its
+	 * legacy boolean-cache projection, or a could-not-be-checked verdict
+	 * when a concurrent probe holds the lock), or null when no cache entry
+	 * applies and the caller should proceed to probe. Records the early
+	 * result in last_result like probe() itself would.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $tkey     Probe result transient key.
+	 * @param string $lock_key Stampede-lock transient key.
+	 * @return array<string, mixed>|null Result to return, or null to proceed.
+	 */
+	private function readProbeCache( string $tkey, string $lock_key ): ?array {
+		$cached = $this->getCached( $tkey );
+		if ( is_array( $cached ) && isset( $cached['state'] ) ) {
+			$this->last_result = $cached;
+			return $cached;
+		}
+		if ( false !== $cached && is_bool( $cached ) ) {
+			$this->last_result = $cached ? $this->diagnostics()->verified() : $this->diagnostics()->notConfigured();
 			return $this->last_result;
 		}
-		// Definitive keyed outcomes refresh last-known-good. A Zen free-tier
-		// quota stop proves the key is valid, so it counts as a good result.
+		if ( false !== $this->getCached( $lock_key ) ) {
+			// Concurrent probe: surface could-not-be-checked so isConfigured()
+			// can fail open on last-known-good instead of flipping to false.
+			$this->last_result = $this->diagnostics()->uncheckable();
+			return $this->last_result;
+		}
+		return null;
+	}
+
+	/**
+	 * Write a probe outcome to the cache and the last-known-good flag.
+	 *
+	 * The safety-critical write-back policy, kept behind the transient
+	 * reads and the HTTP round-trip so future edits to those cannot land
+	 * inside it: could-not-be-checked verdicts never touch last-known-good
+	 * (they only refresh their cache window), definitive keyed outcomes
+	 * refresh it, and only definitive negatives clear it (via
+	 * applyLastGood()). Membership is read from the published
+	 * ConnectionDiagnostics helpers rather than restated lists.
+	 *
+	 * Could-not-be-checked (5xx, transport failure, concurrent probe, and
+	 * any unrecognised response): never write the failure to
+	 * last-known-good. The verdict is cached so a persistent condition costs
+	 * one probe per window instead of one per call, while isConfigured()
+	 * keeps failing open.
+	 *
+	 * The two kinds of could-not-be-checked get different windows, and the
+	 * reason is not only cost. A transport failure or a 5xx resolves on its
+	 * own, so the one-minute window notices a recovered gateway quickly.
+	 * `unknown` is not transient: the gateway answered with something this
+	 * plugin has no rule for, and that does not resolve itself in a minute —
+	 * a 404 after an upstream model rename is the standing case.
+	 * `probe_model_unavailable` is the same shape for the same reason: the
+	 * gateway has said the model this plugin probes with is gone, and it will
+	 * still be gone in a minute.
+	 *
+	 * Both also take the full jittered window because the one-minute branch
+	 * has no jitter at all, so routing them there would make every site whose
+	 * upstream answered that way re-probe in lockstep on the same 60-second
+	 * boundary — precisely the synchronized stampede the jitter exists to
+	 * prevent. Membership is read from the published helpers, so adding a
+	 * third persistent state later cannot land on the short branch by being
+	 * forgotten here. A persistent verdict must NOT reach the
+	 * last-known-good writes — neither state proves anything about the key,
+	 * and writing false there would reinstate the exact production bug the
+	 * persistent window exists to fix.
+	 *
+	 * Definitive keyed outcomes refresh last-known-good. A Zen free-tier
+	 * quota stop proves the key is valid, so it counts as a good result.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $tkey  Probe result transient key.
+	 * @param string $state Classified state name.
+	 * @return void
+	 */
+	private function persistProbeResult( string $tkey, string $state ): void {
+		if ( ConnectionDiagnostics::isUncheckableState( $state ) ) {
+			if ( ! ConnectionDiagnostics::isPersistentUncheckableState( $state ) ) {
+				$second = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
+				$this->setCached( $tkey, $this->last_result, $second );
+				return;
+			}
+			$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
+			$this->setCached( $tkey, $this->last_result, $this->jitteredTtl( 5 * $minute ) );
+			return;
+		}
 		$this->applyLastGood( $state );
 		// Stagger expiry ±60s to avoid synchronized stampedes.
 		$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
-		$jitter = function_exists( 'wp_rand' ) ? wp_rand( -60, 60 ) : 0;
-		$ttl    = 5 * $minute + (int) $jitter;
-		$this->setCached( $tkey, $this->last_result, max( 60, $ttl ) );
-		return $this->last_result;
+		$this->setCached( $tkey, $this->last_result, $this->jitteredTtl( 5 * $minute ) );
 	}
 
 	/**
@@ -676,11 +838,11 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return void
 	 */
 	private function applyLastGood( string $state ): void {
-		if ( in_array( $state, ConnectionDiagnostics::KEYED_STATES, true ) ) {
+		if ( ConnectionDiagnostics::isConfiguredState( $state ) ) {
 			$this->writeLastGood( true );
 			return;
 		}
-		if ( in_array( $state, ConnectionDiagnostics::DEFINITIVE_NEGATIVE_STATES, true ) ) {
+		if ( ConnectionDiagnostics::isDefinitiveNegativeState( $state ) ) {
 			$this->writeLastGood( false );
 		}
 	}
@@ -840,7 +1002,10 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return ConnectionDiagnostics
 	 */
 	private function diagnostics(): ConnectionDiagnostics {
-		return $this->diagnostics_override ?? new ConnectionDiagnostics();
+		if ( null === $this->resolved_diagnostics ) {
+			$this->resolved_diagnostics = $this->diagnostics_override ?? new ConnectionDiagnostics();
+		}
+		return $this->resolved_diagnostics;
 	}
 
 	/**

@@ -423,6 +423,86 @@ final class ConnectionDiagnostics {
 	}
 
 	/**
+	 * Whether a state proves the key was accepted by the gateway.
+	 *
+	 * Single owner for the fail-open safety policy: every caller that decides
+	 * "valid key reads as connected" goes through here instead of restating
+	 * the list, so a new keyed state added to `KEYED_STATES` cannot be
+	 * forgotten at a call site and silently flip valid users to
+	 * not-connected.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $state Classified state name.
+	 * @return bool
+	 */
+	public static function isConfiguredState( string $state ): bool {
+		return in_array( $state, self::KEYED_STATES, true );
+	}
+
+	/**
+	 * Whether a state says nothing about the credential.
+	 *
+	 * Such states fall back to last-known-good instead of reporting a working
+	 * key as not connected. See `isConfiguredState()` for why this lives
+	 * here rather than at the call sites.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $state Classified state name.
+	 * @return bool
+	 */
+	public static function isUncheckableState( string $state ): bool {
+		return in_array( $state, self::COULD_NOT_BE_CHECKED_STATES, true );
+	}
+
+	/**
+	 * Whether a state is a definitive negative for the credential.
+	 *
+	 * Only these states may clear the last-known-good flag.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $state Classified state name.
+	 * @return bool
+	 */
+	public static function isDefinitiveNegativeState( string $state ): bool {
+		return in_array( $state, self::DEFINITIVE_NEGATIVE_STATES, true );
+	}
+
+	/**
+	 * Whether an uncheckable state takes the long, jittered cache window.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $state Classified state name.
+	 * @return bool
+	 */
+	public static function isPersistentUncheckableState( string $state ): bool {
+		return in_array( $state, self::PERSISTENT_UNCHECKABLE_STATES, true );
+	}
+
+	/**
+	 * Every state string this class can produce.
+	 *
+	 * Test seam for the exhaustiveness ratchet: a new factory that adds a
+	 * state without a bucket fails the classification test instead of
+	 * silently landing on a fail-closed default at a call site.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return list<string>
+	 */
+	public static function allStates(): array {
+		$states = array_merge(
+			self::KEYED_STATES,
+			self::COULD_NOT_BE_CHECKED_STATES,
+			self::DEFINITIVE_NEGATIVE_STATES
+		);
+		return array_values( array_unique( $states ) );
+	}
+
+	/**
 	 * Map a detailed diagnosis to an explicit verification state.
 	 *
 	 * Returns one of `valid`, `invalid_key`, or `could-not-be-checked` so the
@@ -438,10 +518,10 @@ final class ConnectionDiagnostics {
 		// The probe defect this class documents was one missing entry in one of
 		// two hand-maintained lists, so any list spelled out again here is the
 		// same hazard wearing a different hat.
-		if ( in_array( $state, self::KEYED_STATES, true ) ) {
+		if ( self::isConfiguredState( $state ) ) {
 			return 'valid';
 		}
-		if ( in_array( $state, self::DEFINITIVE_NEGATIVE_STATES, true ) ) {
+		if ( self::isDefinitiveNegativeState( $state ) ) {
 			return 'invalid_key';
 		}
 		return 'could-not-be-checked';
