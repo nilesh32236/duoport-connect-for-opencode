@@ -401,7 +401,14 @@ jobs:
           if [ -z "$PR" ]; then echo "No PR number on this event — nothing to merge."; exit 0; fi
           # Only merge a PR the reviewer approved. Guards the post-autofix sweep
           # from merging a PR the loop did not approve.
-          if ! gh pr view "$PR" --repo "$REPOSITORY" --json labels --jq '[.labels[].name] | index("autofix:ready")' | grep -q true; then
+          #
+          # Test for the label's PRESENCE. `jq index()` returns a NUMBER (0 when
+          # found, 1 when not) or null — never the string `true` — so a
+          # `| grep -q true` against it never matches and this guard would take
+          # the early-exit branch every time, making the whole job dead code.
+          # `(.labels // [])` keeps jq from erroring when the list is null.
+          if [ "$(gh pr view "$PR" --repo "$REPOSITORY" --json labels \
+                 --jq '[(.labels // [])[]?.name] | any(. == "autofix:ready")')" != "true" ]; then
             echo "PR #$PR is not autofix:ready — nothing to merge."; exit 0
           fi
           for i in $(seq 1 12); do
