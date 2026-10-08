@@ -81,8 +81,10 @@ final class Catalog {
 	/**
 	 * Suffix for the transient-only last-known-good availability flag.
 	 *
-	 * Holds a literal boolean, never a `connectors_ai_*` option value, so a
-	 * key rotation cannot leak through it.
+	 * Holds a timestamped string sentinel (`array( 'v' => '1', 'ts' => ... )`),
+	 * never a `connectors_ai_*` option value, so a key rotation cannot leak
+	 * through it. Legacy int/string shapes predate the timestamp and still
+	 * read as armed.
 	 *
 	 * @since 0.1.6
 	 */

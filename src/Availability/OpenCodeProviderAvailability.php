@@ -95,6 +95,26 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	);
 
 	/**
+	 * Maximum age of the last-known-good fallback, in seconds.
+	 *
+	 * Fail-open is bounded: a flag armed by a keyed success stops carrying
+	 * could-not-be-checked verdicts once this long has passed without a fresh
+	 * keyed confirmation. The bound exists because key rotations delivered
+	 * outside the options table — a `wp-config.php` constant or an
+	 * environment variable — fire none of the cache-bust hooks, so without it
+	 * the flag could outlive the rotation it describes by up to its full
+	 * transient TTL. Every keyed success re-arms the flag with a fresh
+	 * timestamp, so a genuinely healthy key never reaches this bound; only a
+	 * key that has not been confirmed for two days stops failing open.
+	 *
+	 * Literal seconds rather than `48 * HOUR_IN_SECONDS` so the value is
+	 * available before WP defines its time constants.
+	 *
+	 * @since 0.1.10
+	 */
+	private const LAST_GOOD_MAX_AGE = 172800;
+
+	/**
 	 * Constructor.
 	 *
 	 * @since 0.1.0
@@ -126,6 +146,28 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @var ConnectionDiagnostics|null
 	 */
 	private ?ConnectionDiagnostics $resolved_diagnostics = null;
+
+	/**
+	 * Per-instance memo of the last-known-good flag.
+	 *
+	 * `isConfigured()` reads the flag on every could-not-be-checked verdict,
+	 * so without this each call costs a transient read on top of the verdict
+	 * read. The memo is per-instance only: a new instance re-reads, so there
+	 * is no cross-request staleness, and `writeLastGood()` updates it on every
+	 * path (including the delete path) so a write followed by a read in the
+	 * same request never goes back to storage.
+	 *
+	 * Same-instance external deletes are not observed: a transient deleted
+	 * out from under this instance (for example a key-rotation bust hook
+	 * running later in the same request) still reads from the memo until the
+	 * instance is discarded. Short-lived by construction — prefer a fresh
+	 * instance for any post-save check that runs across such a boundary.
+	 *
+	 * @since 0.1.10
+	 *
+	 * @var bool|null
+	 */
+	private ?bool $last_good_memo = null;
 
 	/**
 	 * Whether the provider is configured, preserving the legacy boolean contract.
@@ -508,6 +550,33 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	}
 
 	/**
+	 * Guarded jitter source for probe cache windows.
+	 *
+	 * `wp_rand()` is pluggable and therefore both absent and throwing are
+	 * real: a throwing rand must cost the jitter, never the probe. Every
+	 * call site in this class consults the jitter through here so a new
+	 * window cannot reintroduce an unguarded `wp_rand()` by copying the
+	 * older `function_exists`-only shape.
+	 *
+	 * @since 0.1.10
+	 *
+	 * @param int $min Minimum spread (inclusive).
+	 * @param int $max Maximum spread (inclusive).
+	 * @return int Drawn spread, or 0 when `wp_rand()` is unavailable or throws.
+	 */
+	private static function rand_spread( int $min, int $max ): int {
+		if ( ! function_exists( 'wp_rand' ) ) {
+			return 0;
+		}
+		try {
+			return (int) wp_rand( $min, $max );
+		} catch ( \Throwable $rand_exception ) {
+			unset( $rand_exception );
+			return 0;
+		}
+	}
+
+	/**
 	 * Add jitter to a cache TTL so probes do not stampede.
 	 *
 	 * Single owner for the TTL+jitter policy both probes share: base window
@@ -519,16 +588,35 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return int Jittered TTL in seconds.
 	 */
 	private function jitteredTtl( int $base ): int {
-		$ttl = $base;
-		if ( function_exists( 'wp_rand' ) ) {
-			try {
-				$ttl = $base + wp_rand( -60, 60 );
-			} catch ( \Throwable $rand_exception ) {
-				unset( $rand_exception );
-				$ttl = $base;
-			}
-		}
-		return max( 60, $ttl );
+		return max( 60, $base + self::rand_spread( -60, 60 ) );
+	}
+
+	/**
+	 * The could-not-be-checked window for TRANSIENT failures, jittered 45-75s.
+	 *
+	 * A fixed 60s window makes every site whose upstream is failing the same
+	 * way re-probe in lockstep on the same boundary, which is precisely the
+	 * synchronized stampede the jitter exists to prevent. The short branch
+	 * therefore draws `wp_rand( -15, 15 )` around the minute: a -15 draw
+	 * caches 45s and a +15 draw caches 75s.
+	 *
+	 * The 30-second floor is not decoration. `MINUTE_IN_SECONDS` is
+	 * filterable, so a site that filters it down would otherwise be able to
+	 * drive this window to zero and turn the cache into no cache at all. It
+	 * is also below the 45s minimum a real draw can produce, so it never
+	 * binds on an unfiltered install.
+	 *
+	 * Kept separate from jitteredTtl() because the two windows differ in both
+	 * spread (±15 vs ±60) and floor (30 vs 60); folding them into one helper
+	 * with a parameter would let a caller pick the wrong pair silently.
+	 *
+	 * @since 0.1.10
+	 *
+	 * @return int Jittered short window in seconds.
+	 */
+	private function jitteredShortTtl(): int {
+		$second = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
+		return max( 30, $second + self::rand_spread( -15, 15 ) );
 	}
 
 	/**
@@ -782,10 +870,16 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	private function persistProbeResult( string $tkey, string $state ): void {
 		if ( ConnectionDiagnostics::isUncheckableState( $state ) ) {
 			if ( ! ConnectionDiagnostics::isPersistentUncheckableState( $state ) ) {
-				$second = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
-				$this->setCached( $tkey, $this->last_result, $second );
+				// Jittered 45-75s, not a fixed 60s: a fixed window makes every
+				// site whose upstream is failing the same way re-probe in
+				// lockstep on the same boundary.
+				$this->setCached( $tkey, $this->last_result, $this->jitteredShortTtl() );
 				return;
 			}
+			// Persistent: the longer jittered window, and NOT the
+			// last-known-good writes — neither state proves anything about the
+			// key, and writing false there would reinstate the exact production
+			// bug the persistent window exists to fix.
 			$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
 			$this->setCached( $tkey, $this->last_result, $this->jitteredTtl( 5 * $minute ) );
 			return;
@@ -800,14 +894,55 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * Read the last-known-good configured flag for this catalog.
 	 *
 	 * Transient-only and credential-blind: stores only whether a keyed probe
-	 * previously succeeded, never any option value.
+	 * previously succeeded, never any option value. Memoised per instance —
+	 * see $last_good_memo — so repeated reads in one request cost one
+	 * transient fetch.
 	 *
 	 * @since 0.1.6
 	 *
 	 * @return bool
 	 */
 	private function readLastGood(): bool {
-		$value = $this->getCached( Catalog::AVAIL_PREFIX . $this->catalog . Catalog::LAST_GOOD_SUFFIX );
+		if ( null !== $this->last_good_memo ) {
+			return $this->last_good_memo;
+		}
+		$value                = $this->getCached( Catalog::AVAIL_PREFIX . $this->catalog . Catalog::LAST_GOOD_SUFFIX );
+		$this->last_good_memo = $this->isFreshLastGood( $value );
+		return $this->last_good_memo;
+	}
+
+	/**
+	 * Whether a stored last-known-good value still arms the fallback.
+	 *
+	 * The current shape is `array( 'v' => '1', 'ts' => <unix time> )`: the
+	 * string sentinel keeps the stored type stable across the database
+	 * round-trip (an int `1` comes back as string `'1'`), and the timestamp
+	 * bounds the fallback by age — see LAST_GOOD_MAX_AGE. The age cap binds
+	 * only timestamped shapes.
+	 *
+	 * Legacy shapes (int `1`, string `'1'`) predate the timestamp and read as
+	 * armed with no age bound: they fail open, exactly as they did before the
+	 * bound existed, and the next keyed success upgrades them to the
+	 * timestamped shape. That unbounded read is intentional — treating a
+	 * pre-upgrade flag as expired would disconnect working keys on upgrade.
+	 * A stale timestamped entry reads as disarmed; the transient itself still
+	 * expires on its own TTL, and definitive negatives still delete outright.
+	 *
+	 * @since 0.1.10
+	 *
+	 * @param mixed $value Raw transient value.
+	 * @return bool True while the fallback may carry a could-not-be-checked verdict.
+	 */
+	private function isFreshLastGood( mixed $value ): bool {
+		if ( is_array( $value ) ) {
+			if ( empty( $value['v'] ) ) {
+				return false;
+			}
+			if ( isset( $value['ts'] ) && is_numeric( $value['ts'] ) ) {
+				return ( time() - (int) $value['ts'] ) <= self::LAST_GOOD_MAX_AGE;
+			}
+			return true;
+		}
 		return ! empty( $value );
 	}
 
@@ -895,6 +1030,18 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * outright and immediately, so a genuinely revoked key is never held open
 	 * by any of this.
 	 *
+	 * The stored shape is `array( 'v' => '1', 'ts' => time() )`, still
+	 * credential-blind. The string sentinel (not int `1`) keeps the stored
+	 * type stable across the database round-trip; it does not skip the
+	 * value-row write, because `ts` changes on every keyed success so the
+	 * serialised value is never equal — both the value row and the timeout
+	 * row move on each rewrite, and that rewrite is the rolling behaviour
+	 * above, not a pointless write. The timestamp is what `readLastGood()`
+	 * bounds by LAST_GOOD_MAX_AGE (timestamped shapes only; pre-timestamp
+	 * int/string shapes read as armed until a keyed success upgrades them),
+	 * so a flag that has not been confirmed since before a `wp-config.php` or
+	 * environment rotation stops failing open.
+	 *
 	 * @since 0.1.6
 	 *
 	 * @param bool $good Whether a keyed probe just succeeded.
@@ -903,13 +1050,22 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	private function writeLastGood( bool $good ): void {
 		$key = Catalog::AVAIL_PREFIX . $this->catalog . Catalog::LAST_GOOD_SUFFIX;
 		if ( ! $good ) {
+			$this->last_good_memo = false;
 			$this->deleteCached( $key );
 			return;
 		}
 		// Rewritten unconditionally, and deliberately so: this is what pushes
 		// the TTL forward. See the docblock before changing it.
-		$day = defined( 'DAY_IN_SECONDS' ) ? (int) DAY_IN_SECONDS : 86400;
-		$this->setCached( $key, 1, 30 * $day );
+		$this->last_good_memo = true;
+		$day                  = defined( 'DAY_IN_SECONDS' ) ? (int) DAY_IN_SECONDS : 86400;
+		$this->setCached(
+			$key,
+			array(
+				'v'  => '1',
+				'ts' => time(),
+			),
+			30 * $day
+		);
 	}
 
 	/**

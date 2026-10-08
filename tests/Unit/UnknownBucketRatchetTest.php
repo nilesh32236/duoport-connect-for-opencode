@@ -19,6 +19,7 @@ namespace OpenCodeConnector\Tests\Unit {
 	use OpenCodeConnector\Metadata\Catalog;
 	use PHPUnit\Framework\Attributes\PreserveGlobalState;
 	use PHPUnit\Framework\Attributes\RunInSeparateProcess;
+	use WordPress\AiClient\Providers\Http\DTO\Response;
 
 	/**
 	 * `unknown` must stay in the bucket that decides fail-open.
@@ -162,7 +163,11 @@ namespace OpenCodeConnector\Tests\Unit {
 			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
 
 			$flag    = Catalog::AVAIL_PREFIX . 'go' . Catalog::LAST_GOOD_SUFFIX;
-			$store   = array( $flag => 1 );
+			$seeded  = array(
+				'v'  => '1',
+				'ts' => time(),
+			);
+			$store   = array( $flag => $seeded );
 			$deleted = array();
 
 			Functions\when( 'get_transient' )->alias(
@@ -213,10 +218,15 @@ namespace OpenCodeConnector\Tests\Unit {
 				$deleted,
 				'An unbucketed state must not delete last-known-good: it has adjudicated nothing.'
 			);
-			self::assertSame(
-				1,
-				$store[ $flag ] ?? null,
+			$survived = $store[ $flag ] ?? null;
+			self::assertIsArray(
+				$survived,
 				'The flag armed by a previous keyed success must survive a state in no bucket.'
+			);
+			self::assertSame(
+				'1',
+				$survived['v'] ?? null,
+				'The surviving flag keeps its string sentinel.'
 			);
 
 			// Control: a proven negative must still clear it immediately, or the
@@ -309,6 +319,432 @@ namespace OpenCodeConnector\Tests\Unit {
 				$revoked->isConfigured(),
 				'A proven invalid key must still report not-configured even with an armed flag.'
 			);
+		}
+
+		/**
+		 * Transient failures re-probe on a jittered 45–75s window, not in lockstep.
+		 *
+		 * A fixed 60s window makes every site whose upstream fails the same way
+		 * re-probe on the same boundary. The short branch therefore consults
+		 * `wp_rand( -15, 15 )`, so a -15 draw caches 45s and a +15 draw caches
+		 * 75s, with a 30s floor guarding filtered time constants.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_transient_failures_reprobe_on_a_jittered_window(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			$result_key = Catalog::AVAIL_PREFIX . 'go';
+			$writes     = array();
+			$rand_args  = array();
+			$rand_value = 0;
+
+			Functions\when( 'get_transient' )->justReturn( false );
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ) use ( &$writes ): bool {
+					$writes[ $key ] = $ttl;
+					return true;
+				}
+			);
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->alias(
+				static function ( int $min = 0, int $max = 0 ) use ( &$rand_args, &$rand_value ): int {
+					$rand_args[] = array( $min, $max );
+					return $rand_value;
+				}
+			);
+
+			foreach ( array( -15 => 45, 0 => 60, 15 => 75 ) as $spread => $expected_ttl ) {
+				$rand_value = $spread;
+				$writes     = array();
+
+				$availability = new OpenCodeProviderAvailability( 'go' );
+				$availability->setHttpTransporter( new RatchetHardeningTransporter( new \RuntimeException( 'network down' ) ) );
+				$availability->setRequestAuthentication( new RatchetHardeningAuthentication() );
+				$availability->diagnose();
+
+				self::assertSame(
+					$expected_ttl,
+					$writes[ $result_key ] ?? null,
+					'A transport failure with jitter ' . $spread . 's must cache for ' . $expected_ttl . 's.'
+				);
+			}
+
+			self::assertContains(
+				array( -15, 15 ),
+				$rand_args,
+				'The short window must consult wp_rand(-15, 15), or installs re-probe in lockstep.'
+			);
+		}
+
+
+		/**
+		 * A throwing `wp_rand()` costs the jitter, never the probe.
+		 *
+		 * Every probe window consults the pluggable rand, which can throw;
+		 * the short branch already guarded it but the persistent and keyed
+		 * branches called it with a `function_exists` check only, so the
+		 * throw escaped `probe()` and skipped the stampede-lock release. All
+		 * branches now share one guarded source: a throw degrades to zero
+		 * spread and the verdict is still cached.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_a_throwing_wp_rand_costs_the_jitter_never_the_probe(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			$result_key = Catalog::AVAIL_PREFIX . 'go';
+			$writes     = array();
+
+			Functions\when( 'get_transient' )->justReturn( false );
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ) use ( &$writes ): bool {
+					$writes[ $key ] = $ttl;
+					return true;
+				}
+			);
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->alias(
+				static function ( int $min = 0, int $max = 0 ): int {
+					unset( $min, $max );
+					throw new \RuntimeException( 'rand is down' );
+				}
+			);
+
+			$transient = new OpenCodeProviderAvailability( 'go' );
+			$transient->setHttpTransporter( new RatchetHardeningTransporter( new \RuntimeException( 'network down' ) ) );
+			$transient->setRequestAuthentication( new RatchetHardeningAuthentication() );
+			$transient->diagnose();
+			self::assertSame( 60, $writes[ $result_key ] ?? null, 'Short branch without jitter keeps the 60s window.' );
+
+			$writes     = array();
+			$persistent = new OpenCodeProviderAvailability( 'go' );
+			$persistent->setHttpTransporter( new RatchetHardeningTransporter( new Response( 404, null ) ) );
+			$persistent->setRequestAuthentication( new RatchetHardeningAuthentication() );
+			$persistent->diagnose();
+			self::assertSame( 300, $writes[ $result_key ] ?? null, 'Persistent branch without jitter keeps the five-minute window.' );
+
+			$writes = array();
+			$keyed  = new OpenCodeProviderAvailability( 'go' );
+			$keyed->setHttpTransporter( new RatchetHardeningTransporter( new Response( 200, null ) ) );
+			$keyed->setRequestAuthentication( new RatchetHardeningAuthentication() );
+			$keyed->diagnose();
+			self::assertSame( 300, $writes[ $result_key ] ?? null, 'Keyed branch without jitter keeps the five-minute window.' );
+		}
+
+		/**
+		 * A keyed success arms the flag as a timestamped string sentinel.
+		 *
+		 * The sentinel is the string `'1'`, not int `1`: the int comes back
+		 * from the options table as a string, which defeats
+		 * `update_option()`'s equality short-circuit and costs a pointless
+		 * options-row UPDATE on every keyed probe. The timestamp is what
+		 * bounds the fallback by age. Neither changes the rolling 30-day TTL.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_keyed_success_writes_a_timestamped_string_sentinel(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+			if ( ! defined( 'DAY_IN_SECONDS' ) ) {
+				define( 'DAY_IN_SECONDS', 86400 );
+			}
+
+			$flag  = Catalog::AVAIL_PREFIX . 'go' . Catalog::LAST_GOOD_SUFFIX;
+			$store = array();
+			$ttls  = array();
+
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( &$store ): mixed {
+					return $store[ $key ] ?? false;
+				}
+			);
+			Functions\when( 'set_transient' )->alias(
+				static function ( string $key, mixed $value, int $ttl ) use ( &$store, &$ttls ): bool {
+					$store[ $key ] = $value;
+					$ttls[ $key ]  = $ttl;
+					return true;
+				}
+			);
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$before = time();
+
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			$availability->setHttpTransporter( new RatchetHardeningTransporter( new Response( 200, null ) ) );
+			$availability->setRequestAuthentication( new RatchetHardeningAuthentication() );
+			self::assertTrue( $availability->isConfigured(), 'A 200 proves the key works.' );
+
+			$after   = time();
+			$written = $store[ $flag ] ?? null;
+			self::assertIsArray( $written, 'The flag is a timestamped array, not a bare int.' );
+			self::assertSame( '1', $written['v'] ?? null, 'The sentinel is the string the database round-trips unchanged.' );
+			self::assertGreaterThanOrEqual( $before, $written['ts'] ?? 0, 'The confirmation timestamp cannot predate the probe.' );
+			self::assertLessThanOrEqual( $after, $written['ts'] ?? PHP_INT_MAX, 'The confirmation timestamp cannot be from the future.' );
+			self::assertSame( 30 * 86400, $ttls[ $flag ] ?? null, 'The rolling 30-day TTL is unchanged.' );
+		}
+
+		/**
+		 * Flag reads are memoised per instance, and writes arm the memo.
+		 *
+		 * `isConfigured()` reads the flag on every could-not-be-checked
+		 * verdict, so without the memo each call costs a transient read on top
+		 * of the verdict read. The memo is per-instance only — a new instance
+		 * re-reads, so there is no cross-request staleness.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_last_good_reads_are_memoised_per_instance(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			$flag  = Catalog::AVAIL_PREFIX . 'go' . Catalog::LAST_GOOD_SUFFIX;
+			$store = array(
+				$flag => array(
+					'v'  => '1',
+					'ts' => time(),
+				),
+			);
+			$reads = 0;
+
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( &$store, &$reads, $flag ): mixed {
+					if ( $key === $flag ) {
+						++$reads;
+					}
+					return $store[ $key ] ?? false;
+				}
+			);
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->justReturn( true );
+
+			$read = new \ReflectionMethod( OpenCodeProviderAvailability::class, 'readLastGood' );
+			$read->setAccessible( true );
+			$write = new \ReflectionMethod( OpenCodeProviderAvailability::class, 'writeLastGood' );
+			$write->setAccessible( true );
+
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			self::assertTrue( $read->invoke( $availability ) );
+			self::assertTrue( $read->invoke( $availability ) );
+			self::assertSame( 1, $reads, 'The second read in one request must come from the memo, not storage.' );
+
+			// A write arms the memo: storage going away afterwards must not disarm it.
+			$writer = new OpenCodeProviderAvailability( 'go' );
+			$write->invoke( $writer, true );
+			unset( $store[ $flag ] );
+			self::assertTrue( $read->invoke( $writer ), 'writeLastGood() must set the memo, so a write-then-read never re-reads.' );
+			self::assertSame( 1, $reads, 'The memoised read must not touch storage at all.' );
+		}
+
+		/**
+		 * A flag unconfirmed past its age cap stops failing open.
+		 *
+		 * Rotations delivered outside the options table — a `wp-config.php`
+		 * constant or an environment variable — fire none of the bust hooks,
+		 * so without an age bound the 30-day flag could outlive the rotation
+		 * it describes. Past `LAST_GOOD_MAX_AGE` without a fresh keyed
+		 * confirmation, a could-not-be-checked verdict reports not-configured.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_an_unconfirmed_flag_past_its_age_cap_reports_not_configured(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			$max_age = (int) ( new \ReflectionClass( OpenCodeProviderAvailability::class ) )->getConstant( 'LAST_GOOD_MAX_AGE' );
+			self::assertGreaterThan( 0, $max_age, 'The fallback age cap must exist and be positive.' );
+
+			$flag  = Catalog::AVAIL_PREFIX . 'go' . Catalog::LAST_GOOD_SUFFIX;
+			$store = array(
+				$flag => array(
+					'v'  => '1',
+					'ts' => time() - $max_age - 60,
+				),
+			);
+
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( &$store ): mixed {
+					return $store[ $key ] ?? false;
+				}
+			);
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			$availability->setHttpTransporter( new RatchetHardeningTransporter( new Response( 500, null ) ) );
+			$availability->setRequestAuthentication( new RatchetHardeningAuthentication() );
+
+			self::assertSame( 'uncheckable', $availability->diagnose()['state'], 'Sanity: a 500 classifies could-not-be-checked.' );
+			self::assertFalse(
+				$availability->isConfigured(),
+				'A flag unconfirmed past its age cap has nothing to fall back to.'
+			);
+		}
+
+		/**
+		 * A recently confirmed flag still fails open (control for the age cap).
+		 *
+		 * The cap must only end fallbacks that have gone unconfirmed, never
+		 * the normal outage path: a flag confirmed within `LAST_GOOD_MAX_AGE`
+		 * still carries a could-not-be-checked verdict.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_a_recently_confirmed_flag_still_fails_open(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			$max_age = (int) ( new \ReflectionClass( OpenCodeProviderAvailability::class ) )->getConstant( 'LAST_GOOD_MAX_AGE' );
+			self::assertGreaterThan( 0, $max_age, 'The fallback age cap must exist and be positive.' );
+
+			$flag  = Catalog::AVAIL_PREFIX . 'go' . Catalog::LAST_GOOD_SUFFIX;
+			$store = array(
+				$flag => array(
+					'v'  => '1',
+					'ts' => time() - $max_age + 3600,
+				),
+			);
+
+			Functions\when( 'get_transient' )->alias(
+				static function ( string $key ) use ( &$store ): mixed {
+					return $store[ $key ] ?? false;
+				}
+			);
+			Functions\when( 'set_transient' )->justReturn( true );
+			Functions\when( 'delete_transient' )->justReturn( true );
+			Functions\when( 'wp_rand' )->justReturn( 0 );
+
+			$availability = new OpenCodeProviderAvailability( 'go' );
+			$availability->setHttpTransporter( new RatchetHardeningTransporter( new Response( 500, null ) ) );
+			$availability->setRequestAuthentication( new RatchetHardeningAuthentication() );
+
+			self::assertTrue(
+				$availability->isConfigured(),
+				'A flag confirmed within its age cap must still carry a 500 through the outage.'
+			);
+		}
+
+		/**
+		 * Pre-timestamp flag shapes still read as armed.
+		 *
+		 * Flags armed before the timestamped shape shipped carry no `ts` to
+		 * bound; they fail open exactly as they always did, and the next keyed
+		 * success upgrades them. Treating them as expired would disconnect
+		 * working keys on upgrade.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_legacy_flag_shapes_still_read_as_armed(): void {
+			require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+
+			if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+				define( 'MINUTE_IN_SECONDS', 60 );
+			}
+
+			foreach ( array( 1, '1' ) as $legacy ) {
+				$flag  = Catalog::AVAIL_PREFIX . 'go' . Catalog::LAST_GOOD_SUFFIX;
+				$store = array( $flag => $legacy );
+
+				Functions\when( 'get_transient' )->alias(
+					static function ( string $key ) use ( &$store ): mixed {
+						return $store[ $key ] ?? false;
+					}
+				);
+				Functions\when( 'set_transient' )->justReturn( true );
+				Functions\when( 'delete_transient' )->justReturn( true );
+				Functions\when( 'wp_rand' )->justReturn( 0 );
+
+				$availability = new OpenCodeProviderAvailability( 'go' );
+				$availability->setHttpTransporter( new RatchetHardeningTransporter( new Response( 500, null ) ) );
+				$availability->setRequestAuthentication( new RatchetHardeningAuthentication() );
+
+				self::assertTrue(
+					$availability->isConfigured(),
+					'A legacy ' . gettype( $legacy ) . ' flag must still fail open until a keyed success upgrades it.'
+				);
+			}
+		}
+	}
+
+	/**
+	 * Transporter double replaying one queued response or throwable.
+	 */
+	final class RatchetHardeningTransporter {
+		/**
+		 * Queued outcome.
+		 *
+		 * @var mixed
+		 */
+		private mixed $next;
+
+		/**
+		 * Constructor.
+		 *
+		 * @param mixed $next Response to return or throwable to throw.
+		 */
+		public function __construct( mixed $next ) {
+			$this->next = $next;
+		}
+
+		/**
+		 * Replay the queued outcome.
+		 *
+		 * @param mixed $request Request (ignored).
+		 * @return mixed
+		 */
+		public function send( mixed $request ): mixed {
+			unset( $request );
+			if ( $this->next instanceof \Throwable ) {
+				throw $this->next;
+			}
+			return $this->next;
+		}
+	}
+
+	/**
+	 * Authentication double passing requests through untouched.
+	 */
+	final class RatchetHardeningAuthentication {
+		/**
+		 * Return the request unchanged.
+		 *
+		 * @param mixed $request Request.
+		 * @return mixed
+		 */
+		public function authenticateRequest( mixed $request ): mixed {
+			return $request;
 		}
 	}
 }
