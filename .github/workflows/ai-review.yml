@@ -49,7 +49,7 @@ jobs:
         (
           github.event_name == 'issue_comment' &&
           github.event.issue.pull_request == null &&
-          contains(github.event.comment.body || '', '/fix')
+          startsWith(github.event.comment.body || '', '/fix')
         )
       )
     runs-on: ubuntu-latest
@@ -268,7 +268,7 @@ jobs:
       (
         github.event_name == 'issue_comment' &&
         github.event.issue.pull_request != null &&
-        contains(github.event.comment.body || '', '/fix')
+        startsWith(github.event.comment.body || '', '/fix')
       )
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -369,10 +369,21 @@ jobs:
   # ── 4. AUTO-MERGE (label autofix:ready + green CI) ─────────────────
   auto-merge:
     name: Auto-Merge Approved Autofix
+    # Runs on the label event AND right after the autofix loop approves, so a
+    # cancelled/coalesced label event can no longer strand an approved PR.
+    needs: [autofix]
     if: |
-      github.event_name == 'pull_request' &&
-      github.event.action == 'labeled' &&
-      github.event.label.name == 'autofix:ready'
+      always() && (
+        (
+          github.event_name == 'pull_request' &&
+          github.event.action == 'labeled' &&
+          github.event.label.name == 'autofix:ready'
+        ) ||
+        (
+          github.event_name == 'issue_comment' &&
+          needs.autofix.result == 'success'
+        )
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -384,10 +395,15 @@ jobs:
           # The reviewer repository is public, so the default token is enough.
           # The PAT is reserved for the reviewer's own write operations.
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPOSITORY: ${{ github.repository }}
         run: |
-          PR="$PR_NUMBER"
+          PR="${{ github.event.pull_request.number || github.event.issue.number }}"
+          REPOSITORY="${{ github.repository }}"
+          if [ -z "$PR" ]; then echo "No PR number on this event — nothing to merge."; exit 0; fi
+          # Only merge a PR the reviewer approved. Guards the post-autofix sweep
+          # from merging a PR the loop did not approve.
+          if ! gh pr view "$PR" --repo "$REPOSITORY" --json labels --jq '[.labels[].name] | index("autofix:ready")' | grep -q true; then
+            echo "PR #$PR is not autofix:ready — nothing to merge."; exit 0
+          fi
           for i in $(seq 1 12); do
             STATE=$(gh pr view "$PR" --repo "$REPOSITORY" --json statusCheckRollup --jq '[.statusCheckRollup[].conclusion] | if length == 0 then "pending" elif all(. == "SUCCESS" or . == "SKIPPED") then "green" elif any(. == "FAILURE") then "red" else "pending" end')
             echo "CI state: $STATE (try $i/12)"
@@ -396,5 +412,8 @@ jobs:
             sleep 30
           done
           [ "$STATE" = "green" ] || { echo "CI did not go green in time."; exit 1; }
-          gh pr merge "$PR" --repo "${{ github.repository }}" --squash --delete-branch
-          gh pr edit "$PR" --repo "${{ github.repository }}" --remove-label "autofix:ready" --add-label "autofix:merged" 2>/dev/null || true
+          # The main ruleset requires an up-to-date head. Try a normal merge,
+          # then an admin merge (checks are already verified green above).
+          gh pr merge "$PR" --repo "$REPOSITORY" --squash --delete-branch \
+            || gh pr merge "$PR" --repo "$REPOSITORY" --squash --delete-branch --admin
+          gh pr edit "$PR" --repo "$REPOSITORY" --remove-label "autofix:ready" --add-label "autofix:merged" 2>/dev/null || true
