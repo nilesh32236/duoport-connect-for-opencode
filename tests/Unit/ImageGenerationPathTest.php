@@ -420,22 +420,22 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
-		 * Minimal 1x1 JPEG fixture, when one can be produced on this build.
+		 * Minimal 1x1 JPEG fixture, generated at runtime.
+		 *
+		 * The bytes are produced with GD on every run so no stored
+		 * high-entropy blob sits in the test source for secret scanners
+		 * to flag — this is image content, never a credential.
 		 *
 		 * @return string Raw JPEG bytes, or an empty string when unavailable.
 		 */
 		private static function tiny_jpeg(): string {
-			$hardcoded = base64_decode(
-				'/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/9oACAEBAAA/AP/Z',
-				true
-			);
-			if ( is_string( $hardcoded ) && '' !== $hardcoded ) {
-				return $hardcoded;
-			}
 			if ( ! function_exists( 'imagecreatetruecolor' ) || ! function_exists( 'imagejpeg' ) ) {
 				return '';
 			}
 			$image = imagecreatetruecolor( 1, 1 );
+			if ( false === $image ) {
+				return '';
+			}
 			ob_start();
 			imagejpeg( $image, null, 100 );
 			$bytes = (string) ob_get_clean();
