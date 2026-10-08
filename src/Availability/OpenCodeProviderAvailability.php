@@ -333,7 +333,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			}
 		} elseif ( $surface_ok ) {
 			try {
-				$probe_data   = array(
+				$probe_data = array(
 					'model'      => self::PROBE_MODEL,
 					'messages'   => array(
 						array(
@@ -343,8 +343,14 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 					),
 					'max_tokens' => 1,
 				);
+				// The Go catalog rejects requests without x-opencode-session, so the
+				// verify probe carries the same stable ping-derived session as the
+				// availability probe plus the plugin User-Agent via the shared Go
+				// header pair. Zen keeps its existing session-only headers.
 				$base_headers = array( 'Content-Type' => 'application/json' );
-				if ( class_exists( SessionHeader::class ) && method_exists( SessionHeader::class, 'inject_into_headers' ) ) {
+				if ( 'go' === $this->catalog && class_exists( GoRequestHeaders::class ) && method_exists( GoRequestHeaders::class, 'for_go' ) ) {
+					$probe_headers = GoRequestHeaders::for_go( $base_headers, $probe_data );
+				} elseif ( class_exists( SessionHeader::class ) && method_exists( SessionHeader::class, 'inject_into_headers' ) ) {
 					$probe_headers = SessionHeader::inject_into_headers( $base_headers, $probe_data );
 				} else {
 					$probe_headers = $base_headers;
