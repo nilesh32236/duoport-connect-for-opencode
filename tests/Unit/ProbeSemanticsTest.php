@@ -901,7 +901,10 @@ namespace OpenCodeConnector\Tests\Unit {
 			$availability->setRequestAuthentication( new FakeProbeAuthentication() );
 
 			self::assertTrue( $availability->isConfigured(), 'Free-tier limit keeps a valid key connected.' );
-			self::assertSame( 1, $store['opencode_connector_avail_zen_last_good'] ?? null, 'Free-tier limit refreshes last-known-good.' );
+			$zen_flag = $store['opencode_connector_avail_zen_last_good'] ?? null;
+			self::assertIsArray( $zen_flag, 'Free-tier limit refreshes last-known-good.' );
+			self::assertSame( '1', $zen_flag['v'] ?? null, 'The flag is the string sentinel the database round-trips unchanged.' );
+			self::assertArrayHasKey( 'ts', $zen_flag, 'The flag carries the confirmation timestamp that bounds the fallback.' );
 		}
 
 		/**
