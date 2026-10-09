@@ -155,7 +155,7 @@ jobs:
 
       - name: AI Codebase Audit
         id: ai-audit
-        uses: nilesh32236/opencode-ai-reviewer@eb38eb88235ade5068817f03aa40156894d687a8 # v1.23.3
+        uses: nilesh32236/opencode-ai-reviewer@359db9f61d5f98ddfc7ef4f0eb3ab791463d069c # v1.23.3
         with:
           mode: audit
           github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
