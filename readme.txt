@@ -2,7 +2,7 @@
 Contributors: nilesh912
 Tags: ai, artificial-intelligence, connector, opencode, zen
 Requires at least: 7.0
-Tested up to: 7.1.2
+Tested up to: 7.1.3
 Requires PHP: 8.2
 Stable tag: 0.1.9
 License: GPL-2.0-or-later
