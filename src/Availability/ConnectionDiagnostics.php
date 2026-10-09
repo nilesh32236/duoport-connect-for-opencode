@@ -120,38 +120,6 @@ final class ConnectionDiagnostics {
 	public const DEFINITIVE_NEGATIVE_STATES = array( 'not_configured', 'invalid_key' );
 
 	/**
-	 * Error vocabulary lists.
-	 *
-	 * Canonical lists live in ErrorVocabulary; the aliases below are kept so
-	 * any reflection-based consumer keeps resolving. Do not extend here —
-	 * extend ErrorVocabulary.
-	 *
-	 * @var list<string>
-	 */
-	private const MODEL_SCOPED_ERROR_CODES = ErrorVocabulary::MODEL_SCOPED_ERROR_CODES;
-
-	/**
-	 * Credential-scoped error codes (alias of ErrorVocabulary).
-	 *
-	 * @var list<string>
-	 */
-	private const CREDENTIAL_SCOPED_ERROR_CODES = ErrorVocabulary::CREDENTIAL_SCOPED_ERROR_CODES;
-
-	/**
-	 * Credential-scoped phrases (alias of ErrorVocabulary).
-	 *
-	 * @var list<string>
-	 */
-	private const CREDENTIAL_SCOPED_PHRASES = ErrorVocabulary::CREDENTIAL_SCOPED_PHRASES;
-
-	/**
-	 * Model-gone phrases (alias of ErrorVocabulary).
-	 *
-	 * @var list<string>
-	 */
-	private const MODEL_GONE_PHRASES = ErrorVocabulary::MODEL_GONE_PHRASES;
-
-	/**
 	 * Classify one backend response or transport exception.
 	 *
 	 * Only the error type is inspected; response bodies are never returned.

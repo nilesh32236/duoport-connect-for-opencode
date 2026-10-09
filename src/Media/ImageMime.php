@@ -44,6 +44,23 @@ final class ImageMime {
 	);
 
 	/**
+	 * Inverse of EXTENSIONS, keyed by file extension.
+	 *
+	 * Hoisted so mimeForExtension() does not rebuild array_flip() on
+	 * every call. Single home alongside EXTENSIONS: adding a format
+	 * means editing these two maps together.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @var array<string, string>
+	 */
+	private const MIME_FOR_EXTENSION = array(
+		'png'  => 'image/png',
+		'jpg'  => 'image/jpeg',
+		'webp' => 'image/webp',
+	);
+
+	/**
 	 * Output MIME list for image model metadata.
 	 *
 	 * Returns a copy so callers cannot mutate the shared constant.
@@ -88,7 +105,6 @@ final class ImageMime {
 		if ( 'jpeg' === $ext ) {
 			$ext = 'jpg';
 		}
-		$inverse = array_flip( self::EXTENSIONS );
-		return $inverse[ $ext ] ?? null;
+		return self::MIME_FOR_EXTENSION[ $ext ] ?? null;
 	}
 }
