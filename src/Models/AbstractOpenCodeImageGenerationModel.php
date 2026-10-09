@@ -78,11 +78,6 @@ abstract class AbstractOpenCodeImageGenerationModel extends AbstractOpenAiCompat
 	 * @return string
 	 */
 	private function catalogKeyForHeaders( string $cls ): string {
-		foreach ( Catalog::ALL as $slug ) {
-			if ( Catalog::providerClassFor( $slug ) === $cls ) {
-				return $slug;
-			}
-		}
-		return '';
+		return Catalog::catalogForProviderClass( $cls );
 	}
 }

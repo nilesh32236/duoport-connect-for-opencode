@@ -179,19 +179,25 @@ final class ImageAttachmentSaver {
 	 * @return string|null Lowercase detected MIME type, or null when unknown.
 	 */
 	private static function detect_mime( string $image_bytes ): ?string {
-		try {
-			if ( ! class_exists( \finfo::class ) ) {
-				return null;
-			}
-			$finfo    = new \finfo( FILEINFO_MIME_TYPE );
-			$detected = $finfo->buffer( $image_bytes );
-			if ( ! is_string( $detected ) || '' === $detected ) {
-				return null;
-			}
-			return strtolower( trim( $detected ) );
-		} catch ( \Throwable ) {
-			return null;
-		}
+		return ImageValidator::detectMime( $image_bytes );
+	}
+
+	/**
+	 * Single header probe returning MIME plus dimensions.
+	 *
+	 * One `getimagesizefromstring()` parse shared by validate(),
+	 * reencode_image(), and save_to_media_library() instead of three
+	 * independent parses that could disagree. Returns null when the buffer
+	 * has no parseable image header — callers fail closed on null.
+	 * Never throws.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $image_bytes Raw bytes.
+	 * @return array{mime: string, width: int, height: int}|null Header data, or null when unknown.
+	 */
+	private static function header_probe( string $image_bytes ): ?array {
+		return ImageValidator::headerProbe( $image_bytes );
 	}
 
 	/**
@@ -213,22 +219,11 @@ final class ImageAttachmentSaver {
 	 * @return string|null Lowercase detected MIME type, or null when unknown.
 	 */
 	private static function structural_mime( string $image_bytes ): ?string {
-		try {
-			if ( ! function_exists( 'getimagesizefromstring' ) ) {
-				return null;
-			}
-			// getimagesizefromstring() raises a warning on a buffer it cannot
-			// parse, which for this caller is an expected "not an image" answer
-			// rather than a fault: the null return below is the real check.
-			$info = @getimagesizefromstring( $image_bytes ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Unparseable buffer is an answer, not a fault.
-			if ( ! is_array( $info ) || ! isset( $info['mime'] ) || ! is_string( $info['mime'] ) ) {
-				return null;
-			}
-			$mime = strtolower( trim( $info['mime'] ) );
-			return '' === $mime ? null : $mime;
-		} catch ( \Throwable ) {
+		$probe = self::header_probe( $image_bytes );
+		if ( null === $probe ) {
 			return null;
 		}
+		return $probe['mime'];
 	}
 
 	/**
@@ -247,21 +242,11 @@ final class ImageAttachmentSaver {
 	 * @return array{0:int,1:int}|null Width and height, or null when unknown.
 	 */
 	private static function image_dimensions( string $image_bytes ): ?array {
-		try {
-			if ( ! function_exists( 'getimagesizefromstring' ) ) {
-				return null;
-			}
-			$info = @getimagesizefromstring( $image_bytes ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Unparseable buffer is an answer, not a fault.
-			if ( ! is_array( $info ) || ! isset( $info[0], $info[1] ) || ! is_int( $info[0] ) || ! is_int( $info[1] ) ) {
-				return null;
-			}
-			if ( $info[0] <= 0 || $info[1] <= 0 ) {
-				return null;
-			}
-			return array( $info[0], $info[1] );
-		} catch ( \Throwable ) {
+		$probe = self::header_probe( $image_bytes );
+		if ( null === $probe ) {
 			return null;
 		}
+		return array( $probe['width'], $probe['height'] );
 	}
 
 	/**
@@ -278,17 +263,7 @@ final class ImageAttachmentSaver {
 	 * @return string|null Allowlisted MIME type, or null when unmapped.
 	 */
 	private static function mime_for_extension( string $extension ): ?string {
-		$ext = strtolower( trim( $extension ) );
-		if ( 'png' === $ext ) {
-			return 'image/png';
-		}
-		if ( 'jpg' === $ext || 'jpeg' === $ext ) {
-			return 'image/jpeg';
-		}
-		if ( 'webp' === $ext ) {
-			return 'image/webp';
-		}
-		return null;
+		return ImageMime::mimeForExtension( $extension );
 	}
 
 	/**
@@ -323,141 +298,7 @@ final class ImageAttachmentSaver {
 	 * @return array{bytes:string,mime:string}|\WP_Error Re-encoded bytes plus the MIME type of what the editor actually wrote, or WP_Error on any failure.
 	 */
 	private static function reencode_image( string $image_bytes, string $detected_mime ): array|\WP_Error {
-		if ( ! self::is_allowed_mime( $detected_mime ) ) {
-			return self::decode_error();
-		}
-		// Pixel-dimension cap BEFORE anything decodes a pixel. PHP memory
-		// exhaustion is not Throwable, so no try/catch below could survive a
-		// decompression bomb; image_dimensions() reads the header only.
-		$dimensions = self::image_dimensions( $image_bytes );
-		if ( null === $dimensions ) {
-			return self::decode_error();
-		}
-		if ( $dimensions[0] * $dimensions[1] > self::MAX_PIXELS ) {
-			return self::decode_error();
-		}
-		$tmp_files = array();
-		$extension = ImageMime::extensionFor( $detected_mime );
-
-		try {
-			if ( ! function_exists( 'wp_tempnam' ) ) {
-				return self::decode_error();
-			}
-			// wp_tempnam() hands back an EXTENSION-LESS path: it strips its
-			// filename argument down to a prefix before calling tempnam(). The
-			// extension has to be put back on both paths, because WordPress's
-			// image editors pick the OUTPUT FORMAT from the destination's
-			// extension, and an extension-less destination would silently
-			// re-encode a PNG as a JPEG.
-			$source_base = wp_tempnam( 'opencode-image-source' );
-			if ( ! is_string( $source_base ) || '' === $source_base ) {
-				return self::decode_error();
-			}
-			$source      = $source_base . '.' . $extension;
-			$tmp_files[] = $source_base;
-			$tmp_files[] = $source;
-			// wp_get_image_editor() takes a real filesystem path, so the bytes
-			// have to be on disk for it; WP_Filesystem is for the site's own
-			// content, not for a scratch file this request creates and deletes.
-			if ( false === file_put_contents( $source, $image_bytes ) ) { // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Scratch file the image editor must open by path.
-				return self::decode_error();
-			}
-
-			if ( ! function_exists( 'wp_get_image_editor' ) ) {
-				$includes = ABSPATH . 'wp-admin/includes/image.php';
-				if ( is_readable( $includes ) ) {
-					require_once $includes;
-				}
-			}
-			if ( ! function_exists( 'wp_get_image_editor' ) ) {
-				return self::decode_error();
-			}
-
-			$editor = wp_get_image_editor( $source );
-			if ( ( function_exists( 'is_wp_error' ) && is_wp_error( $editor ) ) || ! is_object( $editor ) ) {
-				return self::decode_error();
-			}
-
-			$target_base = wp_tempnam( 'opencode-image-saved' );
-			if ( ! is_string( $target_base ) || '' === $target_base ) {
-				return self::decode_error();
-			}
-			$target      = $target_base . '.' . $extension;
-			$tmp_files[] = $target_base;
-			$tmp_files[] = $target;
-
-			// The MIME type is passed explicitly as well, so the output format
-			// does not depend on either an extension or a per-editor default.
-			$saved = $editor->save( $target, $detected_mime );
-			// WP_Image_Editor::save() may rewrite the destination extension
-			// under output-format filters, so the bytes can land beside
-			// $target rather than at it. From here on, cleanup AND identity
-			// derive from the editor's ACTUAL output path, never the requested
-			// one — otherwise the real file leaks on every path below while
-			// only the never-created requested path is unlinked.
-			$actual_target = $target;
-			if ( is_array( $saved ) && isset( $saved['path'] ) && is_string( $saved['path'] ) && '' !== $saved['path'] ) {
-				$actual_target = $saved['path'];
-			}
-			if ( ! in_array( $actual_target, $tmp_files, true ) ) {
-				$tmp_files[] = $actual_target;
-			}
-			if ( ! is_array( $saved ) ) {
-				return self::decode_error();
-			}
-			$raw_encoded = is_readable( $actual_target ) ? file_get_contents( $actual_target ) : false; // phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local scratch file the image editor just wrote, not a URL.
-			$encoded     = is_string( $raw_encoded ) ? $raw_encoded : '';
-			if ( '' === $encoded ) {
-				return self::decode_error();
-			}
-			if ( ! self::is_within_size_limit( strlen( $encoded ) ) ) {
-				return new \WP_Error(
-					'opencode_image_size',
-					sprintf(
-						/* translators: %d: maximum size in bytes. */
-						__( 'The generated image exceeds the %d byte limit.', 'duoport-connect-for-opencode' ),
-						self::MAX_BYTES
-					)
-				);
-			}
-			// The re-encoded buffer is the new ground truth, but the format it
-			// must match is what the editor ACTUALLY wrote — its reported
-			// output type and the actual output path's extension — not the
-			// input. A site filtering the editor's default output format to
-			// another allowlisted type performs a safe, fully-decoded save;
-			// rejecting it against the input mime would be a false
-			// opencode_image_decode. Content still has to agree with at least
-			// one of those two output signals, so a decoder that emitted
-			// something unexpected cannot pass under any name.
-			$reported_mime = null;
-			if ( isset( $saved['mime-type'] ) && is_string( $saved['mime-type'] ) ) {
-				$reported      = strtolower( trim( $saved['mime-type'] ) );
-				$reported_mime = '' === $reported ? null : $reported;
-			}
-			$path_mime    = self::mime_for_extension( (string) pathinfo( $actual_target, PATHINFO_EXTENSION ) );
-			$encoded_mime = self::detect_mime( $encoded ) ?? self::structural_mime( $encoded );
-			if ( null === $encoded_mime || ! self::is_allowed_mime( $encoded_mime ) ) {
-				return self::decode_error();
-			}
-			if ( $encoded_mime !== $reported_mime && $encoded_mime !== $path_mime ) {
-				return self::decode_error();
-			}
-			return array(
-				'bytes' => $encoded,
-				'mime'  => $encoded_mime,
-			);
-		} catch ( \Throwable ) {
-			return self::decode_error();
-		} finally {
-			foreach ( $tmp_files as $tmp_file ) {
-				// Both paths out of the re-encode are scratch files this request
-				// created, including on the failure paths; leaving one behind on
-				// every failed decode would be its own slow leak.
-				if ( is_string( $tmp_file ) && is_file( $tmp_file ) ) {
-					unlink( $tmp_file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.unlink_unlink -- Scratch file created by wp_tempnam() in this method.
-				}
-			}
-		}
+		return ImageReencoder::reencode( $image_bytes, $detected_mime );
 	}
 
 	/**
@@ -526,8 +367,27 @@ final class ImageAttachmentSaver {
 		// filter can legitimately differ from the input.
 		$encoded_bytes = $encoded['bytes'];
 		$encoded_mime  = $encoded['mime'];
-		$extension     = ImageMime::extensionFor( $encoded_mime );
-		$base          = sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) );
+
+		$upload = self::uploadReencoded( $encoded_bytes, $encoded_mime, $filename );
+		if ( $upload instanceof \WP_Error ) {
+			return $upload;
+		}
+		return self::createAttachment( $upload['file'], $upload['base'], $encoded_mime );
+	}
+
+	/**
+	 * Upload re-encoded bytes via wp_upload_bits().
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $encoded_bytes Re-encoded image bytes.
+	 * @param string $encoded_mime  Re-encoded MIME type.
+	 * @param string $filename      Desired file name.
+	 * @return array{file: string, base: string}|\WP_Error Upload file path plus base name, or WP_Error.
+	 */
+	private static function uploadReencoded( string $encoded_bytes, string $encoded_mime, string $filename ): array|\WP_Error {
+		$extension = ImageMime::extensionFor( $encoded_mime );
+		$base      = sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) );
 		if ( '' === $base ) {
 			$base = 'opencode-image';
 		}
@@ -541,14 +401,30 @@ final class ImageAttachmentSaver {
 				__( 'The image upload failed.', 'duoport-connect-for-opencode' )
 			);
 		}
+		return array(
+			'file' => (string) $upload['file'],
+			'base' => $base,
+		);
+	}
 
+	/**
+	 * Insert the uploaded file as an attachment with generated metadata.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $file         Uploaded file path.
+	 * @param string $base         Sanitized base name for the title.
+	 * @param string $encoded_mime Re-encoded MIME type.
+	 * @return int|\WP_Error Attachment ID on success, WP_Error otherwise.
+	 */
+	private static function createAttachment( string $file, string $base, string $encoded_mime ): int|\WP_Error {
 		$attachment_id = wp_insert_attachment(
 			array(
 				'post_mime_type' => $encoded_mime,
 				'post_title'     => $base,
 				'post_status'    => 'inherit',
 			),
-			(string) $upload['file']
+			$file
 		);
 		if ( ! $attachment_id || $attachment_id instanceof \WP_Error ) {
 			return $attachment_id instanceof \WP_Error
@@ -562,7 +438,7 @@ final class ImageAttachmentSaver {
 		if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
 			require_once ABSPATH . 'wp-admin/includes/image.php';
 		}
-		wp_update_attachment_metadata( (int) $attachment_id, wp_generate_attachment_metadata( (int) $attachment_id, (string) $upload['file'] ) );
+		wp_update_attachment_metadata( (int) $attachment_id, wp_generate_attachment_metadata( (int) $attachment_id, $file ) );
 
 		return (int) $attachment_id;
 	}

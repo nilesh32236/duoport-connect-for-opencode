@@ -202,6 +202,31 @@ final class Catalog {
 	}
 
 	/**
+	 * Catalog slug for a provider class FQCN (reverse of providerClassFor()).
+	 *
+	 * Single reverse map for the provider-class to slug lookup the text
+	 * model gate and the image model header selector each derived inline.
+	 * Returns an empty string for an unrecognised class so callers fail
+	 * open/closed with their own semantics. Never throws.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $cls Provider class FQCN.
+	 * @return string Catalog slug, or empty string when unrecognised.
+	 */
+	public static function catalogForProviderClass( string $cls ): string {
+		if ( '' === $cls ) {
+			return '';
+		}
+		foreach ( self::ALL as $slug ) {
+			if ( self::providerClassFor( $slug ) === $cls ) {
+				return $slug;
+			}
+		}
+		return '';
+	}
+
+	/**
 	 * The probe result and its stampede lock, without the last-known-good flag.
 	 *
 	 * The split exists so no caller has to select list members by position to

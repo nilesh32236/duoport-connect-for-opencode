@@ -115,128 +115,13 @@ final class ModelRadar {
 	/**
 	 * Render a stable Markdown view of a report.
 	 *
+	 * Delegates to ModelRadarRenderer so this class stays data-only.
+	 *
 	 * @param array<string, mixed> $report Report from report().
 	 * @return string
 	 */
 	public function markdown( array $report ): string {
-		$lines = array(
-			'# OpenCode Model Radar',
-			'',
-			'Checked at: `' . $this->safe_text( (string) ( $report['checked_at'] ?? '' ) ) . '`',
-			'',
-			'Public catalog evidence is non-promotable. Unknown models, endpoint families, and capabilities remain default-deny.',
-			'',
-		);
-
-		foreach ( Catalog::ALL as $catalog ) {
-			$data = is_array( $report['catalogs'][ $catalog ] ?? null ) ? $report['catalogs'][ $catalog ] : array();
-			foreach ( $this->catalogSection( $catalog, $data ) as $line ) {
-				$lines[] = $line;
-			}
-		}
-
-		foreach ( $this->measurementSection( $report ) as $line ) {
-			$lines[] = $line;
-		}
-
-		return implode( "\n", $lines );
-	}
-
-	/**
-	 * Render the Markdown section for one catalog.
-	 *
-	 * @since 0.1.6
-	 *
-	 * @param string               $catalog Catalog slug.
-	 * @param array<string, mixed> $data Per-catalog report data.
-	 * @return list<string>
-	 */
-	private function catalogSection( string $catalog, array $data ): array {
-		$lines   = array();
-		$lines[] = '## ' . strtoupper( $catalog );
-		$lines[] = '';
-		if ( ! empty( $data['unreachable'] ) ) {
-			$lines[] = '_API unreachable; no retirement or promotion decision was made._';
-			$lines[] = '';
-			return $lines;
-		}
-		$summary = is_array( $data['summary'] ?? null ) ? $data['summary'] : array();
-		$lines[] = '| Discovered | Supported | Free supported | Unsupported | Verification required | Free candidates |';
-		$lines[] = '| ---: | ---: | ---: | ---: | ---: | ---: |';
-		$lines[] = sprintf(
-			'| %d | %d | %d | %d | %d | %d |',
-			(int) ( $summary['discovered'] ?? 0 ),
-			(int) ( $summary['supported'] ?? 0 ),
-			(int) ( $summary['free_supported'] ?? 0 ),
-			(int) ( $summary['unsupported'] ?? 0 ),
-			(int) ( $summary['verification_required'] ?? 0 ),
-			(int) ( $summary['free_candidates'] ?? 0 )
-		);
-		$lines[] = '';
-		$changes = is_array( $data['changes'] ?? null ) ? $data['changes'] : array();
-		foreach ( $changes as $change ) {
-			if ( ! is_array( $change ) || empty( $change['id'] ) ) {
-				continue;
-			}
-			$lines[] = '- `' . $this->safe_text( (string) $change['id'] ) . '` — **' . $this->safe_text( (string) ( $change['status'] ?? '' ) ) . '** (' . $this->safe_text( $this->changeStatesText( $change ) ) . '); ' . $this->changeLabel( $change );
-		}
-		if ( array() === $changes ) {
-			$lines[] = '_No comparable rows._';
-		}
-		$lines[] = '';
-		return $lines;
-	}
-
-	/**
-	 * States text for one change row.
-	 *
-	 * @since 0.1.6
-	 *
-	 * @param array<string, mixed> $change Change row.
-	 * @return string
-	 */
-	private function changeStatesText( array $change ): string {
-		return is_array( $change['states'] ?? null ) ? implode( ', ', $change['states'] ) : '';
-	}
-
-	/**
-	 * Human label for one change row.
-	 *
-	 * @since 0.1.6
-	 *
-	 * @param array<string, mixed> $change Change row.
-	 * @return string
-	 */
-	private function changeLabel( array $change ): string {
-		$label = 'retired' === ( $change['status'] ?? '' ) ? 'retired' : ( 'verification_required' === ( $change['status'] ?? '' ) ? 'verification-required' : ( ! empty( $change['supported'] ) ? 'reviewed' : 'registry-candidate' ) );
-		if ( ! empty( $change['free_candidate'] ) ) {
-			$label .= '; free-candidate';
-		}
-		return $label;
-	}
-
-	/**
-	 * Render the Markdown measurement section.
-	 *
-	 * @since 0.1.6
-	 *
-	 * @param array<string, mixed> $report Report from report().
-	 * @return list<string>
-	 */
-	private function measurementSection( array $report ): array {
-		return array(
-			'## Measurement',
-			'',
-			'Measurement starts at this implementation. Historical detection, verification, merge, and release timestamps remain null until observed.',
-			'',
-			'- `measurement_started_at`: `' . $this->safe_text( (string) ( $report['metrics']['measurement_started_at'] ?? '' ) ) . '`',
-			'- `detection_to_verification`: ' . $this->metric_text( $report, 'detection_to_verification' ),
-			'- `verification_to_merge`: ' . $this->metric_text( $report, 'verification_to_merge' ),
-			'- `merge_to_release`: ' . $this->metric_text( $report, 'merge_to_release' ),
-			'- `total_detection_to_release`: ' . $this->metric_text( $report, 'total_detection_to_release' ),
-			'',
-			'Free-name candidates are observations only; they require endpoint, request, response, capability, and WordPress compatibility verification before promotion.',
-		);
+		return ( new ModelRadarRenderer() )->markdown( $report );
 	}
 
 	/**
@@ -490,27 +375,5 @@ final class ModelRadar {
 	 */
 	private function looks_free_name( string $id ): bool {
 		return 1 === preg_match( '/(?:^|[-_.])free(?:$|[-_.])/i', $id );
-	}
-
-	/**
-	 * Render one nullable measurement value.
-	 *
-	 * @param array<string, mixed> $report Report data.
-	 * @param string               $key     Measurement key.
-	 * @return string
-	 */
-	private function metric_text( array $report, string $key ): string {
-		$value = $report['metrics'][ $key ] ?? null;
-		return null === $value ? 'null' : $this->safe_text( (string) $value );
-	}
-
-	/**
-	 * Escape report text used in Markdown output.
-	 *
-	 * @param string $text Text value.
-	 * @return string
-	 */
-	private function safe_text( string $text ): string {
-		return str_replace( array( '`', "\r", "\n" ), array( '', '', ' ' ), $text );
 	}
 }

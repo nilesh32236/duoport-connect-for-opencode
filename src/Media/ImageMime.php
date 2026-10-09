@@ -67,4 +67,28 @@ final class ImageMime {
 	public static function extensionFor( string $mime_type ): string {
 		return self::EXTENSIONS[ strtolower( trim( $mime_type ) ) ] ?? 'png';
 	}
+
+	/**
+	 * MIME type for a file extension, restricted to the allowlist.
+	 *
+	 * Single inverse of EXTENSIONS: adding a format means editing this map
+	 * only. Returns null for anything outside the allowlist so an
+	 * unexpected output format fails closed downstream.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $extension File extension without the dot.
+	 * @return string|null Allowlisted MIME type, or null when unmapped.
+	 */
+	public static function mimeForExtension( string $extension ): ?string {
+		$ext = strtolower( trim( $extension ) );
+		if ( '' === $ext ) {
+			return null;
+		}
+		if ( 'jpeg' === $ext ) {
+			$ext = 'jpg';
+		}
+		$inverse = array_flip( self::EXTENSIONS );
+		return $inverse[ $ext ] ?? null;
+	}
 }

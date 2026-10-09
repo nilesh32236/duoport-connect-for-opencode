@@ -120,130 +120,36 @@ final class ConnectionDiagnostics {
 	public const DEFINITIVE_NEGATIVE_STATES = array( 'not_configured', 'invalid_key' );
 
 	/**
-	 * Error `type`/`code` values that name a MODEL as the thing that is missing.
+	 * Error vocabulary lists.
 	 *
-	 * Stored already normalised — lower case with every non-alphanumeric
-	 * character removed — because the same identifier arrives in several
-	 * spellings: `model_not_found`, `model-not-found` and `ModelNotFound` are one
-	 * value. Comparing raw strings would recognise the one spelling this plugin
-	 * happened to see first and silently miss the next.
-	 *
-	 * Every entry names a model explicitly, which is why a bare `NotFoundError`
-	 * is NOT here despite being a common 404 type: it names nothing at all, and
-	 * treating it as model-scoped would label an endpoint-level 404 as probe
-	 * drift. That case still lands on `unknown`, which is also indeterminate and
-	 * also takes the persistent window — it just declines to claim a cause it
-	 * cannot name.
+	 * Canonical lists live in ErrorVocabulary; the aliases below are kept so
+	 * any reflection-based consumer keeps resolving. Do not extend here —
+	 * extend ErrorVocabulary.
 	 *
 	 * @var list<string>
 	 */
-	private const MODEL_SCOPED_ERROR_CODES = array(
-		'modelnotfound',
-		'unknownmodel',
-		'unknownmodelerror',
-		'modelnotavailable',
-		'modelunavailable',
-		'modelretired',
-		'retiredmodelerror',
-		'invalidmodelerror',
-		'deprecatedmodelerror',
-		'unsupportedmodel',
-		'unsupportedmodelerror',
-	);
+	private const MODEL_SCOPED_ERROR_CODES = ErrorVocabulary::MODEL_SCOPED_ERROR_CODES;
 
 	/**
-	 * Error `type`/`code` values that name the CREDENTIAL as the rejected thing.
-	 *
-	 * These veto attribution. The rule that identifies a probe-model failure is
-	 * deliberately permissive about what counts as evidence — `param: "model"`
-	 * alone is enough — and permissive in the direction that protects working
-	 * keys. The risk that creates is the opposite one: a genuinely revoked key
-	 * whose response mentions the model somewhere stops being reported as
-	 * revoked, and the flag this plugin is built around keeps reporting a dead
-	 * credential as good for another 30 days. A response that names the
-	 * credential is the strongest evidence available that the model was not the
-	 * subject, so it ends the search.
-	 *
-	 * `insufficient_permissions` is deliberately NOT here. "Your key cannot reach
-	 * this model" is the drift case, not a credential verdict: the key is what the
-	 * user entered and it still works for everything else.
+	 * Credential-scoped error codes (alias of ErrorVocabulary).
 	 *
 	 * @var list<string>
 	 */
-	private const CREDENTIAL_SCOPED_ERROR_CODES = array(
-		'invalidapikey',
-		'invalidkey',
-		'unauthorized',
-		'authenticationerror',
-		'authenticationfailed',
-		'invalidtoken',
-		'expiredtoken',
-		'invalidauthorization',
-	);
+	private const CREDENTIAL_SCOPED_ERROR_CODES = ErrorVocabulary::CREDENTIAL_SCOPED_ERROR_CODES;
 
 	/**
-	 * Message fragments that mean the CREDENTIAL is the rejected thing.
-	 *
-	 * The same veto as `CREDENTIAL_SCOPED_ERROR_CODES`, expressed the way
-	 * gateways actually send it. `code` and `type` are optional in every
-	 * OpenAI-compatible error schema, so a 401 whose entire verdict is prose —
-	 * "Invalid API key provided", which is what OpenAI itself returns — carries
-	 * neither, and a veto reading only those two fields finds nothing to act
-	 * on. `param: "model"` then fires and a revoked key is held open for 30 days
-	 * on the strength of a sentence that also said the key was dead.
-	 *
-	 * Normalised for the same reason as the code list, and compared against a
-	 * normalised message so a hyphenated model name and a spaced phrase both
-	 * match. Deliberately excludes anything a MODEL-only failure would contain,
-	 * so "your key does not have access to model X" still reads as drift.
+	 * Credential-scoped phrases (alias of ErrorVocabulary).
 	 *
 	 * @var list<string>
 	 */
-	private const CREDENTIAL_SCOPED_PHRASES = array(
-		'invalidapikey',
-		'incorrectapikey',
-		'unrecognizedapikey',
-		'unrecognisedapikey',
-		'invalidkey',
-		'badapikey',
-		'missingapikey',
-		'noapikey',
-		'apikeynotfound',
-		'unauthorized',
-		'unauthorised',
-		'authenticationfailed',
-		'authenticationerror',
-		'invalidtoken',
-		'expiredtoken',
-		'invalidauthorization',
-	);
+	private const CREDENTIAL_SCOPED_PHRASES = ErrorVocabulary::CREDENTIAL_SCOPED_PHRASES;
 
 	/**
-	 * Message fragments that mean the MODEL is gone.
-	 *
-	 * Only ever consulted when the message ALSO names the probe model, so these
-	 * phrases never have to carry the whole weight of the attribution. Kept as
-	 * plain lowercase substrings because that is the shape the messages arrive
-	 * in; a phrase that needs a regex is a sign the rule is getting less
-	 * specific than it should be.
+	 * Model-gone phrases (alias of ErrorVocabulary).
 	 *
 	 * @var list<string>
 	 */
-	private const MODEL_GONE_PHRASES = array(
-		'does not exist',
-		'not found',
-		'no such model',
-		'unknown model',
-		'is not available',
-		'no longer available',
-		'not available for this key',
-		'do not have access',
-		'does not have access',
-		'has been deprecated',
-		'is deprecated',
-		'has been retired',
-		'is retired',
-	);
+	private const MODEL_GONE_PHRASES = ErrorVocabulary::MODEL_GONE_PHRASES;
 
 	/**
 	 * Classify one backend response or transport exception.
@@ -332,57 +238,7 @@ final class ConnectionDiagnostics {
 	 * @return bool
 	 */
 	private function isProbeModelDrift( ?array $data, ?string $probe_model ): bool {
-		if ( null === $probe_model || '' === trim( $probe_model ) || ! is_array( $data ) || ! isset( $data['error'] ) || ! is_array( $data['error'] ) ) {
-			return false;
-		}
-		$error   = $data['error'];
-		$code    = $this->normalize( (string) ( $error['code'] ?? '' ) );
-		$type    = $this->normalize( (string) ( $error['type'] ?? '' ) );
-		$message = $this->normalize( (string) ( $error['message'] ?? '' ) );
-
-		// Veto first, and for every rule below. A response that names the
-		// credential has told us the credential is what was rejected; nothing
-		// later in this method can make the model the subject after that.
-		//
-		// The message is consulted alongside code and type, and it has to be.
-		// Both fields are optional in every OpenAI-compatible error schema, so
-		// the common 401 — "Invalid API key provided", type
-		// `invalid_request_error`, no `code` at all — carries no structural
-		// credential signal whatsoever. Reading only the two fields let
-		// `param: "model"` fire on it and hold a revoked key open for 30 days.
-		if ( in_array( $code, self::CREDENTIAL_SCOPED_ERROR_CODES, true )
-			|| in_array( $type, self::CREDENTIAL_SCOPED_ERROR_CODES, true )
-			|| $this->containsAnyOf( $message, self::CREDENTIAL_SCOPED_PHRASES ) ) {
-			return false;
-		}
-
-		// `param: "model"` is the OpenAI-compatible way of saying which part of
-		// the request was rejected, and it is model-scoped by construction.
-		if ( 'model' === $this->normalize( (string) ( $error['param'] ?? '' ) ) ) {
-			return true;
-		}
-
-		// A type or code that names a model is model-scoped by construction, so
-		// it does not also have to appear in the message.
-		if ( in_array( $code, self::MODEL_SCOPED_ERROR_CODES, true ) || in_array( $type, self::MODEL_SCOPED_ERROR_CODES, true ) ) {
-			return true;
-		}
-
-		// Everything else has to make the model the SUBJECT as well as the
-		// problem, so the probe model itself has to appear in the message.
-		//
-		// BOTH sides are normalised, and that is load-bearing rather than
-		// cosmetic. Model ids routinely contain characters the normaliser strips —
-		// `deepseek-v4-flash` normalises to `deepseekv4flash` — so matching a
-		// normalised needle against a raw lowercased message never matches, and
-		// the whole rule silently stops working for exactly the model this plugin
-		// probes with. The phrases are normalised on the same footing; comparing
-		// one normalised string against a raw one would reintroduce the same
-		// defect on the phrase side, where every phrase contains a space.
-		if ( '' === $message || ! str_contains( $message, $this->normalize( $probe_model ) ) ) {
-			return false;
-		}
-		return $this->containsAnyOf( $message, self::MODEL_GONE_PHRASES );
+		return ProbeModelDrift::isDrift( $data, $probe_model );
 	}
 
 	/**
@@ -398,15 +254,7 @@ final class ConnectionDiagnostics {
 	 * @return bool
 	 */
 	private function containsAnyOf( string $message, array $phrases ): bool {
-		if ( '' === $message ) {
-			return false;
-		}
-		foreach ( $phrases as $phrase ) {
-			if ( str_contains( $message, $this->normalize( $phrase ) ) ) {
-				return true;
-			}
-		}
-		return false;
+		return ErrorVocabulary::containsAnyOf( $message, $phrases );
 	}
 
 	/**
@@ -419,7 +267,7 @@ final class ConnectionDiagnostics {
 	 * @return string
 	 */
 	private function normalize( string $value ): string {
-		return strtolower( (string) preg_replace( '/[^a-zA-Z0-9]/', '', $value ) );
+		return ErrorVocabulary::normalize( $value );
 	}
 
 	/**
@@ -688,6 +536,9 @@ final class ConnectionDiagnostics {
 	/**
 	 * Build a stable, non-sensitive result.
 	 *
+	 * Delegates to DiagnosticResult so factories pass named fields through
+	 * one value object instead of a positional bool bag.
+	 *
 	 * @param string $state      Safe state name.
 	 * @param bool   $configured Whether authorization was accepted.
 	 * @param bool   $verified   Whether the backend was reached and identified.
@@ -697,13 +548,6 @@ final class ConnectionDiagnostics {
 	 * @return array<string, mixed>
 	 */
 	private function result( string $state, bool $configured, bool $verified, bool $usable, int $status, string $code ): array {
-		return array(
-			'state'      => $state,
-			'configured' => $configured,
-			'verified'   => $verified,
-			'usable'     => $usable,
-			'status'     => $status,
-			'code'       => $code,
-		);
+		return DiagnosticResult::make( $state, $configured, $verified, $usable, $status, $code );
 	}
 }
