@@ -31,16 +31,48 @@ final class ModelRegistryTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Unimplemented Zen endpoint families are not mislabeled as chat.
+	 * Zen MiniMax models match the published chat/completions endpoint table.
 	 */
-	public function test_unimplemented_zen_routes_are_marked_unsupported(): void {
+	public function test_zen_minimax_routes_are_chat_routable(): void {
 		foreach ( array( 'minimax-m3', 'minimax-m2.7', 'minimax-m2.5' ) as $id ) {
 			$record = ModelRegistry::record( $id, 'zen' );
 			self::assertIsArray( $record );
-			self::assertSame( 'unsupported', $record['endpoint_family'] );
-			self::assertSame( 'needs-adapter', $record['verification_status'] );
-			self::assertFalse( $record['capabilities']['text'] );
-			self::assertFalse( $record['capabilities']['tools'] );
+			self::assertSame( 'chat', $record['endpoint_family'] );
+			self::assertSame( 'legacy-verified', $record['verification_status'] );
+			self::assertTrue( $record['capabilities']['text'] );
+			self::assertTrue( ModelRegistry::supports( $id, 'zen', 'text' ) );
+		}
+	}
+
+	/**
+	 * Allowlisted IDs with no endpoint evidence stay fail-closed.
+	 */
+	public function test_pending_endpoint_verification_is_unsupported(): void {
+		$pending = array(
+			'go'  => array( 'glm-5.1', 'glm-5', 'kimi-k2.5', 'mimo-v2-pro', 'mimo-v2-omni', 'hy3-preview' ),
+			'zen' => array( 'deepseek-v4-flash-free' ),
+		);
+		foreach ( $pending as $catalog => $ids ) {
+			foreach ( $ids as $id ) {
+				$record = ModelRegistry::record( $id, $catalog );
+				self::assertIsArray( $record );
+				self::assertSame( ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED, $record['endpoint_family'] );
+				self::assertSame( ModelRegistry::VERIFICATION_REQUIRED_STATUS, $record['verification_status'] );
+				self::assertSame( '2026-09-29', $record['last_verified'] );
+				self::assertFalse( $record['capabilities']['text'] );
+				self::assertFalse( $record['capabilities']['tools'] );
+				self::assertFalse( ModelRegistry::supports( $id, $catalog, 'text' ) );
+				self::assertFalse( ModelRegistry::isVerified( $record ) );
+				self::assertTrue( ModelRegistry::needsVerification( $record ) );
+			}
+		}
+		// The same ID stays reviewed where its family is evidenced: the
+		// pending set is per-catalog, never shared between Go and Zen.
+		foreach ( array( 'glm-5.1', 'glm-5', 'kimi-k2.5' ) as $id ) {
+			$record = ModelRegistry::record( $id, 'zen' );
+			self::assertIsArray( $record );
+			self::assertSame( 'chat', $record['endpoint_family'] );
+			self::assertTrue( ModelRegistry::isVerified( $record ) );
 		}
 	}
 
@@ -67,8 +99,50 @@ final class ModelRegistryTest extends MonkeyTestCase {
 		self::assertIsArray( $zen_free );
 		self::assertTrue( $zen_free['free'] );
 		self::assertSame( 'zen', $zen_free['catalog'] );
-		self::assertFalse( \OpenCodeConnector\Metadata\ModelAllowlist::isFree( 'hy3-free' ) );
-		self::assertFalse( \OpenCodeConnector\Metadata\ModelAllowlist::isFree( 'laguna-s-2.1-free' ) );
+		self::assertFalse( \OpenCodeConnector\Metadata\ModelAllowlist::isFree( 'hy3-free', 'zen' ) );
+		self::assertFalse( \OpenCodeConnector\Metadata\ModelAllowlist::isFree( 'laguna-s-2.1-free', 'zen' ) );
+	}
+
+	/**
+	 * Free labels never cross catalogs.
+	 *
+	 * Every reviewed free ID is Zen-only; the Go picker must not label or
+	 * re-sort on a name that belongs to the other catalog.
+	 */
+	public function test_free_labels_are_per_catalog(): void {
+		foreach ( array( 'deepseek-v4-flash-free', 'mimo-v2.5-free', 'nemotron-3-ultra-free', 'nemotron-3.5-lightning-free', 'big-pickle' ) as $id ) {
+			self::assertTrue( \OpenCodeConnector\Metadata\ModelAllowlist::isFree( $id, 'zen' ) );
+			self::assertFalse( \OpenCodeConnector\Metadata\ModelAllowlist::isFree( $id, 'go' ) );
+		}
+		self::assertFalse( \OpenCodeConnector\Metadata\ModelAllowlist::isFree( 'glm-5.3', 'go' ) );
+		self::assertFalse( \OpenCodeConnector\Metadata\ModelAllowlist::isFree( 'glm-5.3', 'zen' ) );
+	}
+
+	/**
+	 * The documented default-visible counts match the routable registry.
+	 *
+	 * README.md states routable counts, not allowlist counts; this test
+	 * reads both from the registry so the docs cannot drift again.
+	 */
+	public function test_documented_model_counts_match_routable_records(): void {
+		$routable = array();
+		foreach ( array( 'go', 'zen' ) as $catalog ) {
+			$count = 0;
+			foreach ( ModelRegistry::records( $catalog ) as $record ) {
+				if ( ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED !== ( $record['endpoint_family'] ?? '' ) ) {
+					++$count;
+				}
+			}
+			$routable[ $catalog ] = $count;
+		}
+		self::assertSame( 11, $routable['go'] );
+		self::assertSame( 16, $routable['zen'] );
+		$readme = (string) file_get_contents( dirname( __DIR__, 2 ) . '/README.md' );
+		self::assertStringContainsString( 'Go: ' . $routable['go'], $readme );
+		self::assertStringContainsString( 'Zen: ' . $routable['zen'], $readme );
+		$features = (string) file_get_contents( dirname( __DIR__, 2 ) . '/readme.txt' );
+		self::assertStringContainsString( 'Go: ' . $routable['go'], $features );
+		self::assertStringContainsString( 'Zen: ' . $routable['zen'], $features );
 	}
 
 	/**

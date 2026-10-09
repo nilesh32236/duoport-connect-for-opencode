@@ -123,18 +123,26 @@ final class ModelAllowlist {
 	);
 
 	/**
-	 * Free model IDs.
+	 * Free model IDs per catalog.
+	 *
+	 * Mirrors the ALLOW shape (per-catalog, never shared between Go and Zen):
+	 * a free-named ID in one catalog must never label or re-sort the other
+	 * catalog's picker. All reviewed free records currently live in Zen.
 	 *
 	 * @since 0.1.0
+	 * @since 0.1.9 Per-catalog shape; was a flat list.
 	 *
-	 * @var list<string>
+	 * @var array<string, list<string>>
 	 */
 	private const FREE = array(
-		'deepseek-v4-flash-free',
-		'mimo-v2.5-free',
-		'nemotron-3-ultra-free',
-		'nemotron-3.5-lightning-free',
-		'big-pickle',
+		Catalog::GO  => array(),
+		Catalog::ZEN => array(
+			'deepseek-v4-flash-free',
+			'mimo-v2.5-free',
+			'nemotron-3-ultra-free',
+			'nemotron-3.5-lightning-free',
+			'big-pickle',
+		),
 	);
 
 	/**
@@ -179,15 +187,31 @@ final class ModelAllowlist {
 	}
 
 	/**
-	 * Whether a model is billed as free.
+	 * Whether a model is billed as free in a catalog.
+	 *
+	 * Per-catalog by design: the Go catalog already serves free-named IDs
+	 * (e.g. space-bunny-free) that are NOT reviewed here, so a flat lookup
+	 * would mislabel the other catalog's picker on the first name collision.
+	 * An empty or unknown catalog falls back to the flat union so legacy and
+	 * catalog-blind callers fail open rather than fatal.
 	 *
 	 * @since 0.1.0
+	 * @since 0.1.9 Added the catalog parameter; was a flat-list lookup.
 	 *
-	 * @param string $id Model ID.
+	 * @param string $id      Model ID.
+	 * @param string $catalog Catalog slug.
 	 * @return bool
 	 */
-	public static function isFree( string $id ): bool {
-		return in_array( $id, self::FREE, true );
+	public static function isFree( string $id, string $catalog = '' ): bool {
+		if ( '' !== $catalog && array_key_exists( $catalog, self::FREE ) ) {
+			return in_array( $id, self::FREE[ $catalog ], true );
+		}
+		foreach ( self::FREE as $ids ) {
+			if ( in_array( $id, $ids, true ) ) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -211,7 +235,7 @@ final class ModelAllowlist {
 		if ( ! self::isAllowed( $id, $catalog ) ) {
 			return false;
 		}
-		if ( self::isFree( $id ) ) {
+		if ( self::isFree( $id, $catalog ) ) {
 			return false;
 		}
 		if ( str_starts_with( $id, 'deepseek' ) ) {

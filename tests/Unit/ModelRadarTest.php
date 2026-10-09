@@ -49,19 +49,19 @@ final class ModelRadarTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Unsupported reviewed records remain visible without becoming routable.
+	 * Verification-required reviewed records remain visible without becoming routable.
 	 */
 	public function test_report_preserves_unsupported_registry_records(): void {
 		$report = ( new ModelRadar() )->report(
 			array(
-				'go'  => array( array( 'id' => 'glm-5.3' ) ),
+				'go'  => array( array( 'id' => 'glm-5.3' ), array( 'id' => 'glm-5.1' ) ),
 				'zen' => array( array( 'id' => 'minimax-m3' ) ),
 			),
 			'2026-09-25T00:00:00+00:00'
 		);
 		$change = null;
-		foreach ( $report['catalogs']['zen']['changes'] as $candidate ) {
-			if ( 'minimax-m3' === $candidate['id'] ) {
+		foreach ( $report['catalogs']['go']['changes'] as $candidate ) {
+			if ( 'glm-5.1' === $candidate['id'] ) {
 				$change = $candidate;
 				break;
 			}
@@ -70,9 +70,19 @@ final class ModelRadarTest extends MonkeyTestCase {
 		self::assertIsArray( $change );
 		self::assertTrue( $change['registry_candidate'] );
 		self::assertFalse( $change['supported'] );
-		self::assertSame( 1, $report['catalogs']['zen']['summary']['unsupported'] );
-		self::assertSame( 1, $report['catalogs']['zen']['summary']['verification_required'] );
+		self::assertSame( 1, $report['catalogs']['go']['summary']['unsupported'] );
+		self::assertSame( 1, $report['catalogs']['go']['summary']['verification_required'] );
 		self::assertFalse( $change['promotable'] );
+		// The reviewed MiniMax record is chat-routable again and counts as supported.
+		$supported = null;
+		foreach ( $report['catalogs']['zen']['changes'] as $candidate ) {
+			if ( 'minimax-m3' === $candidate['id'] ) {
+				$supported = $candidate;
+				break;
+			}
+		}
+		self::assertIsArray( $supported );
+		self::assertTrue( $supported['supported'] );
 	}
 
 	/**

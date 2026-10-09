@@ -42,12 +42,13 @@ final class ToolCapabilityTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Unimplemented Zen endpoint records are not tool-capable.
+	 * Verification-required endpoint records are not tool-capable.
 	 */
-	public function test_unimplemented_zen_routes_are_not_tool_capable(): void {
-		foreach ( array( 'minimax-m3', 'minimax-m2.7', 'minimax-m2.5' ) as $id ) {
-			self::assertFalse( \OpenCodeConnector\Metadata\ModelRegistry::supports( $id, 'zen', 'tools' ) );
+	public function test_pending_verification_routes_are_not_tool_capable(): void {
+		foreach ( array( 'glm-5.1', 'glm-5', 'kimi-k2.5', 'mimo-v2-pro', 'mimo-v2-omni', 'hy3-preview' ) as $id ) {
+			self::assertFalse( \OpenCodeConnector\Metadata\ModelRegistry::supports( $id, 'go', 'tools' ) );
 		}
+		self::assertFalse( \OpenCodeConnector\Metadata\ModelRegistry::supports( 'deepseek-v4-flash-free', 'zen', 'tools' ) );
 	}
 
 	/**

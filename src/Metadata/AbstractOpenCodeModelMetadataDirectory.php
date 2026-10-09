@@ -200,8 +200,9 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	 * @return string
 	 */
 	private function displayNameFor( string $id, ?array $record ): string {
-		$name = (string) ( null !== $record ? ( $record['display_name'] ?? ModelAllowlist::displayName( $id ) ) : ModelAllowlist::displayName( $id ) );
-		if ( (bool) ( null !== $record ? ( $record['free'] ?? ModelAllowlist::isFree( $id ) ) : ModelAllowlist::isFree( $id ) ) ) {
+		$name    = (string) ( null !== $record ? ( $record['display_name'] ?? ModelAllowlist::displayName( $id ) ) : ModelAllowlist::displayName( $id ) );
+		$catalog = (string) ( ( null !== $record ? ( $record['catalog'] ?? null ) : null ) ?? $this->catalogKey() );
+		if ( (bool) ( null !== $record ? ( $record['free'] ?? ModelAllowlist::isFree( $id, $catalog ) ) : ModelAllowlist::isFree( $id, $catalog ) ) ) {
 			$name .= ' ' . __( '(Free)', 'duoport-connect-for-opencode' );
 		}
 		return $name;
@@ -268,11 +269,12 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	 * @return void
 	 */
 	private function sortByFreeFirst( array &$metadata ): void {
+		$catalog = $this->catalogKey();
 		usort(
 			$metadata,
-			static function ( ModelMetadata $a, ModelMetadata $b ): int {
-				$af = ModelAllowlist::isFree( $a->getId() ) ? 0 : 1;
-				$bf = ModelAllowlist::isFree( $b->getId() ) ? 0 : 1;
+			static function ( ModelMetadata $a, ModelMetadata $b ) use ( $catalog ): int {
+				$af = ModelAllowlist::isFree( $a->getId(), $catalog ) ? 0 : 1;
+				$bf = ModelAllowlist::isFree( $b->getId(), $catalog ) ? 0 : 1;
 				if ( $af !== $bf ) {
 					return $af <=> $bf;
 				}

@@ -4,7 +4,7 @@ Tags: ai, artificial-intelligence, connector, opencode, zen
 Requires at least: 7.0
 Tested up to: 7.1.2
 Requires PHP: 8.2
-Stable tag: 0.1.8
+Stable tag: 0.1.9
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -43,7 +43,7 @@ Enable **Show all models** only when you want to inspect the complete live catal
 
 == Free OpenCode models ==
 
-Zen records with explicit free evidence are marked `(Free)` in the model picker when they are part of the reviewed registry. Free models still require an API key and may have limits, availability changes, or catalog retirement. DuoPort does not promise that every free-looking ID is free or supported.
+Zen records matched against OpenCode's published pricing table are marked `(Free)` in the model picker when they are part of the reviewed registry. Free models still require an API key and may have limits, availability changes, or catalog retirement. DuoPort does not promise that every free-looking ID is free or supported.
 
 == WordPress AI Client integration ==
 
@@ -56,7 +56,7 @@ Only reviewed chat/completions records are advertised by default. The current ad
 = Features =
 
 * Two providers (`opencode-go` / `opencode-zen`) auto-discovered by the Connectors screen.
-* Allowlisted chat/completions models per catalog — verified against the OpenCode `/models` API.
+* Reviewed chat/completions-routable models per catalog (Go: 11, Zen: 16) — present in the live OpenCode `/models` catalog and recorded as routable in the reviewed registry.
 * Explicitly reviewed free models labeled `(Free)` in the model picker (Zen catalog).
 * Credential-free Model Radar and catalog watch for fast-follow verification work.
 * Availability probe with transient caching — validates key without calling `/models`.
@@ -112,6 +112,13 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 * See https://opencode.ai/legal/terms-of-service for terms and https://opencode.ai/legal/privacy-policy for privacy policy.
 
 == Changelog ==
+
+= 0.1.9 =
+* Fixed: three Zen MiniMax models (minimax-m3, minimax-m2.7, minimax-m2.5) were allowlisted but blocked as unsupported, hiding them from the picker and failing generation. They match OpenCode's published Zen chat/completions endpoint table and are now routed as chat.
+* Changed: allowlisted models whose chat/completions family is not evidenced in OpenCode's published endpoint/pricing tables are now recorded as verification-required and stay hidden until a chat/completions probe passes (Go: glm-5.1, glm-5, kimi-k2.5, mimo-v2-pro, mimo-v2-omni, hy3-preview; Zen: deepseek-v4-flash-free). Default-visible counts are now Go: 11, Zen: 16.
+* Fixed: free-model labels are now per-catalog, so a free-named ID in one catalog can never mislabel the other catalog's picker.
+* Fixed: network uninstall now sweeps the settings row and plugin transients on every subsite (capped), instead of only the current site.
+* Improved: the reviewed-model counts in the documentation are now covered by a test that reads them from the registry, so they cannot drift again.
 
 = 0.1.8 =
 * Fixed: rotating a saved key did not clear its cached availability state.
@@ -175,6 +182,10 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 * Initial release: Go and Zen providers, allowlisted models with free labels, probe availability, shared-key sync, and Show all models toggle.
 
 == Upgrade Notice ==
+= 0.1.9 =
+<p>No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release routes the three Zen MiniMax models as chat/completions per OpenCode's published endpoint table, holds seven allowlisted models with unverified endpoint families as verification-required until probed, labels free models per catalog, and sweeps every subsite on network uninstall.</p>
+
+
 = 0.1.8 =
 <p>No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release fixes key rotation not clearing cached availability state, and stops a gateway response the plugin has no rule for overwriting the last availability state it did understand. Removing a key and entering it again clears that state.</p>
 
