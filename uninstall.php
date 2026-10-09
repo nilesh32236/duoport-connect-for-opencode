@@ -42,34 +42,54 @@ if ( defined( 'ABSPATH' ) ) {
 // value (in particular no connectors_ai_* secret) is ever read.
 if ( function_exists( 'is_multisite' ) && is_multisite() && function_exists( 'get_sites' ) ) {
 	// Network uninstall: the settings row and the transients are per-site,
-	// so every subsite is swept. The loop is capped so a very large network
-	// cannot time the uninstall request out; remaining sites expire on
-	// their own transient TTLs.
-	$opencode_connector_site_ids = array();
-	try {
-		$opencode_connector_site_ids = get_sites(
-			array(
-				'fields' => 'ids',
-				'number' => 500,
-			)
-		);
-	} catch ( \Throwable $opencode_connector_sites_exception ) {
-		unset( $opencode_connector_sites_exception );
+	// so every subsite is swept with offset pagination (100 per batch) until
+	// an empty/short batch ends the sweep, so networks of any size are fully
+	// covered without loading every site ID up front.
+	$opencode_connector_site_offset = 0;
+	$opencode_connector_site_batch  = 100;
+	while ( true ) {
 		$opencode_connector_site_ids = array();
-	}
-	if ( is_array( $opencode_connector_site_ids ) ) {
+		try {
+			$opencode_connector_site_ids = get_sites(
+				array(
+					'fields' => 'ids',
+					'number' => $opencode_connector_site_batch,
+					'offset' => $opencode_connector_site_offset,
+				)
+			);
+		} catch ( \Throwable $opencode_connector_sites_exception ) {
+			unset( $opencode_connector_sites_exception );
+			break;
+		}
+		if ( ! is_array( $opencode_connector_site_ids ) || array() === $opencode_connector_site_ids ) {
+			break;
+		}
 		foreach ( $opencode_connector_site_ids as $opencode_connector_site_id ) {
 			switch_to_blog( (int) $opencode_connector_site_id );
-			delete_option( 'opencode_connector_settings' );
-			foreach ( $opencode_connector_avail_keys as $opencode_connector_avail_key ) {
-				delete_transient( $opencode_connector_avail_key );
+			try {
+				try {
+					delete_option( 'opencode_connector_settings' );
+					foreach ( $opencode_connector_avail_keys as $opencode_connector_avail_key ) {
+						delete_transient( $opencode_connector_avail_key );
+					}
+					unset( $opencode_connector_avail_key );
+					opencode_connector_delete_ai_client_caches();
+				} catch ( \Throwable $opencode_connector_site_exception ) {
+					unset( $opencode_connector_site_exception );
+				}
+			} finally {
+				restore_current_blog();
 			}
-			unset( $opencode_connector_avail_key );
-			opencode_connector_delete_ai_client_caches();
-			restore_current_blog();
+		}
+		unset( $opencode_connector_site_id );
+		$opencode_connector_fetched_count = count( $opencode_connector_site_ids );
+		$opencode_connector_site_offset  += $opencode_connector_fetched_count;
+		unset( $opencode_connector_site_ids );
+		if ( $opencode_connector_fetched_count < $opencode_connector_site_batch ) {
+			break;
 		}
 	}
-	unset( $opencode_connector_site_ids, $opencode_connector_site_id );
+	unset( $opencode_connector_site_offset, $opencode_connector_site_batch, $opencode_connector_fetched_count );
 	delete_site_option( 'opencode_connector_settings' );
 	foreach ( $opencode_connector_avail_keys as $opencode_connector_avail_key ) {
 		delete_site_transient( $opencode_connector_avail_key );

@@ -105,6 +105,10 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 		if ( ! is_array( $data['data'] ) || array() === $data['data'] ) {
 			return array();
 		}
+		// Single read per parse is intentional: the option is autoloaded/cached
+		// and parse runs only on a model-list cache miss, so there is no
+		// per-model query. No memoization here so long-lived processes and
+		// tests that toggle show_all_models always see the current value.
 		$show_all = (bool) ( get_option( \OpenCodeConnector\OPTION_NAME, array() )['show_all_models'] ?? false );
 
 		$list = array();
