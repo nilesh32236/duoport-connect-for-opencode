@@ -3,6 +3,7 @@
  * Explicit endpoint-family routing for verified model records.
  *
  * @package OpenCodeConnector
+ * @since 0.1.5
  */
 
 declare(strict_types=1);
@@ -17,8 +18,24 @@ use OpenCodeConnector\Metadata\ModelRegistry;
 
 /**
  * Resolves only reviewed endpoint families and paths.
+ *
+ * @since 0.1.5
  */
 final class EndpointRoute {
+
+	/**
+	 * The single endpoint family this adapter implements.
+	 *
+	 * Single owner for the "implemented family" value: ModelRegistry and
+	 * CapabilityAwareFallback derive their admission rules from here, so a
+	 * future transport cannot leave the router and the selector disagreeing
+	 * about what is implemented.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @var string
+	 */
+	public const IMPLEMENTED_FAMILY = 'chat';
 
 	/**
 	 * Implemented family-to-path map.
@@ -29,11 +46,27 @@ final class EndpointRoute {
 	 * and provider-specific transports remain denied until their payload,
 	 * parser, and authentication contracts are complete.
 	 *
+	 * @since 0.1.5
+	 *
 	 * @var array<string, string>
 	 */
 	private const PATHS = array(
-		'chat' => 'chat/completions',
+		self::IMPLEMENTED_FAMILY => 'chat/completions',
 	);
+
+	/**
+	 * Families this adapter implements.
+	 *
+	 * Derived from PATHS keys so the map and the membership predicate cannot
+	 * drift apart. ModelRegistry and CapabilityAwareFallback admit only these.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @return list<string>
+	 */
+	public static function implementedFamilies(): array {
+		return array_keys( self::PATHS );
+	}
 
 	/**
 	 * Build the fail-closed message for a rejected endpoint family.
@@ -41,6 +74,8 @@ final class EndpointRoute {
 	 * The registry sentinel means "this model's documented family is not
 	 * implemented", which is a different fact from a named family, so it gets
 	 * its own message instead of quoting the sentinel back to the caller.
+	 *
+	 * @since 0.1.5
 	 *
 	 * @param string $kind Endpoint family name.
 	 * @return never
@@ -64,6 +99,8 @@ final class EndpointRoute {
 	/**
 	 * Resolve a model record's endpoint kind or fail before transport.
 	 *
+	 * @since 0.1.5
+	 *
 	 * @param string $model_id Model ID.
 	 * @param string $catalog  Catalog slug.
 	 * @return string
@@ -84,6 +121,8 @@ final class EndpointRoute {
 	/**
 	 * Resolve a path for a model.
 	 *
+	 * @since 0.1.5
+	 *
 	 * @param string $model_id Model ID.
 	 * @param string $catalog  Catalog slug.
 	 * @return string
@@ -95,6 +134,8 @@ final class EndpointRoute {
 
 	/**
 	 * Return a path for a known endpoint kind.
+	 *
+	 * @since 0.1.5
 	 *
 	 * @param string $kind Endpoint kind.
 	 * @return string

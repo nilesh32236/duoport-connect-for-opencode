@@ -109,27 +109,32 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
 		$cls               = $this->providerClass();
 		$prepared_model_id = $this->prepared_route_model_id;
-		$capability        = null !== $prepared_model_id || ( is_array( $data ) && ! empty( $data['tools'] ) ) ? 'tools' : 'text';
-		$route             = $this->selectRouteModel( $capability, $prepared_model_id );
-		if ( '' !== $route['reason'] ) {
-			throw new UnsupportedEndpointFamilyException(
-				'no_candidate' === $route['reason']
-					? 'No verified model candidate is available for this route.'
-					: 'Model route metadata is unavailable.'
-			);
+		try {
+			$capability = null !== $prepared_model_id || ( is_array( $data ) && ! empty( $data['tools'] ) ) ? 'tools' : 'text';
+			$route      = $this->selectRouteModel( $capability, $prepared_model_id );
+			if ( '' !== $route['reason'] ) {
+				throw new UnsupportedEndpointFamilyException(
+					'no_candidate' === $route['reason']
+						? 'No verified model candidate is available for this route.'
+						: 'Model route metadata is unavailable.'
+				);
+			}
+			$model_id = $route['model_id'];
+			$catalog  = $route['catalog'];
+			if ( is_array( $data ) ) {
+				$data['model'] = $model_id;
+			}
+			$path = EndpointRoute::pathForModel( $model_id, $catalog );
+			if ( Catalog::GO === $catalog ) {
+				$headers = $this->goHeaders( $headers, $data );
+			}
+			return $this->buildProviderRequest( $cls, $method, $path, $headers, $data );
+		} finally {
+			// A throwing request must not leak prepared state into the next
+			// call, where it would force the capability to 'tools' and bypass
+			// the normal route resolution.
+			$this->prepared_route_model_id = null;
 		}
-		$model_id = $route['model_id'];
-		$catalog  = $route['catalog'];
-		if ( is_array( $data ) ) {
-			$data['model'] = $model_id;
-		}
-		$path = EndpointRoute::pathForModel( $model_id, $catalog );
-		if ( Catalog::GO === $catalog ) {
-			$headers = $this->goHeaders( $headers, $data );
-		}
-		$request                       = $this->buildProviderRequest( $cls, $method, $path, $headers, $data );
-		$this->prepared_route_model_id = null;
-		return $request;
 	}
 
 	/**
@@ -291,6 +296,8 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * Protected as a test seam for SDK-free model doubles; production models
 	 * use the metadata/reflection resolver below.
 	 *
+	 * @since 0.1.6
+	 *
 	 * @return string
 	 */
 	protected function route_model_id(): string {
@@ -302,6 +309,8 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 *
 	 * The default is empty: callers must opt into a bounded fallback list.
 	 * Selection still enforces endpoint, capability, and verification equality.
+	 *
+	 * @since 0.1.6
 	 *
 	 * @return array<int, string>
 	 */
@@ -334,6 +343,11 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 
 	/**
 	 * Resolve the model ID via SDK metadata accessors.
+	 *
+	 * The bare `metadata` and `model` names are real SDK surface, not
+	 * guesses: the OpenAI-compatible base model exposes the model metadata
+	 * through them, so they must stay in the probe list. The reflection
+	 * fallback below covers the case where no accessor resolves.
 	 *
 	 * @since 0.1.6
 	 *
@@ -419,9 +433,8 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 */
 	private function catalog_key_for_tool_gate(): string {
 		try {
-			if ( ! method_exists( $this, 'providerClass' ) ) {
-				return '';
-			}
+			// providerClass() is abstract on this class, so it is always
+			// present; only its return value can be unresolvable.
 			$cls = $this->providerClass();
 			if ( ! is_string( $cls ) || '' === $cls ) {
 				return '';

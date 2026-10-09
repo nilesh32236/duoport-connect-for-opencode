@@ -64,6 +64,8 @@ final class OpenCodeGoProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function displayName(): string {
+		// Guarded for SDK-free unit tests, where __() is undefined; in a
+		// WordPress runtime __() always exists and the translated string wins.
 		if ( function_exists( '__' ) ) {
 			return __( 'OpenCode Go', 'duoport-connect-for-opencode' );
 		}
@@ -78,6 +80,8 @@ final class OpenCodeGoProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function description(): string {
+		// Guarded for SDK-free unit tests, where __() is undefined; in a
+		// WordPress runtime __() always exists and the translated string wins.
 		if ( function_exists( '__' ) ) {
 			return __( 'Text generation with OpenCode Go.', 'duoport-connect-for-opencode' );
 		}

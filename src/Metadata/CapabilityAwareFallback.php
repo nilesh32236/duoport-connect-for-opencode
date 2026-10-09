@@ -14,6 +14,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Transport\EndpointRoute;
+
 /**
  * Selects only reviewed records with the same endpoint and capability.
  */
@@ -26,8 +28,12 @@ final class CapabilityAwareFallback {
 
 	/**
 	 * Only the complete transport family currently implemented.
+	 *
+	 * Read from EndpointRoute::implementedFamilies() at the call sites
+	 * instead of a literal, so the selector admits exactly what the router
+	 * implements. No literal here: a second copy is how the two drift apart.
 	 */
-	private const IMPLEMENTED_ENDPOINT = 'chat';
+	private const IMPLEMENTED_ENDPOINT = EndpointRoute::IMPLEMENTED_FAMILY;
 
 	/**
 	 * Optional record resolver used only for isolated contract tests.

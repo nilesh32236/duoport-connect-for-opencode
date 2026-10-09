@@ -20,10 +20,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 final class CatalogWatch {
 
 	/**
-	 * Compare a discovery snapshot with the reviewed catalog registry.
+	 * Compare a discovery snapshot with the reviewed registry.
 	 *
 	 * Discovery is evidence only: every output row is non-promotable until a
 	 * human updates the registry and its verification date.
+	 *
+	 * A whole-snapshot failure (invalid catalog, or no valid row at all) is
+	 * reported as a single sentinel row with an empty `id` and status
+	 * `input_invalid`, sorted alongside real rows by that empty id. Callers
+	 * must treat an empty id as "the snapshot was invalid", not as a model.
 	 *
 	 * @param string            $catalog   Catalog slug.
 	 * @param array<int, mixed> $discovered Raw discovery rows.

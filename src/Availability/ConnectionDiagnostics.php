@@ -275,7 +275,7 @@ final class ConnectionDiagnostics {
 		if ( null !== $exception || 0 === $status ) {
 			return $this->uncheckable( 0 );
 		}
-		if ( $status >= 200 && $status < 300 ) {
+		if ( 200 <= $status && $status < 300 ) {
 			return $this->verified( $status );
 		}
 		if ( 401 === $status ) {
@@ -302,7 +302,7 @@ final class ConnectionDiagnostics {
 			// a healthy key refreshing the very flag this exemption preserves.
 			return $this->rateLimited( $status );
 		}
-		if ( $status >= 500 && $status < 600 ) {
+		if ( 500 <= $status && $status < 600 ) {
 			return $this->uncheckable( $status );
 		}
 		// Ahead of the generic fallthrough for the same reason as the 401 branch:
@@ -336,9 +336,9 @@ final class ConnectionDiagnostics {
 			return false;
 		}
 		$error   = $data['error'];
-		$code    = $this->normalize( (string) ( $error['code'] ?? '' ) );
-		$type    = $this->normalize( (string) ( $error['type'] ?? '' ) );
-		$message = $this->normalize( (string) ( $error['message'] ?? '' ) );
+		$code    = $this->normalize( $this->errorField( $error, 'code' ) );
+		$type    = $this->normalize( $this->errorField( $error, 'type' ) );
+		$message = $this->normalize( $this->errorField( $error, 'message' ) );
 
 		// Veto first, and for every rule below. A response that names the
 		// credential has told us the credential is what was rejected; nothing
@@ -358,7 +358,7 @@ final class ConnectionDiagnostics {
 
 		// `param: "model"` is the OpenAI-compatible way of saying which part of
 		// the request was rejected, and it is model-scoped by construction.
-		if ( 'model' === $this->normalize( (string) ( $error['param'] ?? '' ) ) ) {
+		if ( 'model' === $this->normalize( $this->errorField( $error, 'param' ) ) ) {
 			return true;
 		}
 
@@ -383,6 +383,22 @@ final class ConnectionDiagnostics {
 			return false;
 		}
 		return $this->containsAnyOf( $message, self::MODEL_GONE_PHRASES );
+	}
+
+	/**
+	 * Read one decoded error field as a string.
+	 *
+	 * Response bodies arrive from json_decode, so any field can hold an
+	 * array or object instead of a string; a blind (string) cast there
+	 * warns or throws. Non-strings read as absent.
+	 *
+	 * @param array<string, mixed> $error Decoded error map.
+	 * @param string               $field Field name.
+	 * @return string Field value, or empty string when absent or non-string.
+	 */
+	private function errorField( array $error, string $field ): string {
+		$value = $error[ $field ] ?? '';
+		return is_string( $value ) ? $value : '';
 	}
 
 	/**
@@ -531,10 +547,13 @@ final class ConnectionDiagnostics {
 	 * Read the credential-blind backend error type.
 	 *
 	 * @param array<string, mixed>|null $data Response data.
-	 * @return string Empty string when the type is absent.
+	 * @return string Empty string when the type is absent or non-string.
 	 */
 	private function errorType( ?array $data ): string {
-		return is_array( $data ) ? (string) ( $data['error']['type'] ?? '' ) : '';
+		if ( ! is_array( $data ) || ! isset( $data['error'] ) || ! is_array( $data['error'] ) ) {
+			return '';
+		}
+		return $this->errorField( $data['error'], 'type' );
 	}
 
 	/**

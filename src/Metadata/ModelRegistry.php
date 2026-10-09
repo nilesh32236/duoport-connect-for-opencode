@@ -14,6 +14,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Transport\EndpointRoute;
+
 /**
  * Small canonical registry for the currently curated model surface.
  *
@@ -74,8 +76,14 @@ final class ModelRegistry {
 
 	/**
 	 * Current implemented endpoint family.
+	 *
+	 * Derived from EndpointRoute, which owns the family-to-path map: the
+	 * registry admits only what the router implements, so the two cannot
+	 * drift apart.
+	 *
+	 * @var string
 	 */
-	private const ENDPOINT_FAMILY = 'chat';
+	private const ENDPOINT_FAMILY = EndpointRoute::IMPLEMENTED_FAMILY;
 
 	/**
 	 * Allowlisted (catalog, ID) pairs whose chat/completions family is

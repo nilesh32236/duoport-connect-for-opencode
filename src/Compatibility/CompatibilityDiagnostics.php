@@ -14,9 +14,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-use WordPress\AiClient\AiClient;
 use OpenCodeConnector\Providers\OpenCodeGoProvider;
 use OpenCodeConnector\Providers\OpenCodeZenProvider;
+use WordPress\AiClient\AiClient;
 
 /**
  * Reports runtime compatibility without reading connector settings.
@@ -75,7 +75,11 @@ final class CompatibilityDiagnostics {
 		}
 
 		$providers = array();
-		if ( $registry_available && is_object( $registry ) && method_exists( $registry, 'hasProvider' ) ) {
+		// checkRegistry() already probed the method surface and returned it
+		// as $registry_methods; drive this branch off that list instead of
+		// re-probing, so a __call-provided method cannot silently skip the
+		// providers block.
+		if ( $registry_available && is_object( $registry ) && in_array( 'hasProvider', $registry_methods, true ) ) {
 			$checked   = $this->checkProviders( $registry );
 			$providers = $checked['providers'];
 			$issues    = array_merge( $issues, $checked['issues'] );

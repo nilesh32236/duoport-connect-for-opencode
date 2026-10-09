@@ -273,8 +273,6 @@ final class ModelAllowlist {
 	 * @return string
 	 */
 	public static function displayName( string $id ): string {
-		$human = ucwords( str_replace( array( '-', '_' ), ' ', $id ) );
-		// e.g. "Deepseek V4 Flash Free" -> normalize V4 casing left as-is.
-		return $human;
+		return ucwords( str_replace( array( '-', '_' ), ' ', $id ) );
 	}
 }

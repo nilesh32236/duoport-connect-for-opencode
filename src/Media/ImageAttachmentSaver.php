@@ -560,9 +560,17 @@ final class ImageAttachmentSaver {
 		}
 
 		if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
-			require_once ABSPATH . 'wp-admin/includes/image.php';
+			$image_includes = ABSPATH . 'wp-admin/includes/image.php';
+			if ( is_readable( $image_includes ) ) {
+				require_once $image_includes;
+			}
 		}
-		wp_update_attachment_metadata( (int) $attachment_id, wp_generate_attachment_metadata( (int) $attachment_id, (string) $upload['file'] ) );
+		// Skip metadata generation when the admin include is unavailable
+		// (e.g. a REST or cron request on an install without wp-admin on
+		// disk) rather than requiring it unconditionally.
+		if ( function_exists( 'wp_generate_attachment_metadata' ) ) {
+			wp_update_attachment_metadata( (int) $attachment_id, wp_generate_attachment_metadata( (int) $attachment_id, (string) $upload['file'] ) );
+		}
 
 		return (int) $attachment_id;
 	}

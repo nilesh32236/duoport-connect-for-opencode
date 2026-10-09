@@ -63,6 +63,8 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function displayName(): string {
+		// Guarded for SDK-free unit tests, where __() is undefined; in a
+		// WordPress runtime __() always exists and the translated string wins.
 		if ( function_exists( '__' ) ) {
 			return __( 'OpenCode Zen', 'duoport-connect-for-opencode' );
 		}
@@ -77,6 +79,8 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	 * @return string
 	 */
 	protected static function description(): string {
+		// Guarded for SDK-free unit tests, where __() is undefined; in a
+		// WordPress runtime __() always exists and the translated string wins.
 		if ( function_exists( '__' ) ) {
 			return __( 'Text generation with OpenCode Zen, including free models.', 'duoport-connect-for-opencode' );
 		}

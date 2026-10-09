@@ -39,6 +39,8 @@ final class OpenCodeZenTextGenerationModel extends AbstractOpenCodeTextGeneratio
 	/**
 	 * Curated same-catalog, same-endpoint fallback for tool requests.
 	 *
+	 * @since 0.1.6
+	 *
 	 * @return array<int, string>
 	 */
 	protected function fallback_model_ids(): array {

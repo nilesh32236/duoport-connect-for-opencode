@@ -82,7 +82,7 @@ final class Settings {
 	 */
 	public function bustCaches( $old_value, $new_value ): void {
 		if ( ( $old_value['show_all_models'] ?? false ) !== ( $new_value['show_all_models'] ?? false ) ) {
-			$this->clearModelCaches();
+			self::clearModelCaches();
 			self::clearAvailabilityCaches();
 		}
 	}
@@ -98,7 +98,7 @@ final class Settings {
 	 */
 	public function bustCachesAdd( string $option, $value ): void {
 		unset( $option, $value );
-		$this->clearModelCaches();
+		self::clearModelCaches();
 		self::clearAvailabilityCaches();
 	}
 
@@ -112,7 +112,7 @@ final class Settings {
 	 * @return void
 	 */
 	public function bustCachesDelete(): void {
-		$this->clearModelCaches();
+		self::clearModelCaches();
 		self::clearAvailabilityCaches();
 	}
 
@@ -168,11 +168,14 @@ final class Settings {
 	/**
 	 * Clear model caches.
 	 *
+	 * Public static like clearAvailabilityCaches(): both halves of the same
+	 * bust operation can be triggered externally or from a static context.
+	 *
 	 * @since 0.1.0
 	 *
 	 * @return void
 	 */
-	private function clearModelCaches(): void {
+	public static function clearModelCaches(): void {
 		$classes = array(
 			\OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory::class,
 			\OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory::class,
@@ -186,7 +189,7 @@ final class Settings {
 			}
 		}
 		foreach ( $classes as $cls ) {
-			$full_key = $this->modelCacheKey( $cls );
+			$full_key = self::modelCacheKey( $cls );
 			if ( is_object( $cache ) && method_exists( $cache, 'delete' ) ) {
 				$cache->delete( $full_key );
 			}
@@ -215,7 +218,7 @@ final class Settings {
 	 * @param string $class_name FQCN.
 	 * @return string
 	 */
-	private function modelCacheKey( string $class_name ): string {
+	private static function modelCacheKey( string $class_name ): string {
 		$ai_version = defined( AiClient::class . '::VERSION' ) ? AiClient::VERSION : '0.0.0';
 		return 'ai_client_' . $ai_version . '_' . md5( $class_name ) . '_models';
 	}

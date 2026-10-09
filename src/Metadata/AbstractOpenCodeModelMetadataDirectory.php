@@ -78,14 +78,28 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	protected function createRequest( HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
 		$cls = $this->providerClass();
 		if ( Catalog::GO === $this->catalogKey() && class_exists( ClientUserAgent::class ) && method_exists( ClientUserAgent::class, 'inject_into_headers' ) ) {
-			try {
-				$headers = ClientUserAgent::inject_into_headers( $headers );
-			} catch ( \Throwable $user_agent_exception ) {
-				unset( $user_agent_exception );
-				// Fail-open: leave headers unchanged when User-Agent injection fails.
-			}
+			$headers = $this->with_client_user_agent( $headers );
 		}
 		return $this->buildProviderRequest( $cls, $method, $path, $headers, $data );
+	}
+
+	/**
+	 * Add the plugin User-Agent to listing headers, or return them unchanged.
+	 *
+	 * Fail-open: a throwing injector degrades to the given headers, never fatal.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param array $headers Request headers.
+	 * @return array
+	 */
+	private function with_client_user_agent( array $headers ): array {
+		try {
+			return ClientUserAgent::inject_into_headers( $headers );
+		} catch ( \Throwable ) {
+			// Fail-open: leave headers unchanged when User-Agent injection fails.
+			return $headers;
+		}
 	}
 
 	/**
@@ -112,7 +126,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 		$show_all = (bool) ( get_option( \OpenCodeConnector\OPTION_NAME, array() )['show_all_models'] ?? false );
 
 		$list = array();
-		foreach ( (array) $data['data'] as $row ) {
+		foreach ( $data['data'] as $row ) {
 			$metadata = $this->metadataForRow( $row, $show_all );
 			if ( null !== $metadata ) {
 				$list[] = $metadata;
@@ -172,9 +186,10 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 		// A malformed /models row can carry a non-scalar id (array/object); it is
 		// treated exactly like an absent one rather than stringified into a garbage
 		// model id that would then fail the string-typed ModelRegistry::record().
+		// String ids are trimmed; other scalars cast as before.
 		$raw_id = is_array( $row ) ? ( $row['id'] ?? '' ) : '';
-		$id     = is_scalar( $raw_id ) ? (string) $raw_id : '';
-		if ( ! $id ) {
+		$id     = is_string( $raw_id ) ? trim( $raw_id ) : ( is_scalar( $raw_id ) ? (string) $raw_id : '' );
+		if ( '' === $id ) {
 			return null;
 		}
 		$record = ModelRegistry::record( $id, $this->catalogKey() );

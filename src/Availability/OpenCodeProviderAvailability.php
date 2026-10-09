@@ -135,23 +135,9 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 		try {
 			return wp_rand( $min, $max );
-		} catch ( \Throwable $rand_exception ) {
-			unset( $rand_exception );
+		} catch ( \Throwable ) {
 			return 0;
 		}
-	}
-
-	/**
-	 * Constructor.
-	 *
-	 * @since 0.1.0
-	 *
-	 * @param string                     $catalog     Catalog slug.
-	 * @param ConnectionDiagnostics|null $diagnostics Optional diagnostics double for tests.
-	 */
-	public function __construct( private readonly string $catalog, ?ConnectionDiagnostics $diagnostics = null ) {
-		// Catalog is go or zen.
-		$this->diagnostics_override = $diagnostics;
 	}
 
 	/**
@@ -195,6 +181,26 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @var bool|null
 	 */
 	private ?bool $last_good_memo = null;
+
+	/**
+	 * Last safe result retained for a caller.
+	 *
+	 * @var array<string, mixed>|null
+	 */
+	private ?array $last_result = null;
+
+	/**
+	 * Constructor.
+	 *
+	 * @since 0.1.0
+	 *
+	 * @param string                     $catalog     Catalog slug.
+	 * @param ConnectionDiagnostics|null $diagnostics Optional diagnostics double for tests.
+	 */
+	public function __construct( private readonly string $catalog, ?ConnectionDiagnostics $diagnostics = null ) {
+		// Catalog is go or zen.
+		$this->diagnostics_override = $diagnostics;
+	}
 
 	/**
 	 * Whether the provider is configured, preserving the legacy boolean contract.
@@ -299,8 +305,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	private function diagnostics_or_null(): ?ConnectionDiagnostics {
 		try {
 			return $this->diagnostics();
-		} catch ( \Throwable $exception ) {
-			unset( $exception );
+		} catch ( \Throwable ) {
 			// Never fatal: an unbuildable helper degrades to "unchecked".
 			return null;
 		}
@@ -308,6 +313,8 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 
 	/**
 	 * Run or reuse the detailed, credential-blind probe result.
+	 *
+	 * @since 0.1.6
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -323,6 +330,8 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * `verified = true`, which asserts the backend was reached and identified.
 	 * A caller reading this before the first probe would otherwise be told a
 	 * gateway had been contacted when the request had not left the process.
+	 *
+	 * @since 0.1.6
 	 *
 	 * @return array<string, mixed>
 	 */
@@ -369,14 +378,8 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			return $verdict;
 		}
 
-		if ( function_exists( 'set_transient' ) ) {
-			try {
-				set_transient( $lock_key, 1, 10 );
-			} catch ( \Throwable $lock_exception ) {
-				unset( $lock_exception );
-				// Fail-open: proceed without the lock.
-			}
-		}
+		// Fail-open: proceed without the lock when caching is unavailable.
+		$this->setCached( $lock_key, 1, 10 );
 
 		// An unrecognised catalog fails closed instead of silently probing as
 		// the Zen catalog: the mapping lives in Catalog::providerClassFor()
@@ -405,6 +408,8 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * `could-not-be-checked` verdict when a concurrent probe holds the
 	 * lock), or null when no cache entry applies and the caller should
 	 * proceed to probe. Never throws; an unreadable cache is a miss.
+	 * Reads through getCached() so verify() and probe() share one
+	 * guarded-transient rule.
 	 *
 	 * @since 0.1.8
 	 *
@@ -414,22 +419,11 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return array<string, mixed>|null Verdict to return, or null to proceed.
 	 */
 	private function readVerifyCache( string $tkey, string $lock_key, ?ConnectionDiagnostics $diagnostics ): ?array {
-		if ( ! function_exists( 'get_transient' ) ) {
-			return null;
-		}
-		try {
-			$cached = get_transient( $tkey );
-		} catch ( \Throwable ) {
-			$cached = false;
-		}
+		$cached = $this->getCached( $tkey );
 		if ( is_array( $cached ) && isset( $cached['state'] ) && is_string( $cached['state'] ) ) {
 			return $cached;
 		}
-		try {
-			$locked = get_transient( $lock_key );
-		} catch ( \Throwable ) {
-			$locked = false;
-		}
+		$locked = $this->getCached( $lock_key );
 		if ( false !== $locked ) {
 			return $this->verify_result( 'could-not-be-checked', null, $diagnostics );
 		}
@@ -510,16 +504,31 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 				if ( class_exists( GoRequestHeaders::class ) && method_exists( GoRequestHeaders::class, 'for_go' ) ) {
 					return GoRequestHeaders::for_go( $base_headers, $data );
 				}
-			} catch ( \Throwable $go_header_exception ) {
-				unset( $go_header_exception );
+			} catch ( \Throwable ) {
+				// Fail-open: a throwing Go helper degrades to session-only headers.
+				return $this->sessionProbeHeaders( $base_headers, $data );
 			}
 		}
+		return $this->sessionProbeHeaders( $base_headers, $data );
+	}
+
+	/**
+	 * Session-only headers for the probe payload, degrading to the base set.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param array<string, string> $base_headers Base headers.
+	 * @param array<string, mixed>  $data Probe payload the session is derived from.
+	 * @return array<string, string>
+	 */
+	private function sessionProbeHeaders( array $base_headers, array $data ): array {
 		try {
 			if ( class_exists( SessionHeader::class ) && method_exists( SessionHeader::class, 'inject_into_headers' ) ) {
 				return SessionHeader::inject_into_headers( $base_headers, $data );
 			}
-		} catch ( \Throwable $session_header_exception ) {
-			unset( $session_header_exception );
+		} catch ( \Throwable ) {
+			// Fail-open: a throwing session helper degrades to the base headers.
+			return $base_headers;
 		}
 		return $base_headers;
 	}
@@ -545,8 +554,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			}
 			try {
 				return $diagnostics->classify( 0, null, new \RuntimeException( 'verify surface unavailable' ) );
-			} catch ( \Throwable $surface_exception ) {
-				unset( $surface_exception );
+			} catch ( \Throwable ) {
 				return null;
 			}
 		}
@@ -562,15 +570,13 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			$req           = $this->getRequestAuthentication()->authenticateRequest( $req );
 			$res           = $this->getHttpTransporter()->send( $req );
 			return null !== $diagnostics ? $diagnostics->classify( $res->getStatusCode(), $res->getData(), null, self::PROBE_MODEL ) : null;
-		} catch ( \Throwable $exception ) {
-			unset( $exception );
+		} catch ( \Throwable ) {
 			if ( null === $diagnostics ) {
 				return null;
 			}
 			try {
 				return $diagnostics->classify( 0, null, new \RuntimeException( 'verify transport failure' ) );
-			} catch ( \Throwable $classify_exception ) {
-				unset( $classify_exception );
+			} catch ( \Throwable ) {
 				return null;
 			}
 		}
@@ -655,8 +661,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 					$diagnosis = 'invalid_key' === $state
 						? $diagnostics->notConfigured()
 						: $diagnostics->uncheckable();
-				} catch ( \Throwable $verdict_exception ) {
-					unset( $verdict_exception );
+				} catch ( \Throwable ) {
 					// The helper itself could not be called. This is
 					// belt-and-braces — its factories are pure array literals —
 					// but the fallback must not reintroduce the claim this method
@@ -678,6 +683,9 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Cache a verification verdict for about five minutes.
 	 *
+	 * Writes through setCached()/deleteCached() so verify() and probe()
+	 * share one guarded-transient rule. Never throws.
+	 *
 	 * @since 0.1.6
 	 *
 	 * @param string               $tkey    Transient key.
@@ -686,24 +694,9 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return void
 	 */
 	private function store_verify_verdict( string $tkey, string $lock_key, array $verdict ): void {
-		if ( function_exists( 'delete_transient' ) ) {
-			try {
-				delete_transient( $lock_key );
-			} catch ( \Throwable $delete_exception ) {
-				unset( $delete_exception );
-				// Fail-open: caching must never be fatal.
-			}
-		}
-		if ( ! function_exists( 'set_transient' ) ) {
-			return;
-		}
+		$this->deleteCached( $lock_key );
 		$base = defined( 'MINUTE_IN_SECONDS' ) ? 5 * MINUTE_IN_SECONDS : 300;
-		try {
-			set_transient( $tkey, $verdict, $this->jitteredTtl( (int) $base ) );
-		} catch ( \Throwable $store_exception ) {
-			unset( $store_exception );
-			// Fail-open: caching must never be fatal.
-		}
+		$this->setCached( $tkey, $verdict, $this->jitteredTtl( (int) $base ) );
 	}
 
 	/**
@@ -1073,8 +1066,8 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 *
 	 * Guards the function being ABSENT and being BROKEN. A persistent object
 	 * cache that throws is a cache that cannot be read, which is a miss — and a
-	 * miss costs one probe, where the exception costs the page. Same rule
-	 * verify() already applies to its own get_transient() call.
+	 * miss costs one probe, where the exception costs the page. Both probes
+	 * read through here so there is exactly one guarded-transient rule.
 	 *
 	 * @since 0.1.6
 	 *
@@ -1087,8 +1080,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 		try {
 			return get_transient( $key );
-		} catch ( \Throwable $read_exception ) {
-			unset( $read_exception );
+		} catch ( \Throwable ) {
 			// Fail-open: an unreadable cache is a miss, never a fatal.
 			return false;
 		}
@@ -1116,8 +1108,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 		try {
 			return (bool) set_transient( $key, $value, $ttl );
-		} catch ( \Throwable $write_exception ) {
-			unset( $write_exception );
+		} catch ( \Throwable ) {
 			// Fail-open: caching must never be fatal.
 			return false;
 		}
@@ -1143,8 +1134,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 		try {
 			return (bool) delete_transient( $key );
-		} catch ( \Throwable $delete_exception ) {
-			unset( $delete_exception );
+		} catch ( \Throwable ) {
 			// Fail-open: the entry expires on its own TTL.
 			return false;
 		}
@@ -1163,11 +1153,4 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 		return $this->resolved_diagnostics;
 	}
-
-	/**
-	 * Last safe result retained for a caller.
-	 *
-	 * @var array<string, mixed>|null
-	 */
-	private ?array $last_result = null;
 }

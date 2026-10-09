@@ -38,25 +38,6 @@ final class ModelRadar {
 	);
 
 	/**
-	 * Internal change-row scaffolding keys stripped before publication.
-	 *
-	 * BuildChangeRow() carries the already-extracted fold inputs on the row
-	 * so summarizeResult() can consume them; every key listed here is
-	 * removed in one loop before the row ships. A new scaffolding key must
-	 * be added here or it leaks into the report JSON.
-	 *
-	 * @var list<string>
-	 */
-	private const SCAFFOLDING_KEYS = array(
-		'_is_retired',
-		'_free_name',
-		'_free_explicit',
-		'_unsupported',
-		'_status',
-		'_states',
-	);
-
-	/**
 	 * Watch collaborator (test seam; defaults to canonical).
 	 *
 	 * @var CatalogWatch|null
@@ -280,9 +261,9 @@ final class ModelRadar {
 				++$summary['malformed'];
 				continue;
 			}
-			$row = $this->buildChangeRow( $catalog, $result, $id, $explicit_free );
-			$this->summarizeResult( $summary, $row );
-			$changes[] = $row;
+			$built = $this->buildChangeRow( $catalog, $result, $id, $explicit_free );
+			$this->summarizeResult( $summary, $built['row'], $built['counters'] );
+			$changes[] = $built['row'];
 		}
 
 		return array(
@@ -355,13 +336,19 @@ final class ModelRadar {
 	/**
 	 * Build one change row for a watch result.
 	 *
+	 * Returns the public row and its fold inputs as siblings, never as
+	 * underscore-prefixed keys on the row itself: the published row is valid
+	 * on its own, and summarizeResult() reads the counters structure instead
+	 * of stripping scaffolding in place. `status` and `states` already live
+	 * on the public row, so no duplicate copies are carried.
+	 *
 	 * @since 0.1.6
 	 *
 	 * @param string               $catalog Catalog key.
 	 * @param array<string, mixed> $result Watch result.
 	 * @param string               $id Model ID.
 	 * @param array<string, bool>  $explicit_free Explicit free evidence keyed by ID.
-	 * @return array<string, mixed>
+	 * @return array{row: array<string, mixed>, counters: array{is_retired: bool, free_name: bool, free_explicit: bool, unsupported: bool}}
 	 */
 	private function buildChangeRow( string $catalog, array $result, string $id, array $explicit_free ): array {
 		$states         = is_array( $result['states'] ?? null ) ? $result['states'] : array();
@@ -374,52 +361,50 @@ final class ModelRadar {
 		$is_retired     = 'retired' === ( $result['status'] ?? '' );
 		$priority       = $free_candidate || 'allowlisted' !== ( $result['status'] ?? '' ) ? 'high' : 'normal';
 		return array(
-			'id'                   => $id,
-			'status'               => (string) ( $result['status'] ?? '' ),
-			'states'               => array_values( array_unique( $states ) ),
-			'allowlisted'          => (bool) ( $result['allowlisted'] ?? false ),
-			'registry_candidate'   => null !== $record,
-			'supported'            => $supported,
-			'free_registry'        => $free_reviewed,
-			'free_candidate'       => $free_candidate,
-			'free_candidate_basis' => $free_explicit ? 'explicit_public_evidence' : ( $free_name ? 'unverified_name' : 'none' ),
-			'priority'             => $priority,
-			'promotable'           => false,
-			'_is_retired'          => $is_retired,
-			'_free_name'           => $free_name,
-			'_free_explicit'       => $free_explicit,
-			'_unsupported'         => null !== $record && ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === ( $record['endpoint_family'] ?? '' ),
-			'_status'              => (string) ( $result['status'] ?? '' ),
-			'_states'              => array_values( array_unique( $states ) ),
+			'row'      => array(
+				'id'                   => $id,
+				'status'               => (string) ( $result['status'] ?? '' ),
+				'states'               => array_values( array_unique( $states ) ),
+				'allowlisted'          => (bool) ( $result['allowlisted'] ?? false ),
+				'registry_candidate'   => null !== $record,
+				'supported'            => $supported,
+				'free_registry'        => $free_reviewed,
+				'free_candidate'       => $free_candidate,
+				'free_candidate_basis' => $free_explicit ? 'explicit_public_evidence' : ( $free_name ? 'unverified_name' : 'none' ),
+				'priority'             => $priority,
+				'promotable'           => false,
+			),
+			'counters' => array(
+				'is_retired'    => $is_retired,
+				'free_name'     => $free_name,
+				'free_explicit' => $free_explicit,
+				'unsupported'   => null !== $record && ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === ( $record['endpoint_family'] ?? '' ),
+			),
 		);
 	}
 
 	/**
 	 * Fold one change row into the summary counters.
 	 *
-	 * Reads the private `_`-prefixed scaffolding keys carried by
-	 * buildChangeRow() (enumerated in SCAFFOLDING_KEYS) and strips them in
-	 * one loop before the report is returned, so a new scaffolding key
-	 * cannot leak into the shipped JSON. Retired rows take an early return:
-	 * only the retired counters apply to them, which removes the repeated
+	 * Reads the counters structure built alongside the row; the published
+	 * row is never mutated. Retired rows take an early return: only the
+	 * retired counters apply to them, which removes the repeated
 	 * `! $is_retired` guard on every live-catalog counter.
 	 *
 	 * @since 0.1.6
 	 *
 	 * @param array<string, int>   $summary Summary counters (updated in place).
-	 * @param array<string, mixed> $row Change row (scaffolding keys removed in place).
+	 * @param array<string, mixed> $row Public change row (read-only).
+	 * @param array<string, mixed> $counters Fold inputs from buildChangeRow().
 	 * @return void
 	 */
-	private function summarizeResult( array &$summary, array &$row ): void {
-		$is_retired    = (bool) ( $row['_is_retired'] ?? false );
-		$free_name     = (bool) ( $row['_free_name'] ?? false );
-		$free_explicit = (bool) ( $row['_free_explicit'] ?? false );
-		$unsupported   = (bool) ( $row['_unsupported'] ?? false );
-		$status        = (string) ( $row['_status'] ?? '' );
-		$states        = is_array( $row['_states'] ?? null ) ? $row['_states'] : array();
-		foreach ( self::SCAFFOLDING_KEYS as $scaffolding_key ) {
-			unset( $row[ $scaffolding_key ] );
-		}
+	private function summarizeResult( array &$summary, array $row, array $counters ): void {
+		$is_retired    = (bool) ( $counters['is_retired'] ?? false );
+		$free_name     = (bool) ( $counters['free_name'] ?? false );
+		$free_explicit = (bool) ( $counters['free_explicit'] ?? false );
+		$unsupported   = (bool) ( $counters['unsupported'] ?? false );
+		$status        = (string) ( $row['status'] ?? '' );
+		$states        = is_array( $row['states'] ?? null ) ? $row['states'] : array();
 
 		if ( $is_retired ) {
 			++$summary['retired'];
