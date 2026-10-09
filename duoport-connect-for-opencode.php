@@ -1,11 +1,13 @@
 <?php
 /**
  * Plugin Name:       DuoPort Connector for OpenCode
+ * Plugin URI:        https://wordpress.org/plugins/duoport-connect-for-opencode/
  * Description:       Connect OpenCode Go and Zen (including free models) to WordPress 7.0 AI.
  * Requires at least: 7.0
  * Requires PHP:      8.2
  * Version:           0.1.9
  * Author:            Nilesh Kanzariya
+ * Author URI:        https://github.com/nilesh32236
  * License:           GPL-2.0-or-later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain:       duoport-connect-for-opencode
