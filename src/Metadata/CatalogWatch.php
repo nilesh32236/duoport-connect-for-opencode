@@ -141,7 +141,7 @@ final class CatalogWatch {
 				$states[] = 'allowlisted';
 				$status   = 'allowlisted';
 				$record   = $baseline[ $key ];
-				if ( 'needs-adapter' === ( $record['verification_status'] ?? '' ) ) {
+				if ( ModelRegistry::needsVerification( $record ) ) {
 					$states[] = 'verification_required';
 					$status   = 'verification_required';
 				}

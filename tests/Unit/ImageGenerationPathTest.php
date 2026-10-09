@@ -289,7 +289,7 @@ namespace OpenCodeConnector\Tests\Unit {
 			Functions\when( 'get_option' )->justReturn( array( 'show_all_models' => false ) );
 
 			$rows = array(
-				array( 'id' => 'glm-5' ),
+				array( 'id' => 'glm-5.3' ),
 				array( 'id' => 'deepseek-v4-flash-free' ),
 				array( 'id' => 'no-such-model' ),
 				array( 'id' => '' ),
@@ -308,7 +308,7 @@ namespace OpenCodeConnector\Tests\Unit {
 
 			$go_list = $this->parse_rows( new OpenCodeGoModelMetadataDirectory(), $rows );
 			$go_ids  = array_map( static fn( ModelMetadata $m ): string => $m->getId(), $go_list );
-			self::assertContains( 'glm-5', $go_ids );
+			self::assertContains( 'glm-5.3', $go_ids );
 			self::assertNotContains( 'no-such-model', $go_ids );
 		}
 

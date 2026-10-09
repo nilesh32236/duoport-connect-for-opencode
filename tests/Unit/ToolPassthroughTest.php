@@ -86,7 +86,7 @@ final class ToolPassthroughTest extends MonkeyTestCase {
 	 * Tool-capable models map declarations to the tools wire shape.
 	 */
 	public function test_tool_capable_model_passes_through(): void {
-		$model = new ToolPassthroughTestModel( 'glm-5', 'go' );
+		$model = new ToolPassthroughTestModel( 'glm-5.3', 'go' );
 		$decls = array(
 			new ToolPassthroughFakeDeclaration(
 				array(
@@ -127,8 +127,8 @@ final class ToolPassthroughTest extends MonkeyTestCase {
 		self::assertSame( array(), ( new ToolPassthroughTestModel( 'no-such-model', 'go' ) )->expose_prepare_tools( $decls ) );
 		self::assertSame( array(), ( new ToolPassthroughTestModel( '', 'go' ) )->expose_prepare_tools( $decls ) );
 		self::assertSame( array(), ( new ToolPassthroughTestModel( 'gpt-4', 'zen' ) )->expose_prepare_tools( $decls ) );
-		foreach ( array( 'minimax-m3', 'minimax-m2.7', 'minimax-m2.5' ) as $id ) {
-			self::assertSame( array(), ( new ToolPassthroughTestModel( $id, 'zen' ) )->expose_prepare_tools( $decls ) );
+		foreach ( array( 'glm-5.1', 'kimi-k2.5' ) as $id ) {
+			self::assertSame( array(), ( new ToolPassthroughTestModel( $id, 'go' ) )->expose_prepare_tools( $decls ) );
 		}
 	}
 
@@ -146,7 +146,7 @@ final class ToolPassthroughTest extends MonkeyTestCase {
 	 * Unmappable items are skipped, never fatal.
 	 */
 	public function test_unmappable_declarations_are_skipped(): void {
-		$model = new ToolPassthroughTestModel( 'glm-5', 'go' );
+		$model = new ToolPassthroughTestModel( 'glm-5.3', 'go' );
 		$decls = array(
 			new ToolPassthroughFakeDeclaration( array( 'name' => 'ok' ) ),
 			'not-an-object',
@@ -164,7 +164,7 @@ final class ToolPassthroughTest extends MonkeyTestCase {
 	 * Empty declarations stay empty (plain-text completion).
 	 */
 	public function test_empty_declarations_return_empty(): void {
-		$model = new ToolPassthroughTestModel( 'glm-5', 'go' );
+		$model = new ToolPassthroughTestModel( 'glm-5.3', 'go' );
 
 		self::assertSame( array(), $model->expose_prepare_tools( array() ) );
 	}

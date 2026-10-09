@@ -105,15 +105,15 @@ namespace OpenCodeConnector\Tests\Unit {
 			Functions\when( 'get_option' )->justReturn( array( 'show_all_models' => false ) );
 
 			$rows = array(
-				array( 'id' => array( 'glm-5' ) ),
-				array( 'id' => 'glm-5' ),
+				array( 'id' => array( 'kimi-k3' ) ),
+				array( 'id' => 'kimi-k3' ),
 			);
 
 			foreach ( array( new OpenCodeGoModelMetadataDirectory(), new OpenCodeZenModelMetadataDirectory() ) as $directory ) {
 				$ids = self::ids( $this->parse_rows( $directory, $rows ) );
 
 				self::assertSame(
-					array( 'glm-5' ),
+					array( 'kimi-k3' ),
 					$ids,
 					'A non-scalar id must be treated like an absent one: the malformed row is filtered and the valid row survives.'
 				);

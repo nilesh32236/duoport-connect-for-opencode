@@ -56,7 +56,7 @@ final class ClientUserAgent {
 	 *
 	 * @since 0.1.5
 	 */
-	const FALLBACK_VERSION = '0.1.8';
+	const FALLBACK_VERSION = '0.1.9';
 
 	/**
 	 * Build the client User-Agent value.

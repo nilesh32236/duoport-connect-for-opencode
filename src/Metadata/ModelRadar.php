@@ -367,7 +367,7 @@ final class ModelRadar {
 		$states         = is_array( $result['states'] ?? null ) ? $result['states'] : array();
 		$record         = ModelRegistry::record( $id, $catalog );
 		$supported      = $this->is_supported( $record );
-		$free_reviewed  = null !== $record && ModelAllowlist::isFree( $id );
+		$free_reviewed  = null !== $record && ModelAllowlist::isFree( $id, $catalog );
 		$free_name      = $this->looks_free_name( $id );
 		$free_explicit  = isset( $explicit_free[ $id ] );
 		$free_candidate = $free_name || $free_explicit;

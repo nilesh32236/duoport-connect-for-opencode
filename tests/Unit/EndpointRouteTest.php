@@ -23,16 +23,32 @@ final class EndpointRouteTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Model-level unimplemented Zen routes are denied before transport.
+	 * Zen MiniMax models resolve their reviewed chat path.
+	 */
+	public function test_zen_minimax_resolves_chat_path(): void {
+		foreach ( array( 'minimax-m3', 'minimax-m2.7', 'minimax-m2.5' ) as $id ) {
+			self::assertSame( 'chat', EndpointRoute::endpointKindForModel( $id, 'zen' ) );
+			self::assertSame( 'chat/completions', EndpointRoute::pathForModel( $id, 'zen' ) );
+		}
+	}
+
+	/**
+	 * Verification-required model routes are denied before transport.
 	 */
 	public function test_unimplemented_model_routes_are_denied(): void {
-		foreach ( array( 'minimax-m3', 'minimax-m2.7', 'minimax-m2.5' ) as $id ) {
+		foreach ( array( 'glm-5.1', 'glm-5', 'kimi-k2.5', 'mimo-v2-pro', 'mimo-v2-omni', 'hy3-preview' ) as $id ) {
 			try {
-				EndpointRoute::pathForModel( $id, 'zen' );
+				EndpointRoute::pathForModel( $id, 'go' );
 				self::fail( 'Expected an unsupported model route exception.' );
 			} catch ( UnsupportedEndpointFamilyException ) {
 				self::assertTrue( true );
 			}
+		}
+		try {
+			EndpointRoute::pathForModel( 'deepseek-v4-flash-free', 'zen' );
+			self::fail( 'Expected an unsupported model route exception.' );
+		} catch ( UnsupportedEndpointFamilyException ) {
+			self::assertTrue( true );
 		}
 	}
 
@@ -68,7 +84,7 @@ final class EndpointRouteTest extends MonkeyTestCase {
 	 */
 	public function test_registry_sentinel_is_not_echoed_back(): void {
 		try {
-			EndpointRoute::pathForModel( 'minimax-m3', 'zen' );
+			EndpointRoute::pathForModel( 'glm-5.1', 'go' );
 			self::fail( 'Expected an unsupported model route exception.' );
 		} catch ( UnsupportedEndpointFamilyException $exception ) {
 			self::assertStringNotContainsString(

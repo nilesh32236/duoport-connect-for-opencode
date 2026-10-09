@@ -136,32 +136,44 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
-		 * Curated free and unsupported IDs stay inside the allowlist.
+		 * Curated free and pending-verification IDs stay inside the allowlist.
 		 *
-		 * FREE and UNSUPPORTED_ZEN_MODELS are maintained separately from
-		 * ALLOW, so a model added to one but not the other silently flips
-		 * isFree()/isToolCapable() or the endpoint gate with no failure.
+		 * FREE and PENDING_ENDPOINT_VERIFICATION are maintained separately
+		 * from ALLOW, so a model added to one but not the other silently
+		 * flips isFree()/isToolCapable() or the endpoint gate with no failure.
 		 */
 		public function test_curated_free_and_unsupported_ids_stay_allowlisted(): void {
 			$free = self::private_const( ModelAllowlist::class, 'FREE' );
 			self::assertIsArray( $free );
-			self::assertNotSame( array(), $free, 'The free set must not silently empty out.' );
-			foreach ( $free as $id ) {
-				self::assertTrue(
-					ModelAllowlist::isAllowed( (string) $id, Catalog::ZEN ),
-					"Free model '{$id}' must stay allowlisted or isFree() disagrees with the catalog."
-				);
+			self::assertNotSame( array(), $free[ Catalog::ZEN ], 'The Zen free set must not silently empty out.' );
+			self::assertSame( array(), $free[ Catalog::GO ], 'The Go free set is reviewed empty.' );
+			foreach ( $free as $catalog => $ids ) {
+				self::assertIsArray( $ids );
+				foreach ( $ids as $id ) {
+					self::assertTrue(
+						ModelAllowlist::isAllowed( (string) $id, (string) $catalog ),
+						"Free model '{$id}' must stay allowlisted in '{$catalog}' or isFree() disagrees with the catalog."
+					);
+					self::assertTrue(
+						ModelAllowlist::isFree( (string) $id, (string) $catalog ),
+						"Free model '{$id}' must read as free in '{$catalog}'."
+					);
+				}
 			}
-			$unsupported = self::private_const( ModelRegistry::class, 'UNSUPPORTED_ZEN_MODELS' );
-			self::assertIsArray( $unsupported );
-			foreach ( $unsupported as $id ) {
-				self::assertTrue(
-					ModelAllowlist::isAllowed( (string) $id, Catalog::ZEN ),
-					"Unsupported model '{$id}' must stay allowlisted or record() cannot mark it unsupported."
-				);
-				$record = ModelRegistry::record( (string) $id, Catalog::ZEN );
-				self::assertIsArray( $record );
-				self::assertSame( ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED, $record['endpoint_family'] );
+			$pending = self::private_const( ModelRegistry::class, 'PENDING_ENDPOINT_VERIFICATION' );
+			self::assertIsArray( $pending );
+			foreach ( $pending as $catalog => $ids ) {
+				self::assertIsArray( $ids );
+				foreach ( $ids as $id ) {
+					self::assertTrue(
+						ModelAllowlist::isAllowed( (string) $id, (string) $catalog ),
+						"Pending model '{$id}' must stay allowlisted in '{$catalog}' or record() cannot mark it verification-required."
+					);
+					$record = ModelRegistry::record( (string) $id, (string) $catalog );
+					self::assertIsArray( $record );
+					self::assertSame( ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED, $record['endpoint_family'] );
+					self::assertSame( ModelRegistry::VERIFICATION_REQUIRED_STATUS, $record['verification_status'] );
+				}
 			}
 		}
 
@@ -180,6 +192,10 @@ namespace OpenCodeConnector\Tests\Unit {
 				);
 			}
 			self::assertFalse( ModelRegistry::isVerified( array( 'verification_status' => 'needs-adapter' ) ) );
+			self::assertFalse( ModelRegistry::isVerified( array( 'verification_status' => ModelRegistry::VERIFICATION_REQUIRED_STATUS ) ) );
+			self::assertTrue( ModelRegistry::needsVerification( array( 'verification_status' => ModelRegistry::VERIFICATION_REQUIRED_STATUS ) ) );
+			self::assertTrue( ModelRegistry::needsVerification( array( 'verification_status' => 'needs-adapter' ) ) );
+			self::assertFalse( ModelRegistry::needsVerification( array( 'verification_status' => 'legacy-verified' ) ) );
 			self::assertFalse( ModelRegistry::isVerified( array( 'verification_status' => 'bogus' ) ) );
 			self::assertFalse( ModelRegistry::isVerified( array() ) );
 		}

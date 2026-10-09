@@ -11,8 +11,6 @@ declare(strict_types=1);
 if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }
-delete_option( 'opencode_connector_settings' );
-delete_site_option( 'opencode_connector_settings' );
 // Plugin-owned transients: availability results, stampede locks, the
 // last-known-good flags, and the opt-in verification verdicts. The single
 // source of truth is OpenCodeConnector\Metadata\Catalog::allTransientKeys()
@@ -39,22 +37,111 @@ if ( defined( 'ABSPATH' ) ) {
 		$opencode_connector_avail_keys = OpenCodeConnector\Metadata\Catalog::allTransientKeys();
 	}
 }
-foreach ( $opencode_connector_avail_keys as $opencode_connector_avail_key ) {
-	delete_transient( $opencode_connector_avail_key );
-	delete_site_transient( $opencode_connector_avail_key );
+// Credential-blind by design: every branch below only DELETES the settings
+// row, the plugin transients, and the AI Client model caches. No option
+// value (in particular no connectors_ai_* secret) is ever read.
+if ( function_exists( 'is_multisite' ) && is_multisite() && function_exists( 'get_sites' ) ) {
+	// Network uninstall: the settings row and the transients are per-site,
+	// so every subsite is swept with offset pagination (100 per batch) until
+	// an empty/short batch ends the sweep, so networks of any size are fully
+	// covered without loading every site ID up front.
+	$opencode_connector_site_offset = 0;
+	$opencode_connector_site_batch  = 100;
+	while ( true ) {
+		$opencode_connector_site_ids = array();
+		try {
+			$opencode_connector_site_ids = get_sites(
+				array(
+					'fields' => 'ids',
+					'number' => $opencode_connector_site_batch,
+					'offset' => $opencode_connector_site_offset,
+				)
+			);
+		} catch ( \Throwable $opencode_connector_sites_exception ) {
+			unset( $opencode_connector_sites_exception );
+			break;
+		}
+		if ( ! is_array( $opencode_connector_site_ids ) || array() === $opencode_connector_site_ids ) {
+			break;
+		}
+		foreach ( $opencode_connector_site_ids as $opencode_connector_site_id ) {
+			switch_to_blog( (int) $opencode_connector_site_id );
+			try {
+				try {
+					delete_option( 'opencode_connector_settings' );
+					foreach ( $opencode_connector_avail_keys as $opencode_connector_avail_key ) {
+						delete_transient( $opencode_connector_avail_key );
+					}
+					unset( $opencode_connector_avail_key );
+					opencode_connector_delete_ai_client_caches();
+				} catch ( \Throwable $opencode_connector_site_exception ) {
+					unset( $opencode_connector_site_exception );
+				}
+			} finally {
+				restore_current_blog();
+			}
+		}
+		unset( $opencode_connector_site_id );
+		$opencode_connector_fetched_count = count( $opencode_connector_site_ids );
+		$opencode_connector_site_offset  += $opencode_connector_fetched_count;
+		unset( $opencode_connector_site_ids );
+		if ( $opencode_connector_fetched_count < $opencode_connector_site_batch ) {
+			break;
+		}
+	}
+	unset( $opencode_connector_site_offset, $opencode_connector_site_batch, $opencode_connector_fetched_count );
+	delete_site_option( 'opencode_connector_settings' );
+	foreach ( $opencode_connector_avail_keys as $opencode_connector_avail_key ) {
+		delete_site_transient( $opencode_connector_avail_key );
+	}
+	unset( $opencode_connector_avail_key );
+	opencode_connector_delete_ai_client_site_caches();
+} else {
+	delete_option( 'opencode_connector_settings' );
+	delete_site_option( 'opencode_connector_settings' );
+	foreach ( $opencode_connector_avail_keys as $opencode_connector_avail_key ) {
+		delete_transient( $opencode_connector_avail_key );
+		delete_site_transient( $opencode_connector_avail_key );
+	}
+	unset( $opencode_connector_avail_key );
+	opencode_connector_delete_ai_client_caches();
+	opencode_connector_delete_ai_client_site_caches();
 }
-unset( $opencode_connector_avail_keys, $opencode_connector_avail_key, $opencode_connector_autoload );
-// AI Client model caches (ai_client_<VERSION>_<md5>_models) — best-effort cleanup
-// for both single-site transients and multisite site-transients + direct DB fallback.
-global $wpdb;
-if ( isset( $wpdb ) ) {
-	$like = $wpdb->esc_like( 'ai_client_' ) . '%_models';
+unset( $opencode_connector_avail_keys, $opencode_connector_autoload );
+
+/**
+ * Delete AI Client model caches (ai_client_<VERSION>_<md5>_models) for the current site.
+ *
+ * Best-effort cleanup via direct DB fallback. Must run inside the per-site
+ * loop on multisite so $wpdb->options points at each site's table.
+ *
+ * @since 0.1.9
+ *
+ * @return void
+ */
+function opencode_connector_delete_ai_client_caches(): void {
+	global $wpdb;
+	if ( ! isset( $wpdb ) ) {
+		return;
+	}
 	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Uninstall cleanup.
 	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s", $wpdb->esc_like( '_transient_ai_client_' ) . '%_models', $wpdb->esc_like( '_transient_timeout_ai_client_' ) . '%_models' ) );
-	// Also clear raw LIKE for non-prefixed fallback (defensive).
-	unset( $like );
-	if ( is_multisite() ) {
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->sitemeta} WHERE meta_key LIKE %s OR meta_key LIKE %s", $wpdb->esc_like( '_site_transient_ai_client_' ) . '%_models', $wpdb->esc_like( '_site_transient_timeout_ai_client_' ) . '%_models' ) );
+}
+
+/**
+ * Delete AI Client model caches stored as site-transients.
+ *
+ * Runs once: site-transients live in sitemeta regardless of the current blog.
+ *
+ * @since 0.1.9
+ *
+ * @return void
+ */
+function opencode_connector_delete_ai_client_site_caches(): void {
+	global $wpdb;
+	if ( ! isset( $wpdb ) || ! function_exists( 'is_multisite' ) || ! is_multisite() ) {
+		return;
 	}
+	// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Uninstall cleanup.
+	$wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->sitemeta} WHERE meta_key LIKE %s OR meta_key LIKE %s", $wpdb->esc_like( '_site_transient_ai_client_' ) . '%_models', $wpdb->esc_like( '_site_transient_timeout_ai_client_' ) . '%_models' ) );
 }

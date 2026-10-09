@@ -20,7 +20,7 @@ The machine-readable snapshot is [model-radar-snapshot.json](<model-radar-snapsh
 - <https://opencode.ai/zen/go/v1/models>
 - <https://opencode.ai/zen/v1/models>
 
-The current Zen MiniMax records are intentionally reported as unsupported/needs-adapter: official documentation identifies a chat endpoint, while the reviewed adapter has not yet completed the full contract verification. The current docs also expose Responses and Messages families; those remain future transport work, not automatic chat fallbacks.
+The Zen MiniMax records (minimax-m3, minimax-m2.7, minimax-m2.5) are routed as chat/completions, matching OpenCode's published Zen endpoint table. Six Go IDs (glm-5.1, glm-5, kimi-k2.5, mimo-v2-pro, mimo-v2-omni, hy3-preview) and the Zen deepseek-v4-flash-free record are reported as unsupported/verification-required: they exist in the live /models catalog but are absent from the published endpoint/pricing tables, so their family is unverified until a chat/completions probe passes. The current docs also expose Responses and Messages families; those remain future transport work, not automatic chat fallbacks.
 
 ## Free-model fast lane
 

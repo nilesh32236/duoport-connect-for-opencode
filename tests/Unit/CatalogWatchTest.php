@@ -143,7 +143,7 @@ final class CatalogWatchTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Unknown capability keys and needs-adapter records require verification.
+	 * Unknown capability keys and verification-required records require verification.
 	 */
 	public function test_unknown_capability_and_unverified_record_require_verification(): void {
 		$watch = new CatalogWatch();
@@ -151,10 +151,10 @@ final class CatalogWatchTest extends MonkeyTestCase {
 			'go',
 			array( array( 'id' => 'glm-5.3', 'capabilities' => array( 'embeddings' => true ) ) )
 		);
-		$unverified = $watch->compare( 'zen', array( array( 'id' => 'minimax-m3' ) ) );
+		$unverified = $watch->compare( 'zen', array( array( 'id' => 'deepseek-v4-flash-free' ) ) );
 
 		$changed = array_values( array_filter( $drift, static fn( array $row ): bool => 'glm-5.3' === $row['id'] ) )[0];
-		$adapter = array_values( array_filter( $unverified, static fn( array $row ): bool => 'minimax-m3' === $row['id'] ) )[0];
+		$adapter = array_values( array_filter( $unverified, static fn( array $row ): bool => 'deepseek-v4-flash-free' === $row['id'] ) )[0];
 		self::assertSame( 'verification_required', $changed['status'] );
 		self::assertContains( 'capability_changed', $changed['states'] );
 		self::assertSame( 'verification_required', $adapter['status'] );

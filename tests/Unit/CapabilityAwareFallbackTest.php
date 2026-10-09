@@ -142,7 +142,7 @@ final class CapabilityAwareFallbackTest extends MonkeyTestCase {
 	 */
 	public function test_unsupported_or_unknown_primary_is_denied(): void {
 		$fallback    = new CapabilityAwareFallback();
-		$unsupported = $fallback->select( 'zen', 'minimax-m3', 'text', array( 'glm-5.2' ) );
+		$unsupported = $fallback->select( 'go', 'glm-5.1', 'text', array( 'glm-5.3' ) );
 		$unknown     = $fallback->select( 'go', 'not-a-model', 'text', array( 'glm-5.3' ) );
 
 		self::assertNull( $unsupported['selected'] );
