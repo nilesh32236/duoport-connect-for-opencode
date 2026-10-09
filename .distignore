@@ -13,6 +13,9 @@ package-lock.json
 composer.json
 composer.lock
 .gitignore
+.gitattributes
+TASK.md
+README-dev.md
 .editorconfig
 .nvmrc
 phpcs.xml

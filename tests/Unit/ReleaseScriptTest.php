@@ -41,7 +41,7 @@ final class ReleaseScriptTest extends MonkeyTestCase {
 		self::assertStringContainsString( 'Version:           0.1.9', $main );
 		self::assertStringContainsString( "const VERSION     = '0.1.9';", $main );
 		self::assertStringContainsString( 'Stable tag: 0.1.9', $readme );
-		self::assertStringContainsString( 'Tested up to: 7.1.2', $readme );
+		self::assertStringContainsString( 'Tested up to: 7.1.3', $readme );
 		$changelog_heading = '== Changelog ==';
 		$notice_heading    = '== Upgrade Notice ==';
 		$changelog_at      = strpos( $readme, $changelog_heading );
