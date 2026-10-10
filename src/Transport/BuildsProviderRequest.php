@@ -49,6 +49,22 @@ trait BuildsProviderRequest {
 	 * @return Request
 	 */
 	protected function buildProviderRequest( string $provider_class, HttpMethodEnum $method, string $path, array $headers = array(), $data = null ): Request {
+		return $this->buildFromSpec( new RequestSpec( $provider_class, $method, $path, $headers, $data ) );
+	}
+
+	/**
+	 * Build a request from a RequestSpec value object.
+	 *
+	 * Single construction site all three callers (text model, image model,
+	 * metadata directory) share: extending the spec extends every caller
+	 * without a synchronized 3-file signature edit.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param RequestSpec $spec Request specification.
+	 * @return Request
+	 */
+	protected function buildFromSpec( RequestSpec $spec ): Request {
 		$options = array();
 		if ( method_exists( $this, 'getRequestOptions' ) ) {
 			try {
@@ -61,7 +77,7 @@ trait BuildsProviderRequest {
 				$options = $resolved;
 			}
 		}
-		return new Request( $method, $provider_class::url( $path ), $headers, $data, $options );
+		return new Request( $spec->method, $spec->provider_class::url( $spec->path ), $spec->headers, $spec->data, $options );
 	}
 
 	/**

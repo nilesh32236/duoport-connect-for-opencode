@@ -321,15 +321,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * @return string
 	 */
 	private function model_id_for_tool_gate(): string {
-		try {
-			$via_accessors = $this->resolveViaAccessors();
-			if ( '' !== $via_accessors ) {
-				return $via_accessors;
-			}
-			return $this->resolveViaReflection();
-		} catch ( \Throwable ) {
-			return '';
-		}
+		return ModelIdentityResolver::modelIdForToolGate( $this );
 	}
 
 	/**
@@ -340,28 +332,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * @return string Empty string when unresolvable. Never throws.
 	 */
 	private function resolveViaAccessors(): string {
-		foreach ( array( 'metadata', 'getModelMetadata', 'getMetadata', 'getModel', 'model' ) as $accessor ) {
-			if ( ! method_exists( $this, $accessor ) ) {
-				continue;
-			}
-			try {
-				$metadata = $this->{$accessor}();
-			} catch ( \Throwable ) {
-				continue;
-			}
-			if ( ! is_object( $metadata ) || ! method_exists( $metadata, 'getId' ) ) {
-				continue;
-			}
-			try {
-				$id = (string) $metadata->getId();
-			} catch ( \Throwable ) {
-				continue;
-			}
-			if ( '' !== $id ) {
-				return $id;
-			}
-		}
-		return '';
+		return ModelIdentityResolver::resolveViaAccessors( $this );
 	}
 
 	/**
@@ -379,29 +350,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * @return string Empty string when unresolvable.
 	 */
 	private function resolveViaReflection(): string {
-		try {
-			$reflection = new \ReflectionObject( $this );
-			foreach ( $reflection->getProperties() as $prop ) {
-				try {
-					$candidate = $prop->getValue( $this );
-				} catch ( \Throwable ) {
-					continue;
-				}
-				if ( is_object( $candidate ) && method_exists( $candidate, 'getId' ) ) {
-					try {
-						$id = (string) $candidate->getId();
-					} catch ( \Throwable ) {
-						continue;
-					}
-					if ( '' !== $id ) {
-						return $id;
-					}
-				}
-			}
-		} catch ( \Throwable ) {
-			return '';
-		}
-		return '';
+		return ModelIdentityResolver::resolveViaReflection( $this );
 	}
 
 	/**
@@ -426,11 +375,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			if ( ! is_string( $cls ) || '' === $cls ) {
 				return '';
 			}
-			foreach ( Catalog::ALL as $slug ) {
-				if ( Catalog::providerClassFor( $slug ) === $cls ) {
-					return $slug;
-				}
-			}
+			return ModelIdentityResolver::catalogKeyForToolGate( $cls );
 		} catch ( \Throwable ) {
 			return '';
 		}

@@ -292,7 +292,23 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	 * @return ProviderAvailabilityInterface
 	 */
 	protected static function createProviderAvailability(): ProviderAvailabilityInterface {
-		return new OpenCodeProviderAvailability( static::catalogKey() );
+		return static::newAvailability( static::catalogKey() );
+	}
+
+	/**
+	 * Create the availability probe for a catalog (test seam).
+	 *
+	 * Protected static factory mirroring the fallbackSelector() seam in the
+	 * text model: tests override it in a test-only subclass to substitute
+	 * availability behavior without hitting the network/transient layer.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $catalog Catalog slug.
+	 * @return ProviderAvailabilityInterface
+	 */
+	protected static function newAvailability( string $catalog ): ProviderAvailabilityInterface {
+		return new OpenCodeProviderAvailability( $catalog );
 	}
 
 	/**

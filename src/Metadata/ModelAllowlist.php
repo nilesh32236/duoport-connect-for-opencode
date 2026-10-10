@@ -215,6 +215,24 @@ final class ModelAllowlist {
 	}
 
 	/**
+	 * Whether a model can be trusted with strict JSON schema output.
+	 *
+	 * Single home for the DeepSeek exclusion the tool-capability gate and
+	 * the metadata outputSchema gate each derived inline via the same
+	 * prefix: DeepSeek models already return malformed strict JSON, so
+	 * neither tool-call arguments nor structured output can be trusted.
+	 * A change to the exclusion set lands here once.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string $id Model ID.
+	 * @return bool False for excluded families, true otherwise.
+	 */
+	public static function isStrictSchemaCapable( string $id ): bool {
+		return ! str_starts_with( $id, 'deepseek' );
+	}
+
+	/**
 	 * Whether a model may advertise function-calling (tools) support.
 	 *
 	 * Capability gate keeping spend and injection surface bounded: the model
@@ -238,7 +256,7 @@ final class ModelAllowlist {
 		if ( self::isFree( $id, $catalog ) ) {
 			return false;
 		}
-		if ( str_starts_with( $id, 'deepseek' ) ) {
+		if ( ! self::isStrictSchemaCapable( $id ) ) {
 			return false;
 		}
 		return true;

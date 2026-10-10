@@ -117,11 +117,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Guarded jitter source for probe cache windows.
 	 *
-	 * `wp_rand()` is pluggable and therefore both absent and throwing are
-	 * real: a throwing rand must cost the jitter, never the probe. Every
-	 * call site in this class consults the jitter through here so a new
-	 * window cannot reintroduce an unguarded `wp_rand()` by copying the
-	 * older `function_exists`-only shape.
+	 * Delegates to TransientCache so the jitter policy has one home.
 	 *
 	 * @since 0.1.10
 	 *
@@ -130,15 +126,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return int Drawn spread, or 0 when `wp_rand()` is unavailable or throws.
 	 */
 	private static function rand_spread( int $min, int $max ): int {
-		if ( ! function_exists( 'wp_rand' ) ) {
-			return 0;
-		}
-		try {
-			return wp_rand( $min, $max );
-		} catch ( \Throwable $rand_exception ) {
-			unset( $rand_exception );
-			return 0;
-		}
+		return TransientCache::randSpread( $min, $max );
 	}
 
 	/**
@@ -177,24 +165,38 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Per-instance memo of the last-known-good flag.
 	 *
-	 * `isConfigured()` reads the flag on every could-not-be-checked verdict,
-	 * so without this each call costs a transient read on top of the verdict
-	 * read. The memo is per-instance only: a new instance re-reads, so there
-	 * is no cross-request staleness, and `writeLastGood()` updates it on every
-	 * path (including the delete path) so a write followed by a read in the
-	 * same request never goes back to storage.
-	 *
-	 * Same-instance external deletes are not observed: a transient deleted
-	 * out from under this instance (for example a key-rotation bust hook
-	 * running later in the same request) still reads from the memo until the
-	 * instance is discarded. Short-lived by construction — prefer a fresh
-	 * instance for any post-save check that runs across such a boundary.
+	 * Retained for backward compatibility; the canonical memo lives in
+	 * LastGoodStore. `writeLastGood()` keeps both in step so a write
+	 * followed by a read in the same request never goes back to storage.
 	 *
 	 * @since 0.1.10
 	 *
 	 * @var bool|null
 	 */
 	private ?bool $last_good_memo = null;
+
+	/**
+	 * Flag store for this catalog (lazy).
+	 *
+	 * @since 0.1.8
+	 *
+	 * @var LastGoodStore|null
+	 */
+	private ?LastGoodStore $last_good_store = null;
+
+	/**
+	 * Flag store for this catalog.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @return LastGoodStore
+	 */
+	private function lastGoodStore(): LastGoodStore {
+		if ( null === $this->last_good_store ) {
+			$this->last_good_store = new LastGoodStore( $this->catalog );
+		}
+		return $this->last_good_store;
+	}
 
 	/**
 	 * Whether the provider is configured, preserving the legacy boolean contract.
@@ -588,7 +590,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return int Jittered TTL in seconds.
 	 */
 	private function jitteredTtl( int $base ): int {
-		return max( 60, $base + self::rand_spread( -60, 60 ) );
+		return TransientCache::jitteredTtl( $base );
 	}
 
 	/**
@@ -615,8 +617,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return int Jittered short window in seconds.
 	 */
 	private function jitteredShortTtl(): int {
-		$second = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
-		return max( 30, $second + self::rand_spread( -15, 15 ) );
+		return TransientCache::jitteredShortTtl();
 	}
 
 	/**
@@ -720,22 +721,9 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 
 		$diagnostics = $this->diagnostics();
-		try {
-			$this->getRequestAuthentication();
-		} catch ( \Throwable $exception ) {
-			// Credential resolution failed, which is NOT the same as the
-			// credential being absent — see is_missing_credential_throwable().
-			// Only the proven-absent case is allowed to report not-configured,
-			// and only it may clear the 30-day last-known-good flag. Everything
-			// else is an infrastructure fault that proves nothing about the key,
-			// so it degrades to could-not-be-checked and leaves the flag alone.
-			if ( ! self::is_missing_credential_throwable( $exception ) ) {
-				$this->last_result = $diagnostics->uncheckable();
-				return $this->last_result;
-			}
-			$this->last_result = $diagnostics->notConfigured();
-			$this->writeLastGood( false );
-			return $this->last_result;
+		$credential  = $this->resolveCredentialOrUncheckable( $diagnostics );
+		if ( null !== $credential ) {
+			return $credential;
 		}
 
 		// Set lock before network I/O (10s).
@@ -749,11 +737,57 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			$this->writeLastGood( false );
 			return $this->last_result;
 		}
-		// Probe models are chosen to discriminate AUTHENTICATION, not model
-		// availability: paid models answer 401 CreditsError for a valid but
-		// empty-balance key (configured) versus other 401s for a bad key.
-		// Probing a free model instead would fail closed whenever that model
-		// is transiently unavailable upstream (observed live).
+		$this->last_result = $this->sendAvailabilityProbe( $cls, $diagnostics );
+		$this->deleteCached( $lock_key );
+		$state = isset( $this->last_result['state'] ) && is_string( $this->last_result['state'] ) ? $this->last_result['state'] : '';
+		$this->persistProbeResult( $tkey, $state );
+		return $this->last_result;
+	}
+
+	/**
+	 * Resolve the request credential, or return an early verdict.
+	 *
+	 * Returns null when the credential resolved and the caller should
+	 * proceed to probe. A proven-absent credential reports not-configured
+	 * (and clears last-known-good); any other resolution fault degrades to
+	 * could-not-be-checked and leaves the flag alone. Never throws.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param ConnectionDiagnostics $diagnostics Diagnostics helper.
+	 * @return array<string, mixed>|null Early verdict, or null to proceed.
+	 */
+	private function resolveCredentialOrUncheckable( ConnectionDiagnostics $diagnostics ): ?array {
+		try {
+			$this->getRequestAuthentication();
+		} catch ( \Throwable $exception ) {
+			if ( ! self::is_missing_credential_throwable( $exception ) ) {
+				$this->last_result = $diagnostics->uncheckable();
+				return $this->last_result;
+			}
+			$this->last_result = $diagnostics->notConfigured();
+			$this->writeLastGood( false );
+			return $this->last_result;
+		}
+		return null;
+	}
+
+	/**
+	 * Send the availability HTTP round-trip and classify the outcome.
+	 *
+	 * Probe models are chosen to discriminate AUTHENTICATION, not model
+	 * availability: paid models answer 401 CreditsError for a valid but
+	 * empty-balance key (configured) versus other 401s for a bad key.
+	 * Never throws; transport and construction faults classify as
+	 * uncheckable so the stampede-lock release in probe() always runs.
+	 *
+	 * @since 0.1.8
+	 *
+	 * @param string                $cls         Provider class FQCN.
+	 * @param ConnectionDiagnostics $diagnostics Diagnostics helper.
+	 * @return array<string, mixed> Safe diagnosis.
+	 */
+	private function sendAvailabilityProbe( string $cls, ConnectionDiagnostics $diagnostics ): array {
 		$probe_model   = self::PROBE_MODEL;
 		$probe_data    = $this->probePayload();
 		$probe_headers = $this->probeHeaders( $probe_data );
@@ -762,28 +796,20 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			// on the provider class and HttpMethodEnum::POST() is a magic factory
 			// served by __callStatic, so a broken or half-installed SDK throws
 			// \Error or \BadMethodCallException here rather than returning a value
-			// that could be checked. Building the request outside the try left
-			// this as the one path in the class that fails neither open nor
-			// closed — it escaped isConfigured() as an uncaught throwable and
-			// skipped the stampede-lock release below, leaving every later
-			// caller locked out for the lock's full TTL.
-			$req               = new Request(
+			// that could be checked.
+			$req  = new Request(
 				HttpMethodEnum::POST(),
 				$cls::url( 'chat/completions' ),
 				$probe_headers,
 				$probe_data
 			);
-			$req               = $this->getRequestAuthentication()->authenticateRequest( $req );
-			$res               = $this->getHttpTransporter()->send( $req );
-			$data              = $res->getData();
-			$this->last_result = $diagnostics->classify( $res->getStatusCode(), is_array( $data ) ? $data : null, null, $probe_model );
+			$req  = $this->getRequestAuthentication()->authenticateRequest( $req );
+			$res  = $this->getHttpTransporter()->send( $req );
+			$data = $res->getData();
+			return $diagnostics->classify( $res->getStatusCode(), is_array( $data ) ? $data : null, null, $probe_model );
 		} catch ( \Throwable $exception ) {
-			$this->last_result = $diagnostics->classify( 0, null, $exception );
+			return $diagnostics->classify( 0, null, $exception );
 		}
-		$this->deleteCached( $lock_key );
-		$state = isset( $this->last_result['state'] ) && is_string( $this->last_result['state'] ) ? $this->last_result['state'] : '';
-		$this->persistProbeResult( $tkey, $state );
-		return $this->last_result;
 	}
 
 	/**
@@ -906,8 +932,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		if ( null !== $this->last_good_memo ) {
 			return $this->last_good_memo;
 		}
-		$value                = $this->getCached( Catalog::AVAIL_PREFIX . $this->catalog . Catalog::LAST_GOOD_SUFFIX );
-		$this->last_good_memo = $this->isFreshLastGood( $value );
+		$this->last_good_memo = $this->lastGoodStore()->read();
 		return $this->last_good_memo;
 	}
 
@@ -934,16 +959,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return bool True while the fallback may carry a could-not-be-checked verdict.
 	 */
 	private function isFreshLastGood( mixed $value ): bool {
-		if ( is_array( $value ) ) {
-			if ( empty( $value['v'] ) ) {
-				return false;
-			}
-			if ( isset( $value['ts'] ) && is_numeric( $value['ts'] ) ) {
-				return ( time() - (int) $value['ts'] ) <= self::LAST_GOOD_MAX_AGE;
-			}
-			return true;
-		}
-		return ! empty( $value );
+		return LastGoodStore::isFresh( $value );
 	}
 
 	/**
@@ -973,12 +989,15 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return void
 	 */
 	private function applyLastGood( string $state ): void {
+		$this->lastGoodStore()->apply( $state );
+		// Keep the legacy memo in step: apply() may arm or clear the store,
+		// and a stale local memo would otherwise disagree with it.
 		if ( ConnectionDiagnostics::isConfiguredState( $state ) ) {
-			$this->writeLastGood( true );
+			$this->last_good_memo = true;
 			return;
 		}
 		if ( ConnectionDiagnostics::isDefinitiveNegativeState( $state ) ) {
-			$this->writeLastGood( false );
+			$this->last_good_memo = false;
 		}
 	}
 
@@ -1048,24 +1067,8 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return void
 	 */
 	private function writeLastGood( bool $good ): void {
-		$key = Catalog::AVAIL_PREFIX . $this->catalog . Catalog::LAST_GOOD_SUFFIX;
-		if ( ! $good ) {
-			$this->last_good_memo = false;
-			$this->deleteCached( $key );
-			return;
-		}
-		// Rewritten unconditionally, and deliberately so: this is what pushes
-		// the TTL forward. See the docblock before changing it.
-		$this->last_good_memo = true;
-		$day                  = defined( 'DAY_IN_SECONDS' ) ? (int) DAY_IN_SECONDS : 86400;
-		$this->setCached(
-			$key,
-			array(
-				'v'  => '1',
-				'ts' => time(),
-			),
-			30 * $day
-		);
+		$this->lastGoodStore()->write( $good );
+		$this->last_good_memo = $good;
 	}
 
 	/**
@@ -1082,16 +1085,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return mixed
 	 */
 	private function getCached( string $key ): mixed {
-		if ( ! function_exists( 'get_transient' ) ) {
-			return false;
-		}
-		try {
-			return get_transient( $key );
-		} catch ( \Throwable $read_exception ) {
-			unset( $read_exception );
-			// Fail-open: an unreadable cache is a miss, never a fatal.
-			return false;
-		}
+		return TransientCache::get( $key );
 	}
 
 	/**
@@ -1111,16 +1105,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return bool
 	 */
 	private function setCached( string $key, mixed $value, int $ttl ): bool {
-		if ( ! function_exists( 'set_transient' ) ) {
-			return false;
-		}
-		try {
-			return (bool) set_transient( $key, $value, $ttl );
-		} catch ( \Throwable $write_exception ) {
-			unset( $write_exception );
-			// Fail-open: caching must never be fatal.
-			return false;
-		}
+		return TransientCache::set( $key, $value, $ttl );
 	}
 
 	/**
@@ -1138,16 +1123,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return bool
 	 */
 	private function deleteCached( string $key ): bool {
-		if ( ! function_exists( 'delete_transient' ) ) {
-			return false;
-		}
-		try {
-			return (bool) delete_transient( $key );
-		} catch ( \Throwable $delete_exception ) {
-			unset( $delete_exception );
-			// Fail-open: the entry expires on its own TTL.
-			return false;
-		}
+		return TransientCache::delete( $key );
 	}
 
 	/**
