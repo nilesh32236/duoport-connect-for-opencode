@@ -84,6 +84,9 @@ trait BuildsProviderRequest {
 			}
 			if ( class_exists( RequestOptions::class ) && $resolved instanceof RequestOptions ) {
 				$options = $resolved;
+			} elseif ( null !== $resolved && defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- WP_DEBUG-gated.
+				error_log( sprintf( '[duoport-connect-for-opencode] getRequestOptions() returned %s; expected ?RequestOptions; degrading to null.', is_object( $resolved ) ? get_class( $resolved ) : gettype( $resolved ) ) );
 			}
 		}
 		return new Request( $spec->method, $spec->provider_class::url( $spec->path ), $spec->headers, $spec->data, $options );

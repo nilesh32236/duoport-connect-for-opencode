@@ -323,7 +323,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 		$catalog = $this->catalogKey();
 		usort(
 			$metadata,
-			function ( ModelMetadata $a, ModelMetadata $b ) use ( $catalog ): int {
+			static function ( ModelMetadata $a, ModelMetadata $b ) use ( $catalog ): int {
 				$af = ModelAllowlist::isFree( $a->getId(), $catalog ) ? 0 : 1;
 				$bf = ModelAllowlist::isFree( $b->getId(), $catalog ) ? 0 : 1;
 				if ( $af !== $bf ) {
