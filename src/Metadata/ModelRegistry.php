@@ -82,12 +82,14 @@ final class ModelRegistry {
 	 * recorded as unverified.
 	 *
 	 * Per-catalog, never shared between Go and Zen: the evidence gap is
-	 * catalog-specific (the Go endpoint table omits the six Go IDs; the Zen
-	 * pricing/endpoint tables omit deepseek-v4-flash-free), so demoting an
-	 * ID in one catalog must not hide the same ID where it is reviewed.
-	 * Every entry here resolves to ENDPOINT_FAMILY_UNSUPPORTED with
+	 * catalog-specific (the Go endpoint table omits the six Go IDs), so
+	 * demoting an ID in one catalog must not hide the same ID where it is
+	 * reviewed. Every entry here resolves to ENDPOINT_FAMILY_UNSUPPORTED with
 	 * VERIFICATION_REQUIRED_STATUS until a chat/completions request with
-	 * that model returns 2xx.
+	 * that model returns 2xx. The Zen set is currently empty: its only
+	 * pending ID (`deepseek-v4-flash-free`) was retired from the live Zen
+	 * `/models` catalog and removed from the allowlist instead of carried
+	 * as a dead baseline row.
 	 *
 	 * @since 0.1.9
 	 *
@@ -102,9 +104,7 @@ final class ModelRegistry {
 			'mimo-v2-omni',
 			'hy3-preview',
 		),
-		Catalog::ZEN => array(
-			'deepseek-v4-flash-free',
-		),
+		Catalog::ZEN => array(),
 	);
 
 	/**

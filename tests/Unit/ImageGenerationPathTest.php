@@ -174,7 +174,7 @@ namespace OpenCodeConnector\Tests\Unit {
 		public function test_image_allowlist_is_empty_fail_open(): void {
 			foreach ( array( 'go', 'zen' ) as $catalog ) {
 				self::assertFalse( ModelAllowlist::isImageCapable( 'glm-5', $catalog ) );
-				self::assertFalse( ModelAllowlist::isImageCapable( 'deepseek-v4-flash-free', $catalog ) );
+				self::assertFalse( ModelAllowlist::isImageCapable( 'nemotron-3-ultra-free', $catalog ) );
 				self::assertFalse( ModelAllowlist::isImageCapable( 'no-such-model', $catalog ) );
 			}
 			self::assertFalse( ModelAllowlist::isImageCapable( 'glm-5', 'no-such-catalog' ) );
@@ -185,7 +185,7 @@ namespace OpenCodeConnector\Tests\Unit {
 		 */
 		public function test_text_allowlist_unaffected(): void {
 			self::assertTrue( ModelAllowlist::isAllowed( 'glm-5', 'go' ) );
-			self::assertTrue( ModelAllowlist::isAllowed( 'deepseek-v4-flash-free', 'zen' ) );
+			self::assertTrue( ModelAllowlist::isAllowed( 'nemotron-3-ultra-free', 'zen' ) );
 			self::assertFalse( ModelAllowlist::isAllowed( 'no-such-model', 'go' ) );
 		}
 
@@ -290,7 +290,7 @@ namespace OpenCodeConnector\Tests\Unit {
 
 			$rows = array(
 				array( 'id' => 'glm-5.3' ),
-				array( 'id' => 'deepseek-v4-flash-free' ),
+				array( 'id' => 'nemotron-3-ultra-free' ),
 				array( 'id' => 'no-such-model' ),
 				array( 'id' => '' ),
 			);
@@ -722,8 +722,8 @@ namespace OpenCodeConnector\Tests\Unit {
 				protected function providerClass(): string {
 					return $this->provider_class_name;
 				}
-				protected function getRequestOptions(): array {
-					return array();
+				protected function getRequestOptions(): ?\WordPress\AiClient\Providers\Http\DTO\RequestOptions {
+					return null;
 				}
 				public function make_request( array $headers, $data ): Request {
 					return $this->createRequest( HttpMethodEnum::POST(), 'images/generations', $headers, $data );

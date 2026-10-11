@@ -98,6 +98,22 @@ namespace WordPress\AiClient\Providers\Http\Enums {
 namespace WordPress\AiClient\Providers\Http\DTO {
 	use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 
+	if ( ! class_exists( \WordPress\AiClient\Providers\Http\DTO\RequestOptions::class ) ) {
+		/**
+		 * Minimal request-options value-object stub.
+		 *
+		 * Mirrors the real SDK shape on purpose: since SDK 0.3.0
+		 * `AbstractApiBasedModel::getRequestOptions()` returns
+		 * `?RequestOptions` and `Request::__construct()` takes
+		 * `?RequestOptions` as its fifth argument. A stub that instead
+		 * typed the fifth argument as `array` made every
+		 * `BuildsProviderRequest::buildFromSpec()` call pass CI here while
+		 * TypeErroring under `strict_types` against the real SDK.
+		 */
+		final class RequestOptions {
+		}
+	}
+
 	if ( ! class_exists( \WordPress\AiClient\Providers\Http\DTO\Request::class ) ) {
 		/**
 		 * Minimal request DTO stub capturing constructor args.
@@ -106,18 +122,18 @@ namespace WordPress\AiClient\Providers\Http\DTO {
 			/**
 			 * Constructor.
 			 *
-			 * @param HttpMethodEnum $method  HTTP method.
-			 * @param string         $url     Request URL.
-			 * @param array          $headers Request headers.
-			 * @param mixed          $data    Request data.
-			 * @param array          $options Transport options.
+			 * @param HttpMethodEnum  $method  HTTP method.
+			 * @param string          $url     Request URL.
+			 * @param array           $headers Request headers.
+			 * @param mixed           $data    Request data.
+			 * @param RequestOptions|null $options Transport options.
 			 */
 			public function __construct(
 				private readonly HttpMethodEnum $method,
 				private readonly string $url,
 				private readonly array $headers = array(),
 				private readonly mixed $data = null,
-				private readonly array $options = array()
+				private readonly ?RequestOptions $options = null
 			) {
 			}
 
@@ -151,9 +167,9 @@ namespace WordPress\AiClient\Providers\Http\DTO {
 			/**
 			 * Transport options.
 			 *
-			 * @return array
+			 * @return RequestOptions|null
 			 */
-			public function getOptions(): array {
+			public function getOptions(): ?RequestOptions {
 				return $this->options;
 			}
 		}
@@ -251,10 +267,10 @@ namespace WordPress\AiClient\Providers\OpenAiCompatibleImplementation {
 			/**
 			 * Transport options.
 			 *
-			 * @return array
+			 * @return \WordPress\AiClient\Providers\Http\DTO\RequestOptions|null
 			 */
-			protected function getRequestOptions(): array {
-				return array();
+			protected function getRequestOptions(): ?\WordPress\AiClient\Providers\Http\DTO\RequestOptions {
+				return null;
 			}
 		}
 	}
@@ -277,10 +293,10 @@ namespace WordPress\AiClient\Providers\OpenAiCompatibleImplementation {
 			/**
 			 * Transport options.
 			 *
-			 * @return array
+			 * @return \WordPress\AiClient\Providers\Http\DTO\RequestOptions|null
 			 */
-			protected function getRequestOptions(): array {
-				return array();
+			protected function getRequestOptions(): ?\WordPress\AiClient\Providers\Http\DTO\RequestOptions {
+				return null;
 			}
 		}
 	}
