@@ -207,6 +207,22 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * preserve last-known-good state instead of flipping valid keys to
 	 * not-connected. Unkeyed installs still read as not configured.
 	 *
+	 * Credential verdict only — not a prompt-gate verdict. Core may refuse a
+	 * prompt for reasons unrelated to the credential: `WP_AI_SUPPORT` set to
+	 * false, `wp_supports_ai()` returning false, or a
+	 * `wp_ai_client_prevent_prompt` filter preventing execution. None of those
+	 * gates is read here and none of them clears the last-known-good flag; a
+	 * prevented prompt must never be misreported as not-configured. Callers
+	 * that need the gate state should read the read-only
+	 * `ai_supported`/`prompt_prevented` fields from
+	 * `CompatibilityDiagnostics::inspect()`, which reports them without
+	 * touching any `connectors_ai_*` value.
+	 *
+	 * Provider registration relies on core auto-discovery: this plugin
+	 * registers its provider classes on `init` priority 5 and core discovers
+	 * them into connectors on `init` priority 15 before firing
+	 * `wp_connectors_init`. No manual connector registration is performed.
+	 *
 	 * @since 0.1.0
 	 *
 	 * @return bool

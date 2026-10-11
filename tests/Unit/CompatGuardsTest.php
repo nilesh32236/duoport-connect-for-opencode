@@ -166,6 +166,49 @@ final class CompatGuardsTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * AI gate probes must stay guarded, read-only, and credential-blind.
+	 *
+	 * CompatibilityDiagnostics::inspect() reports the core prevent-prompt
+	 * gates (`wp_supports_ai`, `wp_ai_client_prevent_prompt`, `WP_AI_SUPPORT`)
+	 * as informational fields only: every WP surface needs its guard
+	 * (`function_exists` / `has_filter` / `version_compare` / `defined`),
+	 * the fields must never feed `ok`/`issues`, and no `connectors_ai_*`
+	 * value may be read.
+	 *
+	 * @return void
+	 */
+	public function test_ai_gate_probes_are_guarded_and_credential_blind(): void {
+		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Compatibility/CompatibilityDiagnostics.php' );
+
+		self::assertStringContainsString( "function_exists( 'wp_supports_ai' )", $source );
+		self::assertStringContainsString( "function_exists( 'has_filter' )", $source );
+		self::assertStringContainsString( "has_filter( 'wp_ai_client_prevent_prompt' )", $source );
+		self::assertStringContainsString( 'version_compare(', $source );
+		self::assertStringContainsString( "defined( 'WP_AI_SUPPORT' )", $source );
+		self::assertStringContainsString( "'ai_supported'", $source );
+		self::assertStringContainsString( "'prompt_prevented'", $source );
+		self::assertStringNotContainsString( 'connectors_ai_', $source );
+		self::assertStringNotContainsString( 'get_option', $source );
+	}
+
+	/**
+	 * isConfigured() documents its credential-only contract.
+	 *
+	 * The probe verdict must state that prevent-prompt gates do not clear
+	 * last-known-good, so a prevented prompt is never misread as
+	 * not-configured.
+	 *
+	 * @return void
+	 */
+	public function test_availability_documents_gate_semantics(): void {
+		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Availability/OpenCodeProviderAvailability.php' );
+
+		self::assertStringContainsString( 'wp_ai_client_prevent_prompt', $source );
+		self::assertStringContainsString( 'prompt_prevented', $source );
+		self::assertStringContainsString( 'wp_connectors_init', $source );
+	}
+
+	/**
 	 * Silent early returns must log under WP_DEBUG like the catch blocks.
 	 *
 	 * @return void
