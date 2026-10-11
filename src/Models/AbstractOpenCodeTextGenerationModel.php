@@ -20,7 +20,12 @@ use OpenCodeConnector\Metadata\CapabilityAwareFallback;
 use OpenCodeConnector\Metadata\Catalog;
 use OpenCodeConnector\Metadata\ModelRegistry;
 use OpenCodeConnector\Transport\BuildsProviderRequest;
+use OpenCodeConnector\Transport\EndpointAuth;
 use OpenCodeConnector\Transport\EndpointRoute;
+use OpenCodeConnector\Transport\GeminiPayloadParser;
+use OpenCodeConnector\Transport\MessagesPayloadParser;
+use OpenCodeConnector\Transport\ResponsesPayloadParser;
+use OpenCodeConnector\Transport\SystemOnePayloadParser;
 use OpenCodeConnector\Transport\UnsupportedEndpointFamilyException;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
@@ -93,8 +98,11 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * Go requests carry the stable `x-opencode-session` header plus the
 	 * shared client User-Agent (same fingerprint as the Go image path, so
 	 * gateway observability sees one client). Zen requests are sent
-	 * unchanged. Header failures always fall back to a headerless send;
-	 * never fatal.
+	 * unchanged. Non-chat families send their verified wire shape (see the
+	 * sibling *PayloadParser classes) with their verified auth contract
+	 * (see EndpointAuth); an unverified family throws before any HTTP is
+	 * sent, never misrouted. Header failures always fall back to a
+	 * headerless send; never fatal.
 	 *
 	 * @since 0.1.0
 	 * @since 0.1.5 Added shared client User-Agent on the Go path.
@@ -120,16 +128,55 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 		}
 		$model_id = $route['model_id'];
 		$catalog  = $route['catalog'];
+		// Fail-closed before HTTP send: an unverified family throws here,
+		// so no payload is ever built for (or sent to) a route without a
+		// verified parser and authentication contract.
+		$kind = EndpointRoute::endpointKindForModel( $model_id, $catalog );
 		if ( is_array( $data ) ) {
 			$data['model'] = $model_id;
+			$data          = $this->payload_for_family( $kind, $model_id, $data );
 		}
-		$path = EndpointRoute::pathForModel( $model_id, $catalog );
+		$path    = EndpointRoute::pathForModel( $model_id, $catalog );
+		$headers = EndpointAuth::applyFamilyHeaders( $headers, $kind );
 		if ( Catalog::GO === $catalog ) {
 			$headers = $this->goHeaders( $headers, $data );
 		}
 		$request                       = $this->buildProviderRequest( $cls, $method, $path, $headers, $data );
 		$this->prepared_route_model_id = null;
 		return $request;
+	}
+
+	/**
+	 * Build the verified wire payload for an endpoint family.
+	 *
+	 * Chat sends the OpenAI-compatible shape unchanged; every other
+	 * verified family goes through its payload parser. An unverified
+	 * family throws instead of guessing a shape — this is unreachable
+	 * through createRequest() (which resolves the kind first and throws
+	 * there), but the branch stays fail-closed rather than defaulting to
+	 * chat. Never returns a misrouted payload.
+	 *
+	 * @param string $kind     Verified endpoint family name.
+	 * @param string $model_id Verified model ID.
+	 * @param array  $data     Chat-style request data.
+	 * @return array Family wire payload.
+	 * @throws UnsupportedEndpointFamilyException When the family is not verified.
+	 */
+	private function payload_for_family( string $kind, string $model_id, array $data ): array {
+		switch ( $kind ) {
+			case 'chat':
+				return $data;
+			case 'responses':
+				return ResponsesPayloadParser::buildPayload( $model_id, $data );
+			case 'messages':
+				return MessagesPayloadParser::buildPayload( $model_id, $data );
+			case 'gemini':
+				return GeminiPayloadParser::buildPayload( $model_id, $data );
+			case 'systemone':
+				return SystemOnePayloadParser::buildPayload( $model_id, $data );
+			default:
+				throw new UnsupportedEndpointFamilyException( 'Endpoint family is unsupported; no verified payload contract.' );
+		}
 	}
 
 	/**

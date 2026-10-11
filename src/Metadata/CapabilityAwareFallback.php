@@ -14,20 +14,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/**
- * Selects only reviewed records with the same endpoint and capability.
- */
+use OpenCodeConnector\Transport\EndpointRoute;
+
+	/**
+	 * Selects only reviewed records with the same endpoint and capability.
+	 */
 final class CapabilityAwareFallback {
 
 	/**
 	 * Maximum number of candidates considered for one request.
 	 */
 	private const MAX_CANDIDATES = 8;
-
-	/**
-	 * Only the complete transport family currently implemented.
-	 */
-	private const IMPLEMENTED_ENDPOINT = 'chat';
 
 	/**
 	 * Optional record resolver used only for isolated contract tests.
@@ -112,7 +109,7 @@ final class CapabilityAwareFallback {
 				'error'  => 'primary_record_mismatch',
 			);
 		}
-		if ( self::IMPLEMENTED_ENDPOINT !== ( $primary['endpoint_family'] ?? '' ) || ! $this->is_verified( $primary ) ) {
+		if ( ! $this->is_implemented_endpoint( (string) ( $primary['endpoint_family'] ?? '' ) ) || ! $this->is_verified( $primary ) ) {
 			return array(
 				'record' => null,
 				'error'  => 'unsupported_primary_endpoint',
@@ -179,8 +176,10 @@ final class CapabilityAwareFallback {
 			);
 		}
 		// Single endpoint check: the candidate must match the primary
-		// endpoint AND the implemented transport family.
-		if ( ( $record['endpoint_family'] ?? '' ) !== $endpoint || self::IMPLEMENTED_ENDPOINT !== ( $record['endpoint_family'] ?? '' ) ) {
+		// endpoint AND a verified transport family, so fallback never
+		// crosses families and never lands on an unroutable one.
+		$candidate_endpoint = (string) ( $record['endpoint_family'] ?? '' );
+		if ( $candidate_endpoint !== $endpoint || ! $this->is_implemented_endpoint( $candidate_endpoint ) ) {
 			return array(
 				'rejection' => array(
 					'id'     => $candidate_id,
@@ -205,6 +204,30 @@ final class CapabilityAwareFallback {
 			);
 		}
 		return array( 'record' => $record );
+	}
+
+	/**
+	 * Whether a family has a verified route, parser, and auth contract.
+	 *
+	 * Delegates to EndpointRoute, which owns the routable vocabulary, so
+	 * the selector cannot disagree with the router about what "routable"
+	 * means. A missing router surface fails closed (unimplemented), never
+	 * open. Never throws.
+	 *
+	 * @param string $endpoint Endpoint family name.
+	 * @return bool
+	 */
+	private function is_implemented_endpoint( string $endpoint ): bool {
+		try {
+			if ( class_exists( EndpointRoute::class ) && method_exists( EndpointRoute::class, 'isVerifiedFamily' ) ) {
+				return EndpointRoute::isVerifiedFamily( $endpoint );
+			}
+		} catch ( \Throwable $route_exception ) {
+			unset( $route_exception );
+			// Fail-closed below.
+		}
+
+		return false;
 	}
 
 	/**
