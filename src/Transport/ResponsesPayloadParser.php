@@ -39,9 +39,10 @@ final class ResponsesPayloadParser {
 			$payload = array( 'model' => $model_id );
 
 			$input = $data['input'] ?? $data['messages'] ?? null;
-			if ( null !== $input ) {
-				$payload['input'] = $input;
-			}
+			// Always carry the required field: an unmappable request still
+			// sends the minimal valid shape so the gateway answers with a
+			// typed error instead of a missing-field rejection.
+			$payload['input'] = $input ?? '';
 
 			foreach ( array( 'tools', 'tool_choice', 'response_format', 'max_tokens', 'max_output_tokens', 'temperature', 'top_p', 'stream' ) as $key ) {
 				if ( array_key_exists( $key, $data ) ) {
@@ -51,7 +52,10 @@ final class ResponsesPayloadParser {
 
 			return $payload;
 		} catch ( \Throwable ) {
-			return array( 'model' => $model_id );
+			return array(
+				'model' => $model_id,
+				'input' => '',
+			);
 		}
 	}
 

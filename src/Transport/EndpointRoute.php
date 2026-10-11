@@ -28,13 +28,6 @@ use OpenCodeConnector\Metadata\ModelRegistry;
 final class EndpointRoute {
 
 	/**
-	 * Supported families, in the order they are reported in denials.
-	 *
-	 * @var list<string>
-	 */
-	private const SUPPORTED_FAMILIES = array( 'chat', 'responses', 'messages', 'gemini', 'systemone' );
-
-	/**
 	 * Implemented family-to-path map.
 	 *
 	 * This verified allowlist is the enforcement point: every family that
@@ -46,6 +39,10 @@ final class EndpointRoute {
 	 * The Gemini path is model-scoped (`models/{model}:generateContent`):
 	 * pathForModel() substitutes the model ID, while pathForEndpointKind()
 	 * reports the template.
+	 *
+	 * The map keys are the single source for the routable vocabulary:
+	 * isVerifiedFamily() enforces them and rejectFamily() reports them,
+	 * so the denial text cannot drift from enforcement.
 	 *
 	 * @var array<string, string>
 	 */
@@ -83,7 +80,7 @@ final class EndpointRoute {
 	 * @throws UnsupportedEndpointFamilyException Always.
 	 */
 	private static function rejectFamily( string $kind ): never {
-		$supported = implode( ', ', self::SUPPORTED_FAMILIES );
+		$supported = implode( ', ', array_keys( self::PATHS ) );
 		if ( ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === $kind ) {
 			$message = sprintf( 'This model\'s documented endpoint family is not implemented by this adapter; supported families: %s.', $supported );
 		} elseif ( ModelRegistry::isUnsupportedFamily( $kind ) ) {
@@ -131,7 +128,28 @@ final class EndpointRoute {
 	 * @throws UnsupportedEndpointFamilyException When the route is unsupported.
 	 */
 	public static function pathForModel( string $model_id, string $catalog ): string {
-		$kind = self::endpointKindForModel( $model_id, $catalog );
+		return self::pathForVerifiedKind( self::endpointKindForModel( $model_id, $catalog ), $model_id );
+	}
+
+	/**
+	 * Resolve a sendable path for an already-verified endpoint kind.
+	 *
+	 * Single owner for the kind-to-path derivation: createRequest() resolves
+	 * the kind once (one registry lookup per request) and derives the path
+	 * here, so the kind the payload was built for cannot differ from the
+	 * kind the path is resolved for. The Gemini kind is model-scoped, so
+	 * the model ID is substituted into the template there; every other
+	 * verified family has a fixed path.
+	 *
+	 * @param string $kind     Verified endpoint family name.
+	 * @param string $model_id Verified model ID (used for the Gemini path).
+	 * @return string Sendable request path.
+	 * @throws UnsupportedEndpointFamilyException When the kind is not verified.
+	 */
+	public static function pathForVerifiedKind( string $kind, string $model_id ): string {
+		if ( ! isset( self::PATHS[ $kind ] ) ) {
+			self::rejectFamily( $kind );
+		}
 		if ( 'gemini' === $kind ) {
 			return self::pathForGeminiModel( $model_id );
 		}

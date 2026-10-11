@@ -101,8 +101,15 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * unchanged. Non-chat families send their verified wire shape (see the
 	 * sibling *PayloadParser classes) with their verified auth contract
 	 * (see EndpointAuth); an unverified family throws before any HTTP is
-	 * sent, never misrouted. Header failures always fall back to a
-	 * headerless send; never fatal.
+	 * sent, never misrouted. The response half of the same contract lives
+	 * in text_for_family(): chat decodes the OpenAI-compatible `choices`
+	 * envelope, every other verified family decodes through its parser.
+	 * Header failures always fall back to a headerless send; never fatal.
+	 *
+	 * The kind is resolved once per request: the path is derived from the
+	 * already-verified kind (see EndpointRoute::pathForVerifiedKind()), so
+	 * the kind the payload was built for cannot differ from the kind the
+	 * path is resolved for.
 	 *
 	 * @since 0.1.0
 	 * @since 0.1.5 Added shared client User-Agent on the Go path.
@@ -136,7 +143,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			$data['model'] = $model_id;
 			$data          = $this->payload_for_family( $kind, $model_id, $data );
 		}
-		$path    = EndpointRoute::pathForModel( $model_id, $catalog );
+		$path    = EndpointRoute::pathForVerifiedKind( $kind, $model_id );
 		$headers = EndpointAuth::applyFamilyHeaders( $headers, $kind );
 		if ( Catalog::GO === $catalog ) {
 			$headers = $this->goHeaders( $headers, $data );
@@ -176,6 +183,101 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 				return SystemOnePayloadParser::buildPayload( $model_id, $data );
 			default:
 				throw new UnsupportedEndpointFamilyException( 'Endpoint family is unsupported; no verified payload contract.' );
+		}
+	}
+
+	/**
+	 * Extract assistant text from a decoded family response envelope.
+	 *
+	 * Response half of the endpoint-family contract: the request half
+	 * (payload_for_family()) shapes what is sent, this shapes how the
+	 * answer is read, so routing is end-to-end rather than request-only.
+	 * Chat reads the OpenAI-compatible `choices` envelope; every other
+	 * verified family decodes through its payload parser. An unverified
+	 * family throws instead of guessing a shape — unreachable through a
+	 * resolved request (which throws before sending), but the branch stays
+	 * fail-closed rather than defaulting to chat. Never returns text from
+	 * the wrong family; unrecognised envelopes read as an empty string,
+	 * never fatal.
+	 *
+	 * The kind is passed explicitly (resolved once by the caller, same as
+	 * the request half): no per-request family state is kept on the model,
+	 * so a reused instance cannot decode with a stale kind.
+	 *
+	 * @param string $kind Verified endpoint family name.
+	 * @param mixed  $data Decoded response data.
+	 * @return string Assistant text, or an empty string when absent.
+	 * @throws UnsupportedEndpointFamilyException When the family is not verified.
+	 */
+	private function text_for_family( string $kind, $data ): string {
+		switch ( $kind ) {
+			case 'chat':
+				return self::extract_chat_text( $data );
+			case 'responses':
+				return ResponsesPayloadParser::extractText( $data );
+			case 'messages':
+				return MessagesPayloadParser::extractText( $data );
+			case 'gemini':
+				return GeminiPayloadParser::extractText( $data );
+			case 'systemone':
+				return SystemOnePayloadParser::extractText( $data );
+			default:
+				throw new UnsupportedEndpointFamilyException( 'Endpoint family is unsupported; no verified response contract.' );
+		}
+	}
+
+	/**
+	 * Extract assistant text from an OpenAI-compatible choices envelope.
+	 *
+	 * Reads `choices[].message.content` (string, or content parts carrying
+	 * text), then the legacy `choices[].text` shape. Anything else reads
+	 * as empty text. Never throws.
+	 *
+	 * @param mixed $data Decoded response data.
+	 * @return string Assistant text, or an empty string when absent.
+	 */
+	private static function extract_chat_text( $data ): string {
+		try {
+			if ( ! is_array( $data ) ) {
+				return '';
+			}
+			$choices = $data['choices'] ?? null;
+			if ( ! is_array( $choices ) ) {
+				return '';
+			}
+			$texts = array();
+			foreach ( $choices as $choice ) {
+				if ( ! is_array( $choice ) ) {
+					continue;
+				}
+				$message = $choice['message'] ?? null;
+				if ( is_array( $message ) ) {
+					$content = $message['content'] ?? null;
+					if ( is_string( $content ) && '' !== $content ) {
+						$texts[] = $content;
+						continue;
+					}
+					if ( is_array( $content ) ) {
+						foreach ( $content as $part ) {
+							if ( ! is_array( $part ) ) {
+								continue;
+							}
+							$text = $part['text'] ?? null;
+							if ( is_string( $text ) && '' !== $text ) {
+								$texts[] = $text;
+							}
+						}
+						continue;
+					}
+				}
+				$text = $choice['text'] ?? null;
+				if ( is_string( $text ) && '' !== $text ) {
+					$texts[] = $text;
+				}
+			}
+			return implode( '', $texts );
+		} catch ( \Throwable ) {
+			return '';
 		}
 	}
 

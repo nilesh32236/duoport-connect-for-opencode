@@ -274,10 +274,14 @@ final class CapabilityAwareFallbackTest extends MonkeyTestCase {
 		$end = strpos( $source, "\n\tprivate function ", (int) $start );
 		$body = substr( $source, (int) $start, ( false === $end ? strlen( $source ) : $end ) - (int) $start );
 		$select_at = strpos( $body, 'selectRouteModel(' );
-		$route_at  = strpos( $body, 'EndpointRoute::pathForModel' );
+		$kind_at   = strpos( $body, 'EndpointRoute::endpointKindForModel' );
+		$route_at  = strpos( $body, 'EndpointRoute::pathForVerifiedKind' );
 		self::assertNotFalse( $select_at, 'createRequest() must select the route model.' );
-		self::assertNotFalse( $route_at, 'createRequest() must route through EndpointRoute.' );
-		self::assertLessThan( $route_at, $select_at );
+		self::assertNotFalse( $kind_at, 'createRequest() must resolve the kind once through EndpointRoute.' );
+		self::assertNotFalse( $route_at, 'createRequest() must derive the path from the verified kind.' );
+		self::assertLessThan( $kind_at, $select_at );
+		self::assertLessThan( $route_at, $kind_at );
+		self::assertFalse( strpos( $body, 'EndpointRoute::pathForModel' ), 'createRequest() must not re-resolve the registry per request.' );
 	}
 
 	/**

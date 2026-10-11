@@ -39,13 +39,19 @@ final class SystemOnePayloadParser {
 			$payload = array( 'model' => $model_id );
 
 			$input = $data['input'] ?? $data['messages'] ?? null;
-			if ( null !== $input ) {
-				$payload['input'] = $input;
-			}
+			// Always carry the required field: an unmappable request still
+			// sends the minimal valid shape so the gateway answers with a
+			// typed error instead of a missing-field rejection.
+			$payload['input'] = $input ?? '';
+
+			self::note_dropped_capabilities( $data );
 
 			return $payload;
 		} catch ( \Throwable ) {
-			return array( 'model' => $model_id );
+			return array(
+				'model' => $model_id,
+				'input' => '',
+			);
 		}
 	}
 
@@ -107,6 +113,35 @@ final class SystemOnePayloadParser {
 			return '';
 		} catch ( \Throwable ) {
 			return '';
+		}
+	}
+
+	/**
+	 * Note chat capabilities the decision shape cannot represent.
+	 *
+	 * The decision endpoint takes only `input`: tools, structured output,
+	 * sampling knobs, and streaming are dropped from the send. Silent
+	 * drops complicate debugging, so a WP_DEBUG-gated log names what was
+	 * dropped. Never throws; never touches the payload.
+	 *
+	 * @param array $data Chat-style request data.
+	 * @return void
+	 */
+	private static function note_dropped_capabilities( array $data ): void {
+		try {
+			$dropped = array();
+			foreach ( array( 'tools', 'tool_choice', 'response_format', 'temperature', 'top_p', 'top_k', 'max_tokens', 'max_output_tokens', 'stream' ) as $key ) {
+				if ( array_key_exists( $key, $data ) ) {
+					$dropped[] = $key;
+				}
+			}
+			if ( array() !== $dropped && defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- WP_DEBUG-gated.
+				error_log( sprintf( '[duoport-connect-for-opencode] SystemOne payload dropped non-representable keys: %s.', implode( ', ', $dropped ) ) );
+			}
+		} catch ( \Throwable $dropped_exception ) {
+			unset( $dropped_exception );
+			// Never fatal: degradation visibility is best-effort.
 		}
 	}
 }

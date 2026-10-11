@@ -86,6 +86,19 @@ namespace OpenCodeConnector\Tests\Unit {
 			$method->setAccessible( true );
 			return $method->invoke( $this, $kind, $model_id, $data );
 		}
+
+		/**
+		 * Extract assistant text for a family (test seam).
+		 *
+		 * @param string $kind Endpoint family name.
+		 * @param mixed  $data Decoded response data.
+		 * @return string
+		 */
+		public function text_for( string $kind, mixed $data ): string {
+			$method = new \ReflectionMethod( $this, 'text_for_family' );
+			$method->setAccessible( true );
+			return $method->invoke( $this, $kind, $data );
+		}
 	}
 
 	/**
@@ -155,17 +168,18 @@ namespace OpenCodeConnector\Tests\Unit {
 		 */
 		public function test_each_verified_family_has_a_route_and_auth_scheme(): void {
 			$contracts = array(
-				'chat'      => array( 'chat/completions', 'Authorization: Bearer' ),
-				'responses' => array( 'responses', 'Authorization: Bearer' ),
-				'messages'  => array( 'messages', 'x-api-key' ),
-				'gemini'    => array( 'models/{model}:generateContent', 'x-goog-api-key' ),
-				'systemone' => array( 'systemone', 'Authorization: Bearer' ),
+				'chat'      => array( 'chat/completions', 'Authorization: Bearer', 'authorization' ),
+				'responses' => array( 'responses', 'Authorization: Bearer', 'authorization' ),
+				'messages'  => array( 'messages', 'x-api-key', 'x-api-key' ),
+				'gemini'    => array( 'models/{model}:generateContent', 'x-goog-api-key', 'x-goog-api-key' ),
+				'systemone' => array( 'systemone', 'Authorization: Bearer', 'authorization' ),
 			);
 			foreach ( $contracts as $family => $expected ) {
-				list( $path, $scheme ) = $expected;
+				list( $path, $scheme, $header ) = $expected;
 				self::assertTrue( EndpointRoute::isVerifiedFamily( $family ), $family . ' must be routable.' );
 				self::assertSame( $path, EndpointRoute::pathForEndpointKind( $family ), $family . ' must resolve its reviewed path.' );
 				self::assertSame( $scheme, EndpointAuth::schemeForFamily( $family ), $family . ' must name its credential header.' );
+				self::assertSame( $header, EndpointAuth::credential_header_name( $family ), $family . ' must expose its header name for send-time branching.' );
 			}
 		}
 
@@ -184,8 +198,20 @@ namespace OpenCodeConnector\Tests\Unit {
 					self::assertTrue( true );
 				}
 				try {
+					EndpointRoute::pathForVerifiedKind( $family, 'glm-5.3' );
+					self::fail( 'Expected an unsupported verified-kind exception for ' . $family . '.' );
+				} catch ( UnsupportedEndpointFamilyException ) {
+					self::assertTrue( true );
+				}
+				try {
 					EndpointAuth::schemeForFamily( $family );
 					self::fail( 'Expected an unsupported auth contract exception for ' . $family . '.' );
+				} catch ( UnsupportedEndpointFamilyException ) {
+					self::assertTrue( true );
+				}
+				try {
+					EndpointAuth::credential_header_name( $family );
+					self::fail( 'Expected an unsupported credential header exception for ' . $family . '.' );
 				} catch ( UnsupportedEndpointFamilyException ) {
 					self::assertTrue( true );
 				}
@@ -194,6 +220,35 @@ namespace OpenCodeConnector\Tests\Unit {
 					self::fail( 'Expected an unsupported family header exception for ' . $family . '.' );
 				} catch ( UnsupportedEndpointFamilyException ) {
 					self::assertTrue( true );
+				}
+			}
+		}
+
+		/**
+		 * The verified-kind path derives from the same map as the model path.
+		 *
+		 * createRequest() resolves the kind once and derives the path here,
+		 * so this pins the derivation: fixed families report their path and
+		 * Gemini substitutes the model ID.
+		 */
+		public function test_verified_kind_path_matches_model_path(): void {
+			self::assertSame( 'chat/completions', EndpointRoute::pathForVerifiedKind( 'chat', 'glm-5.3' ) );
+			self::assertSame( 'responses', EndpointRoute::pathForVerifiedKind( 'responses', 'glm-5.3' ) );
+			self::assertSame( 'messages', EndpointRoute::pathForVerifiedKind( 'messages', 'kimi-k3' ) );
+			self::assertSame( 'systemone', EndpointRoute::pathForVerifiedKind( 'systemone', 'jev-1' ) );
+			self::assertSame( 'models/gemini-1:generateContent', EndpointRoute::pathForVerifiedKind( 'gemini', 'gemini-1' ) );
+		}
+
+		/**
+		 * The denial text lists the enforced families, never a stale copy.
+		 */
+		public function test_denial_lists_the_enforced_families(): void {
+			try {
+				EndpointRoute::pathForEndpointKind( 'provider-specific' );
+				self::fail( 'Expected an unsupported endpoint kind exception.' );
+			} catch ( UnsupportedEndpointFamilyException $exception ) {
+				foreach ( array( 'chat', 'responses', 'messages', 'gemini', 'systemone' ) as $family ) {
+					self::assertStringContainsString( $family, $exception->getMessage(), 'Denial must list the enforced family ' . $family . '.' );
 				}
 			}
 		}
@@ -397,6 +452,76 @@ namespace OpenCodeConnector\Tests\Unit {
 
 			try {
 				$model->payload_for( 'provider-specific', 'glm-5.3', $data );
+				self::fail( 'Expected an unsupported endpoint family exception.' );
+			} catch ( UnsupportedEndpointFamilyException ) {
+				self::assertTrue( true );
+			}
+		}
+
+		/**
+		 * Degraded payloads stay minimal-valid, never an empty body.
+		 *
+		 * A malformed request still carries its required field so the
+		 * gateway answers with a typed error; no family ever sends an
+		 * empty body or a model-only payload missing required fields.
+		 */
+		public function test_degraded_payloads_stay_minimal_valid(): void {
+			$garbage = array( 'messages' => 'not-an-array' );
+
+			$responses = ResponsesPayloadParser::buildPayload( 'glm-5.3', $garbage );
+			self::assertSame( 'glm-5.3', $responses['model'] );
+			self::assertArrayHasKey( 'input', $responses );
+
+			$messages = MessagesPayloadParser::buildPayload( 'kimi-k3', $garbage );
+			self::assertSame( 'kimi-k3', $messages['model'] );
+			self::assertNotEmpty( $messages['messages'] );
+
+			$no_messages = MessagesPayloadParser::buildPayload( 'kimi-k3', array() );
+			self::assertNotEmpty( $no_messages['messages'] );
+
+			$gemini = GeminiPayloadParser::buildPayload( 'gemini-1', $garbage );
+			self::assertNotEmpty( $gemini, 'Gemini must never degrade to an empty body.' );
+			self::assertArrayHasKey( 'contents', $gemini );
+			self::assertArrayNotHasKey( 'model', $gemini, 'The Gemini path carries the model in the URL, not the body.' );
+
+			$systemone = SystemOnePayloadParser::buildPayload( 'jev-1', $garbage );
+			self::assertSame( 'jev-1', $systemone['model'] );
+			self::assertArrayHasKey( 'input', $systemone );
+		}
+
+		/**
+		 * Response extraction is family-aware end to end.
+		 *
+		 * The request half shapes what is sent; this half shapes how the
+		 * answer is read. Chat reads the OpenAI-compatible choices
+		 * envelope, every other verified family reads its own envelope,
+		 * and unverified families throw instead of guessing.
+		 */
+		public function test_response_extraction_branches_per_family(): void {
+			$model = new FamilyContractTestModel();
+
+			self::assertSame(
+				'hello',
+				$model->text_for( 'chat', array( 'choices' => array( array( 'message' => array( 'content' => 'hello' ) ) ) ) ),
+				'Chat must read the OpenAI-compatible choices envelope.'
+			);
+			self::assertSame( 'legacy', $model->text_for( 'chat', array( 'choices' => array( array( 'text' => 'legacy' ) ) ) ) );
+			self::assertSame( '', $model->text_for( 'chat', array( 'unexpected' => true ) ) );
+			self::assertSame( '', $model->text_for( 'chat', null ) );
+
+			self::assertSame( 'hello', $model->text_for( 'responses', array( 'output_text' => 'hello' ) ) );
+			self::assertSame(
+				'hello',
+				$model->text_for( 'messages', array( 'content' => array( array( 'type' => 'text', 'text' => 'hello' ) ) ) )
+			);
+			self::assertSame(
+				'hello',
+				$model->text_for( 'gemini', array( 'candidates' => array( array( 'content' => array( 'parts' => array( array( 'text' => 'hello' ) ) ) ) ) ) )
+			);
+			self::assertSame( 'ship it', $model->text_for( 'systemone', array( 'decision' => array( 'text' => 'ship it' ) ) ) );
+
+			try {
+				$model->text_for( 'provider-specific', array() );
 				self::fail( 'Expected an unsupported endpoint family exception.' );
 			} catch ( UnsupportedEndpointFamilyException ) {
 				self::assertTrue( true );

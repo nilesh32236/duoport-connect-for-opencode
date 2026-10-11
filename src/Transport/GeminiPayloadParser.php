@@ -93,9 +93,18 @@ final class GeminiPayloadParser {
 				$payload['generationConfig'] = $config;
 			}
 
+			if ( array() === $payload ) {
+				// Never send an empty body: an unmappable request still
+				// carries the minimal valid shape so the gateway answers
+				// with a typed error instead of a transport-level failure.
+				$payload = self::minimal_payload();
+			}
+
+			self::note_dropped_capabilities( $data );
+
 			return $payload;
 		} catch ( \Throwable ) {
-			return array();
+			return self::minimal_payload();
 		}
 	}
 
@@ -150,6 +159,28 @@ final class GeminiPayloadParser {
 	}
 
 	/**
+	 * Minimal valid generateContent body for degraded sends.
+	 *
+	 * The model travels in the URL path (never in this body), so the
+	 * smallest shape the gateway can type-check is one user turn. The
+	 * empty text still fails at the gateway with a typed error — but the
+	 * send is never an empty body, and no content is fabricated. Never
+	 * throws.
+	 *
+	 * @return array Minimal generateContent wire payload.
+	 */
+	private static function minimal_payload(): array {
+		return array(
+			'contents' => array(
+				array(
+					'role'  => 'user',
+					'parts' => array( array( 'text' => '' ) ),
+				),
+			),
+		);
+	}
+
+	/**
 	 * Collect the system text from chat-style data.
 	 *
 	 * @param array $data Chat-style request data.
@@ -178,5 +209,34 @@ final class GeminiPayloadParser {
 		}
 
 		return implode( "\n", $texts );
+	}
+
+	/**
+	 * Note chat capabilities the native shape cannot represent.
+	 *
+	 * Tools, structured output, and streaming have no generateContent
+	 * equivalent in this wire shape, so they are dropped from the send.
+	 * Silent drops complicate debugging, so a WP_DEBUG-gated log names
+	 * what was dropped. Never throws; never touches the payload.
+	 *
+	 * @param array $data Chat-style request data.
+	 * @return void
+	 */
+	private static function note_dropped_capabilities( array $data ): void {
+		try {
+			$dropped = array();
+			foreach ( array( 'tools', 'tool_choice', 'response_format', 'stream' ) as $key ) {
+				if ( array_key_exists( $key, $data ) ) {
+					$dropped[] = $key;
+				}
+			}
+			if ( array() !== $dropped && defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- WP_DEBUG-gated.
+				error_log( sprintf( '[duoport-connect-for-opencode] Gemini payload dropped non-representable keys: %s.', implode( ', ', $dropped ) ) );
+			}
+		} catch ( \Throwable $dropped_exception ) {
+			unset( $dropped_exception );
+			// Never fatal: degradation visibility is best-effort.
+		}
 	}
 }

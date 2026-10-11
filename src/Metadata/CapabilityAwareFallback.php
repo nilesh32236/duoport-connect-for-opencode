@@ -27,6 +27,18 @@ final class CapabilityAwareFallback {
 	private const MAX_CANDIDATES = 8;
 
 	/**
+	 * Memoized EndpointRoute surface check.
+	 *
+	 * The router class is shipped statically, so probing its surface per
+	 * candidate (up to MAX_CANDIDATES times per select, per request) is
+	 * pure overhead: resolve once, fail closed when absent. Null means
+	 * unresolved; a missing surface stays false for the process.
+	 *
+	 * @var bool|null
+	 */
+	private static ?bool $route_surface = null;
+
+	/**
 	 * Optional record resolver used only for isolated contract tests.
 	 *
 	 * @var callable(string, string): (array<string, mixed>|null)|null
@@ -218,16 +230,24 @@ final class CapabilityAwareFallback {
 	 * @return bool
 	 */
 	private function is_implemented_endpoint( string $endpoint ): bool {
-		try {
-			if ( class_exists( EndpointRoute::class ) && method_exists( EndpointRoute::class, 'isVerifiedFamily' ) ) {
-				return EndpointRoute::isVerifiedFamily( $endpoint );
+		if ( null === self::$route_surface ) {
+			try {
+				self::$route_surface = class_exists( EndpointRoute::class ) && method_exists( EndpointRoute::class, 'isVerifiedFamily' );
+			} catch ( \Throwable $surface_exception ) {
+				unset( $surface_exception );
+				self::$route_surface = false;
 			}
+		}
+		if ( ! self::$route_surface ) {
+			return false;
+		}
+		try {
+			return EndpointRoute::isVerifiedFamily( $endpoint );
 		} catch ( \Throwable $route_exception ) {
 			unset( $route_exception );
-			// Fail-closed below.
+			// Fail-closed.
+			return false;
 		}
-
-		return false;
 	}
 
 	/**

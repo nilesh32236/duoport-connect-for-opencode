@@ -69,9 +69,30 @@ final class MessagesPayloadParser {
 				}
 			}
 
+			if ( ! isset( $payload['messages'] ) ) {
+				// Always carry the required field: an unmappable request
+				// still sends the minimal valid shape so the gateway
+				// answers with a typed error instead of a missing-field
+				// rejection.
+				$payload['messages'] = array(
+					array(
+						'role'    => 'user',
+						'content' => '',
+					),
+				);
+			}
+
 			return $payload;
 		} catch ( \Throwable ) {
-			return array( 'model' => $model_id );
+			return array(
+				'model'    => $model_id,
+				'messages' => array(
+					array(
+						'role'    => 'user',
+						'content' => '',
+					),
+				),
+			);
 		}
 	}
 
