@@ -84,8 +84,6 @@ final class ModelAllowlist {
 			'kimi-k2.6',
 			'kimi-k2.5',
 			'big-pickle',
-			'deepseek-v4-flash-free',
-			'mimo-v2.5-free',
 			'nemotron-3-ultra-free',
 			'nemotron-3.5-lightning-free',
 		),
@@ -129,6 +127,14 @@ final class ModelAllowlist {
 	 * a free-named ID in one catalog must never label or re-sort the other
 	 * catalog's picker. All reviewed free records currently live in Zen.
 	 *
+	 * `big-pickle` carries no `-free` suffix but is billed Free for input,
+	 * output, and cached reads in OpenCode's published Zen pricing table
+	 * (https://opencode.ai/docs/zen/#pricing: "Big Pickle is a stealth model
+	 * that's free on OpenCode for a limited time"), so it keeps the reviewed
+	 * free label. Retired free IDs (`deepseek-v4-flash-free`,
+	 * `mimo-v2.5-free`, absent from the live Zen `/models` catalog) were
+	 * removed rather than kept as dead baseline rows.
+	 *
 	 * @since 0.1.0
 	 * @since 0.1.9 Per-catalog shape; was a flat list.
 	 *
@@ -137,8 +143,6 @@ final class ModelAllowlist {
 	private const FREE = array(
 		Catalog::GO  => array(),
 		Catalog::ZEN => array(
-			'deepseek-v4-flash-free',
-			'mimo-v2.5-free',
 			'nemotron-3-ultra-free',
 			'nemotron-3.5-lightning-free',
 			'big-pickle',

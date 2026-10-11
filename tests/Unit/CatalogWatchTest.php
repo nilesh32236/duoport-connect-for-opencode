@@ -151,10 +151,10 @@ final class CatalogWatchTest extends MonkeyTestCase {
 			'go',
 			array( array( 'id' => 'glm-5.3', 'capabilities' => array( 'embeddings' => true ) ) )
 		);
-		$unverified = $watch->compare( 'zen', array( array( 'id' => 'deepseek-v4-flash-free' ) ) );
+		$unverified = $watch->compare( 'go', array( array( 'id' => 'glm-5.1' ) ) );
 
 		$changed = array_values( array_filter( $drift, static fn( array $row ): bool => 'glm-5.3' === $row['id'] ) )[0];
-		$adapter = array_values( array_filter( $unverified, static fn( array $row ): bool => 'deepseek-v4-flash-free' === $row['id'] ) )[0];
+		$adapter = array_values( array_filter( $unverified, static fn( array $row ): bool => 'glm-5.1' === $row['id'] ) )[0];
 		self::assertSame( 'verification_required', $changed['status'] );
 		self::assertContains( 'capability_changed', $changed['states'] );
 		self::assertSame( 'verification_required', $adapter['status'] );

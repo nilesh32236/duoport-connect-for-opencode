@@ -43,11 +43,17 @@ final class ToolCapabilityTest extends MonkeyTestCase {
 
 	/**
 	 * Verification-required endpoint records are not tool-capable.
+	 *
+	 * The Zen pending set is currently empty (its only entry was
+	 * retired from the live catalog), so this covers the six Go IDs;
+	 * retired Zen IDs are not tool-capable either because they are no
+	 * longer allowlisted at all.
 	 */
 	public function test_pending_verification_routes_are_not_tool_capable(): void {
 		foreach ( array( 'glm-5.1', 'glm-5', 'kimi-k2.5', 'mimo-v2-pro', 'mimo-v2-omni', 'hy3-preview' ) as $id ) {
 			self::assertFalse( \OpenCodeConnector\Metadata\ModelRegistry::supports( $id, 'go', 'tools' ) );
 		}
+		self::assertFalse( \OpenCodeConnector\Metadata\ModelRegistry::supports( 'mimo-v2.5-free', 'zen', 'tools' ) );
 		self::assertFalse( \OpenCodeConnector\Metadata\ModelRegistry::supports( 'deepseek-v4-flash-free', 'zen', 'tools' ) );
 	}
 
@@ -63,10 +69,9 @@ final class ToolCapabilityTest extends MonkeyTestCase {
 	 * Free models never advertise tools (spend/injection surface stays bounded).
 	 */
 	public function test_free_models_are_not_tool_capable(): void {
-		self::assertFalse( ModelAllowlist::isToolCapable( 'deepseek-v4-flash-free', 'zen' ) );
-		self::assertFalse( ModelAllowlist::isToolCapable( 'mimo-v2.5-free', 'zen' ) );
-		self::assertFalse( ModelAllowlist::isToolCapable( 'big-pickle', 'zen' ) );
 		self::assertFalse( ModelAllowlist::isToolCapable( 'nemotron-3-ultra-free', 'zen' ) );
+		self::assertFalse( ModelAllowlist::isToolCapable( 'nemotron-3.5-lightning-free', 'zen' ) );
+		self::assertFalse( ModelAllowlist::isToolCapable( 'big-pickle', 'zen' ) );
 	}
 
 	/**
@@ -93,7 +98,7 @@ final class ToolCapabilityTest extends MonkeyTestCase {
 	public function test_web_search_is_fail_closed(): void {
 		self::assertFalse( ModelAllowlist::isWebSearchCapable( 'glm-5', 'go' ) );
 		self::assertFalse( ModelAllowlist::isWebSearchCapable( 'kimi-k3', 'zen' ) );
-		self::assertFalse( ModelAllowlist::isWebSearchCapable( 'deepseek-v4-flash-free', 'zen' ) );
+		self::assertFalse( ModelAllowlist::isWebSearchCapable( 'nemotron-3-ultra-free', 'zen' ) );
 	}
 
 	/**

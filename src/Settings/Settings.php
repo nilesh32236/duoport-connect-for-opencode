@@ -310,7 +310,7 @@ final class Settings {
 				echo wp_kses_post(
 					sprintf(
 						/* translators: %s: URL to Settings → Connectors screen */
-						__( 'Enter your API key in both the Go and Zen fields on <a href="%s">Settings → Connectors</a>. The same opencode.ai key works for both catalogs.', 'duoport-connect-for-opencode' ),
+						__( 'Enter your API key in both the Go and Zen fields on <a href="%s">Settings → Connectors</a>. In most cases, the same opencode.ai key works for both catalogs.', 'duoport-connect-for-opencode' ),
 						esc_url( admin_url( 'options-connectors.php' ) )
 					)
 				);

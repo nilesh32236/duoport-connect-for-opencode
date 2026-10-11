@@ -21,6 +21,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use OpenCodeConnector\Http\GoRequestHeaders;
 use WordPress\AiClient\Providers\Http\DTO\Request;
+use WordPress\AiClient\Providers\Http\DTO\RequestOptions;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 
 /**
@@ -35,7 +36,7 @@ trait BuildsProviderRequest {
 	 *
 	 * Passes the transport options through when the using class offers
 	 * them (the model bases do; a directory base without
-	 * `getRequestOptions()` sends an empty set instead of fataling), so
+	 * `getRequestOptions()` sends null instead of fataling), so
 	 * the /models discovery call carries the same options the model calls
 	 * set instead of silently omitting them.
 	 *
@@ -59,22 +60,33 @@ trait BuildsProviderRequest {
 	 * metadata directory) share: extending the spec extends every caller
 	 * without a synchronized 3-file signature edit.
 	 *
+	 * The SDK constructs `Request` with `?RequestOptions` as its fifth
+	 * argument (and `AbstractApiBasedModel::getRequestOptions()` returns
+	 * `?RequestOptions` since SDK 0.3.0), so only a `RequestOptions`
+	 * instance is forwarded and anything else degrades to null — passing a
+	 * plain array would TypeError under `strict_types` against the real
+	 * SDK. The `class_exists()` guard keeps a directory base (or a test
+	 * double) without that SDK surface sending null instead of fataling.
+	 *
 	 * @since 0.1.8
 	 *
 	 * @param RequestSpec $spec Request specification.
 	 * @return Request
 	 */
 	protected function buildFromSpec( RequestSpec $spec ): Request {
-		$options = array();
+		$options = null;
 		if ( method_exists( $this, 'getRequestOptions' ) ) {
 			try {
 				$resolved = $this->getRequestOptions();
 			} catch ( \Throwable $options_exception ) {
 				unset( $options_exception );
-				$resolved = array();
+				$resolved = null;
 			}
-			if ( is_array( $resolved ) ) {
+			if ( class_exists( RequestOptions::class ) && $resolved instanceof RequestOptions ) {
 				$options = $resolved;
+			} elseif ( null !== $resolved && defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
+				// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- WP_DEBUG-gated.
+				error_log( sprintf( '[duoport-connect-for-opencode] getRequestOptions() returned %s; expected ?RequestOptions; degrading to null.', is_object( $resolved ) ? get_class( $resolved ) : gettype( $resolved ) ) );
 			}
 		}
 		return new Request( $spec->method, $spec->provider_class::url( $spec->path ), $spec->headers, $spec->data, $options );

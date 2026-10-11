@@ -34,6 +34,9 @@ final class EndpointRouteTest extends MonkeyTestCase {
 
 	/**
 	 * Verification-required model routes are denied before transport.
+	 *
+	 * Retired IDs are denied too: with no registry record they fail at
+	 * the same gate instead of reaching the gateway.
 	 */
 	public function test_unimplemented_model_routes_are_denied(): void {
 		foreach ( array( 'glm-5.1', 'glm-5', 'kimi-k2.5', 'mimo-v2-pro', 'mimo-v2-omni', 'hy3-preview' ) as $id ) {
@@ -44,11 +47,13 @@ final class EndpointRouteTest extends MonkeyTestCase {
 				self::assertTrue( true );
 			}
 		}
-		try {
-			EndpointRoute::pathForModel( 'deepseek-v4-flash-free', 'zen' );
-			self::fail( 'Expected an unsupported model route exception.' );
-		} catch ( UnsupportedEndpointFamilyException ) {
-			self::assertTrue( true );
+		foreach ( array( 'mimo-v2.5-free', 'deepseek-v4-flash-free' ) as $id ) {
+			try {
+				EndpointRoute::pathForModel( $id, 'zen' );
+				self::fail( 'Expected an unsupported model route exception.' );
+			} catch ( UnsupportedEndpointFamilyException ) {
+				self::assertTrue( true );
+			}
 		}
 	}
 

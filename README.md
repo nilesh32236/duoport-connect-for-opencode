@@ -26,22 +26,20 @@ Once connected, any plugin that uses the WordPress AI Client (for example the of
    [Releases](../../releases) page and upload it via Plugins → Add New → Upload.
 2. Activate the plugin.
 3. Go to **Settings → Connectors** and enter your opencode.ai key in **both**
-   the Go and the Zen fields — the same key works for both catalogs.
-   (Advanced: `OPENCODE_GO_API_KEY` / `OPENCODE_ZEN_API_KEY` constants or
-   environment variables are also supported.)
+   the Go and the Zen fields — in most cases, the same key works for both catalogs.
 4. Optional: visit **Settings → DuoPort Connector** to enable **Show all
    models** or check connection status.
 
 ## FAQ
 
 **Where do I get an API key?**
-Visit https://opencode.ai/auth and sign up for Go or Zen. The same key works for both catalogs.
+Visit https://opencode.ai/auth and sign up for Go or Zen. In most cases, the same key works for both catalogs.
 
 **Do Go and Zen use the same API key?**
-Yes. OpenCode uses a unified auth domain — paste the same key into both fields. Each catalog keeps its own field so WordPress can validate them independently.
+In most cases, yes. OpenCode uses a unified auth domain — paste the same key into both fields. Each catalog keeps its own field so WordPress can validate them independently.
 
 **Which models are available?**
-By default only reviewed chat/completions-routable models are shown (Go: 11, Zen: 16 including free models). Allowlisted models whose endpoint family is not yet verified stay hidden until a chat/completions probe passes. Enable **Show all models** to expose every other model from the API, including non-chat models that may fail.
+By default only reviewed chat/completions-routable models are shown (Go: 11, Zen: 15 including free models). Allowlisted models whose endpoint family is not yet verified stay hidden until a chat/completions probe passes. Enable **Show all models** to expose every other model from the API, including non-chat models that may fail.
 
 **Does it work without WordPress 7.0?**
 No. It requires WordPress 7.0+ and PHP 8.2+. On older installs an admin notice is shown and registration is skipped.

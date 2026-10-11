@@ -17,7 +17,7 @@ DuoPort Connector for OpenCode registers two WordPress AI Client providers:
 * **OpenCode Go** for the subscription catalog.
 * **OpenCode Zen** for the pay-as-you-go catalog, including reviewed free-model records.
 
-Enter your opencode.ai key in the Go and Zen fields on **Settings → Connectors**. The same key works for both catalogs, while each field remains independently testable. DuoPort keeps credentials in WordPress and keeps model policy in a reviewed registry.
+Enter your opencode.ai key in the Go and Zen fields on **Settings → Connectors**. In most cases, the same key works for both catalogs, while each field remains independently testable. DuoPort keeps credentials in WordPress and keeps model policy in a reviewed registry.
 
 This plugin is not affiliated with or endorsed by OpenCode (Anomaly Innovations, Inc.).
 
@@ -56,7 +56,7 @@ Only reviewed chat/completions records are advertised by default. The current ad
 = Features =
 
 * Two providers (`opencode-go` / `opencode-zen`) auto-discovered by the Connectors screen.
-* Reviewed chat/completions-routable models per catalog (Go: 11, Zen: 16) — present in the live OpenCode `/models` catalog and recorded as routable in the reviewed registry.
+* Reviewed chat/completions-routable models per catalog (Go: 11, Zen: 15) — present in the live OpenCode `/models` catalog and recorded as routable in the reviewed registry.
 * Explicitly reviewed free models labeled `(Free)` in the model picker (Zen catalog).
 * Credential-free Model Radar and catalog watch for fast-follow verification work.
 * Availability probe with transient caching — validates key without calling `/models`.
@@ -71,7 +71,7 @@ Only reviewed chat/completions records are advertised by default. The current ad
 
 1. Upload to `/wp-content/plugins/duoport-connect-for-opencode`
 2. Activate through the Plugins menu
-3. Go to Settings → Connectors and enter your opencode.ai key in both the Go and Zen fields (the same key works for both catalogs)
+3. Go to Settings → Connectors and enter your opencode.ai key in both the Go and Zen fields (in most cases the same key works for both catalogs)
 4. (Optional) Go to Settings → DuoPort Connector to enable **Show all models** or check connection status
 5. Use the WordPress AI Client's normal provider/model selection flow
 
@@ -79,11 +79,11 @@ Only reviewed chat/completions records are advertised by default. The current ad
 
 = Where do I get an API key? =
 
-Visit https://opencode.ai/auth and sign up for Go or Zen. The same key works for both catalogs.
+Visit https://opencode.ai/auth and sign up for Go or Zen. In most cases, the same key works for both catalogs.
 
 = Do Go and Zen use the same API key? =
 
-Yes. OpenCode uses a unified auth domain, so paste the same opencode.ai key into both the Go and Zen fields on Settings → Connectors. Each catalog keeps its own key field so WordPress can validate them independently. You can also set `OPENCODE_GO_API_KEY` / `OPENCODE_ZEN_API_KEY` constants or env vars.
+In most cases, yes. OpenCode uses a unified auth domain, so paste the same opencode.ai key into both the Go and Zen fields on Settings → Connectors. Each catalog keeps its own key field so WordPress can validate them independently.
 
 = Which models are available? =
 
@@ -115,7 +115,8 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 = 0.1.9 =
 * Fixed: three Zen MiniMax models (minimax-m3, minimax-m2.7, minimax-m2.5) were allowlisted but blocked as unsupported, hiding them from the picker and failing generation. They match OpenCode's published Zen chat/completions endpoint table and are now routed as chat.
-* Changed: allowlisted models whose chat/completions family is not evidenced in OpenCode's published endpoint/pricing tables are now recorded as verification-required and stay hidden until a chat/completions probe passes (Go: glm-5.1, glm-5, kimi-k2.5, mimo-v2-pro, mimo-v2-omni, hy3-preview; Zen: deepseek-v4-flash-free). Default-visible counts are now Go: 11, Zen: 16.
+* Changed: allowlisted models whose chat/completions family is not evidenced in OpenCode's published endpoint/pricing tables are now recorded as verification-required and stay hidden until a chat/completions probe passes (Go: glm-5.1, glm-5, kimi-k2.5, mimo-v2-pro, mimo-v2-omni, hy3-preview). Default-visible counts are now Go: 11, Zen: 15.
+* Removed: `mimo-v2.5-free` and `deepseek-v4-flash-free` left the Zen allowlist and free set — neither ID is present in the live Zen `/models` catalog anymore. `big-pickle` keeps its reviewed free label: it is billed Free in OpenCode's published Zen pricing table (https://opencode.ai/docs/zen/#pricing).
 * Fixed: free-model labels are now per-catalog, so a free-named ID in one catalog can never mislabel the other catalog's picker.
 * Fixed: network uninstall now sweeps the settings row and plugin transients on every subsite (capped), instead of only the current site.
 * Improved: the reviewed-model counts in the documentation are now covered by a test that reads them from the registry, so they cannot drift again.
@@ -183,7 +184,7 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 == Upgrade Notice ==
 = 0.1.9 =
-<p>No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release routes the three Zen MiniMax models as chat/completions per OpenCode's published endpoint table, holds seven allowlisted models with unverified endpoint families as verification-required until probed, labels free models per catalog, and sweeps every subsite on network uninstall.</p>
+<p>No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release routes the three Zen MiniMax models as chat/completions per OpenCode's published endpoint table, holds six allowlisted Go models with unverified endpoint families as verification-required until probed, removes two retired Zen IDs absent from the live catalog, labels free models per catalog, and sweeps every subsite on network uninstall.</p>
 
 
 = 0.1.8 =
