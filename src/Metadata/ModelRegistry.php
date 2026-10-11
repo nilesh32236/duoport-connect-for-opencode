@@ -135,6 +135,31 @@ final class ModelRegistry {
 	public const ENDPOINT_FAMILY_UNSUPPORTED = 'unsupported';
 
 	/**
+	 * Generation options verified against the OpenAI-compatible
+	 * chat/completions contract.
+	 *
+	 * The inherited text model maps these ModelConfig keys onto the wire
+	 * (`top_p`, `stop`, `presence_penalty`, `frequency_penalty`, and the
+	 * system instruction via the messages array), so a routable chat-family
+	 * record may advertise them. Anything not listed here — including
+	 * option names this registry has never reviewed — stays fail-closed
+	 * via supportsOption(). Temperature, max tokens, modalities, MIME
+	 * types, and custom options are the unconditional declaration base
+	 * owned by the metadata directory, not gated here.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @var list<string>
+	 */
+	private const VERIFIED_GENERATION_OPTIONS = array(
+		'systemInstruction',
+		'topP',
+		'stopSequences',
+		'presencePenalty',
+		'frequencyPenalty',
+	);
+
+	/**
 	 * Whether an endpoint family is a known, named non-chat family.
 	 *
 	 * @param string $family Endpoint family name.
@@ -195,6 +220,7 @@ final class ModelRegistry {
 			'free'                => ModelAllowlist::isFree( $id, $catalog ),
 			'endpoint_family'     => $endpoint_family,
 			'capabilities'        => $capabilities,
+			'generation_options'  => $route_supported ? self::VERIFIED_GENERATION_OPTIONS : array(),
 			'verification_status' => self::ENDPOINT_FAMILY_UNSUPPORTED === $endpoint_family ? self::VERIFICATION_REQUIRED_STATUS : self::VERIFICATION_STATUS,
 			'last_verified'       => self::ENDPOINT_FAMILY_UNSUPPORTED === $endpoint_family ? self::PENDING_LAST_REVIEWED : self::LAST_VERIFIED,
 		);
@@ -260,5 +286,43 @@ final class ModelRegistry {
 	public static function supports( string $id, string $catalog, string $capability ): bool {
 		$record = self::record( $id, $catalog );
 		return null !== $record && true === ( $record['capabilities'][ $capability ] ?? false );
+	}
+
+	/**
+	 * Whether a generation option is verified for a model.
+	 *
+	 * Fail-closed: unknown IDs, unknown catalogs, pending-verification
+	 * records, and option names outside VERIFIED_GENERATION_OPTIONS all
+	 * return false. Callers keep their unconditional base (temperature,
+	 * max tokens) and consult this gate only for the options that must
+	 * be declared only where verified. Never throws.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param string $id      Model ID.
+	 * @param string $catalog Catalog slug.
+	 * @param string $option  Canonical option key (e.g. `topP`, `presencePenalty`).
+	 * @return bool
+	 */
+	public static function supportsOption( string $id, string $catalog, string $option ): bool {
+		try {
+			if ( '' === $id || '' === $catalog || '' === $option ) {
+				return false;
+			}
+			if ( ! in_array( $option, self::VERIFIED_GENERATION_OPTIONS, true ) ) {
+				return false;
+			}
+			$record = self::record( $id, $catalog );
+			if ( null === $record || ! self::isVerified( $record ) ) {
+				return false;
+			}
+			if ( self::ENDPOINT_FAMILY_UNSUPPORTED === ( $record['endpoint_family'] ?? '' ) ) {
+				return false;
+			}
+			$verified = $record['generation_options'] ?? self::VERIFIED_GENERATION_OPTIONS;
+			return is_array( $verified ) && in_array( $option, $verified, true );
+		} catch ( \Throwable ) {
+			return false;
+		}
 	}
 }
