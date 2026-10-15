@@ -325,35 +325,6 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	}
 
 	/**
-	 * Resolve the model ID via SDK metadata accessors.
-	 *
-	 * @since 0.1.6
-	 *
-	 * @return string Empty string when unresolvable. Never throws.
-	 */
-	private function resolveViaAccessors(): string {
-		return ModelIdentityResolver::resolveViaAccessors( $this );
-	}
-
-	/**
-	 * Last-resort model ID resolution via reflection.
-	 *
-	 * Reflects over object properties looking for SDK metadata holding a
-	 * getId() accessor (targets the WordPress AI Client OpenAI-compatible
-	 * base model). The public-accessor loop above is primary; prefer an
-	 * explicit model-id accessor if the SDK exposes one. No setAccessible()
-	 * call: it has been a no-op since PHP 8.1 and the floor here is 8.2.
-	 * Never throws.
-	 *
-	 * @since 0.1.6
-	 *
-	 * @return string Empty string when unresolvable.
-	 */
-	private function resolveViaReflection(): string {
-		return ModelIdentityResolver::resolveViaReflection( $this );
-	}
-
-	/**
 	 * Resolve the catalog key for the tool-capability gate.
 	 *
 	 * Derived from the bound provider class (Go vs Zen) through
@@ -379,6 +350,5 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 		} catch ( \Throwable ) {
 			return '';
 		}
-		return '';
 	}
 }

@@ -35,14 +35,14 @@ final class ImageReencoder {
 	 * @return array{bytes:string,mime:string}|\WP_Error Re-encoded bytes plus MIME, or WP_Error.
 	 */
 	public static function reencode( string $image_bytes, string $detected_mime ): array|\WP_Error {
-		if ( ! ImageAttachmentSaver::is_allowed_mime( $detected_mime ) ) {
+		if ( ! ImageValidator::is_allowed_mime( $detected_mime ) ) {
 			return self::decodeError();
 		}
 		$probe = ImageValidator::headerProbe( $image_bytes );
 		if ( null === $probe ) {
 			return self::decodeError();
 		}
-		if ( $probe['width'] * $probe['height'] > ImageAttachmentSaver::MAX_PIXELS ) {
+		if ( $probe['width'] * $probe['height'] > ImageValidator::MAX_PIXELS ) {
 			return self::decodeError();
 		}
 		$tmp_files = array();
@@ -179,13 +179,13 @@ final class ImageReencoder {
 		if ( '' === $encoded ) {
 			return self::decodeError();
 		}
-		if ( ! ImageAttachmentSaver::is_within_size_limit( strlen( $encoded ) ) ) {
+		if ( ! ImageValidator::is_within_size_limit( strlen( $encoded ) ) ) {
 			return new \WP_Error(
 				'opencode_image_size',
 				sprintf(
 					/* translators: %d: maximum size in bytes. */
 					__( 'The generated image exceeds the %d byte limit.', 'duoport-connect-for-opencode' ),
-					ImageAttachmentSaver::MAX_BYTES
+					ImageValidator::MAX_BYTES
 				)
 			);
 		}
@@ -196,7 +196,7 @@ final class ImageReencoder {
 		}
 		$path_mime    = ImageMime::mimeForExtension( (string) pathinfo( $actual_target, PATHINFO_EXTENSION ) );
 		$encoded_mime = ImageValidator::contentMime( $encoded );
-		if ( null === $encoded_mime || ! ImageAttachmentSaver::is_allowed_mime( $encoded_mime ) ) {
+		if ( null === $encoded_mime || ! ImageValidator::is_allowed_mime( $encoded_mime ) ) {
 			return self::decodeError();
 		}
 		if ( $encoded_mime !== $reported_mime && $encoded_mime !== $path_mime ) {

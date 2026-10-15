@@ -99,8 +99,9 @@ final class CodeQualityRatchetTest extends MonkeyTestCase {
 		self::assertStringContainsString( 'BuildsProviderRequest', $directory, 'The metadata directory must use the shared request trait.' );
 		self::assertStringContainsString( 'buildProviderRequest(', $directory, 'The metadata directory must build through the shared helper.' );
 
-		// And the trait itself is where the Go header pair lives exactly once.
+		// And the trait itself routes the Go header pair through the single
+		// catalog-branch owner, so the probe and the models cannot drift.
 		$trait = (string) file_get_contents( $root . '/src/Transport/BuildsProviderRequest.php' );
-		self::assertStringContainsString( 'GoRequestHeaders::for_go', $trait, 'The shared trait must own the Go header call.' );
+		self::assertStringContainsString( 'GoRequestHeaders::forCatalog', $trait, 'The shared trait must route the Go header call through the single catalog-branch owner.' );
 	}
 }

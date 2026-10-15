@@ -13,6 +13,8 @@ declare(strict_types=1);
 
 namespace OpenCodeConnector\Http;
 
+use OpenCodeConnector\Metadata\Catalog;
+
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -57,5 +59,43 @@ final class GoRequestHeaders {
 			// Fail-open: leave headers unchanged when User-Agent injection fails.
 			return $with_session;
 		}
+	}
+
+	/**
+	 * Apply the catalog-appropriate headers to a headers array.
+	 *
+	 * Single home for the catalog-branch header choice the availability
+	 * probe and the shared request trait each derived inline (a
+	 * class_exists/method_exists guard around for_go() plus the
+	 * session-only fallback): the next header change lands here once
+	 * instead of in both places. Never throws; a missing helper degrades
+	 * to fewer headers, never a fatal.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param string $catalog Catalog slug.
+	 * @param array  $headers Request headers.
+	 * @param mixed  $data    Request data the session is derived from.
+	 * @return array Headers with the catalog pair added when applicable.
+	 */
+	public static function forCatalog( string $catalog, array $headers, $data ): array {
+		$base_headers = $headers;
+		if ( Catalog::GO === $catalog ) {
+			try {
+				if ( method_exists( self::class, 'for_go' ) ) {
+					return self::for_go( $base_headers, $data );
+				}
+			} catch ( \Throwable $go_header_exception ) {
+				unset( $go_header_exception );
+			}
+		}
+		try {
+			if ( class_exists( SessionHeader::class ) && method_exists( SessionHeader::class, 'inject_into_headers' ) ) {
+				return SessionHeader::inject_into_headers( $base_headers, $data );
+			}
+		} catch ( \Throwable $session_header_exception ) {
+			unset( $session_header_exception );
+		}
+		return $base_headers;
 	}
 }

@@ -227,6 +227,34 @@ final class Catalog {
 	}
 
 	/**
+	 * Metadata directory class FQCN for a catalog.
+	 *
+	 * Single home for the catalog-to-directory mapping the Settings
+	 * cache-bust list derives from: adding a third catalog extends the
+	 * bust list automatically instead of requiring a second hand-maintained
+	 * list to be found. Returns an empty string for an unknown slug so
+	 * callers skip it instead of busting the wrong catalog's cache.
+	 *
+	 * The class names are compile-time `::class` constants, which resolve
+	 * without triggering the autoloader, so this dependency-free class stays
+	 * load-safe from Settings, bust hooks, and uninstall.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param string $catalog Catalog slug.
+	 * @return string Directory class FQCN, or empty string for unknown catalogs.
+	 */
+	public static function metadataDirectoryClassFor( string $catalog ): string {
+		if ( self::GO === $catalog ) {
+			return \OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory::class;
+		}
+		if ( self::ZEN === $catalog ) {
+			return \OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory::class;
+		}
+		return '';
+	}
+
+	/**
 	 * The probe result and its stampede lock, without the last-known-good flag.
 	 *
 	 * The split exists so no caller has to select list members by position to

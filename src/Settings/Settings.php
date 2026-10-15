@@ -168,16 +168,24 @@ final class Settings {
 	/**
 	 * Clear model caches.
 	 *
+	 * The directory classes resolve per catalog through
+	 * Catalog::metadataDirectoryClassFor(), which owns the catalog set, so
+	 * adding a third catalog extends this bust list automatically instead
+	 * of requiring a hardcoded list to be found by hand.
+	 *
 	 * @since 0.1.0
 	 *
 	 * @return void
 	 */
 	private function clearModelCaches(): void {
-		$classes = array(
-			\OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory::class,
-			\OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory::class,
-		);
-		$cache   = null;
+		$classes = array();
+		foreach ( \OpenCodeConnector\Metadata\Catalog::ALL as $catalog ) {
+			$directory = \OpenCodeConnector\Metadata\Catalog::metadataDirectoryClassFor( $catalog );
+			if ( '' !== $directory ) {
+				$classes[] = $directory;
+			}
+		}
+		$cache = null;
 		if ( class_exists( AiClient::class ) && method_exists( AiClient::class, 'getCache' ) ) {
 			try {
 				$cache = AiClient::getCache();

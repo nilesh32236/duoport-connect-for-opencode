@@ -67,6 +67,11 @@ final class DiagnosticResult {
 	/**
 	 * Build the legacy array shape from named fields in one call.
 	 *
+	 * Legacy shim: new call sites construct the object with named
+	 * arguments and project via toArray() (see
+	 * ConnectionDiagnostics::result()) so field order is checked by name,
+	 * not position. Retained for backward compatibility.
+	 *
 	 * @since 0.1.8
 	 *
 	 * @param string $state      Safe state name.
@@ -78,6 +83,13 @@ final class DiagnosticResult {
 	 * @return array<string, mixed>
 	 */
 	public static function make( string $state, bool $configured, bool $verified, bool $usable, int $status, string $code ): array {
-		return ( new self( $state, $configured, $verified, $usable, $status, $code ) )->toArray();
+		return ( new self(
+			state: $state,
+			configured: $configured,
+			verified: $verified,
+			usable: $usable,
+			status: $status,
+			code: $code
+		) )->toArray();
 	}
 }

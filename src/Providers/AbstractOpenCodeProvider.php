@@ -62,20 +62,63 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	/**
 	 * Display name.
 	 *
+	 * Resolved from the bound catalog key so the Go and Zen subclasses stay
+	 * pure catalog-key bindings: a display-name or i18n-pattern change lands
+	 * here once instead of in both subclasses.
+	 *
 	 * @since 0.1.0
 	 *
 	 * @return string
 	 */
-	abstract protected static function displayName(): string;
+	protected static function displayName(): string {
+		if ( Catalog::ZEN === static::catalogKey() ) {
+			if ( function_exists( '__' ) ) {
+				return __( 'OpenCode Zen', 'duoport-connect-for-opencode' );
+			}
+			return 'OpenCode Zen';
+		}
+		if ( function_exists( '__' ) ) {
+			return __( 'OpenCode Go', 'duoport-connect-for-opencode' );
+		}
+		return 'OpenCode Go';
+	}
 
 	/**
 	 * Description.
 	 *
+	 * Resolved from the bound catalog key for the same reason as
+	 * displayName(): one home for the per-catalog literals.
+	 *
 	 * @since 0.1.0
 	 *
 	 * @return string
 	 */
-	abstract protected static function description(): string;
+	protected static function description(): string {
+		if ( Catalog::ZEN === static::catalogKey() ) {
+			if ( function_exists( '__' ) ) {
+				return __( 'Text generation with OpenCode Zen, including free models.', 'duoport-connect-for-opencode' );
+			}
+			return 'Text generation with OpenCode Zen, including free models.';
+		}
+		if ( function_exists( '__' ) ) {
+			return __( 'Text generation with OpenCode Go.', 'duoport-connect-for-opencode' );
+		}
+		return 'Text generation with OpenCode Go.';
+	}
+
+	/**
+	 * Base URL.
+	 *
+	 * Resolved from the bound catalog key through Catalog::baseUrl(), so
+	 * subclasses keep no per-catalog URL literal of their own.
+	 *
+	 * @since 0.1.0
+	 *
+	 * @return string
+	 */
+	protected static function baseUrl(): string {
+		return Catalog::baseUrl( static::catalogKey() );
+	}
 
 	/**
 	 * Create a model instance.

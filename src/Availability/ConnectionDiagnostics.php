@@ -210,35 +210,6 @@ final class ConnectionDiagnostics {
 	}
 
 	/**
-	 * Whether a normalised string contains any normalised phrase.
-	 *
-	 * Both sides are already normalised, so this is a plain substring test. The
-	 * phrases are constants and cannot be pre-normalised at declaration without
-	 * a helper, so they are normalised here — which is why this helper exists
-	 * at all rather than an inline `foreach`.
-	 *
-	 * @param string   $message  Normalised message.
-	 * @param string[] $phrases  Raw phrases, normalised on the fly.
-	 * @return bool
-	 */
-	private function containsAnyOf( string $message, array $phrases ): bool {
-		return ErrorVocabulary::containsAnyOf( $message, $phrases );
-	}
-
-	/**
-	 * Reduce an error identifier to comparable form.
-	 *
-	 * Lower case with every non-alphanumeric character dropped, so
-	 * `model_not_found`, `Model-Not-Found` and `modelnotfound` are one value.
-	 *
-	 * @param string $value Raw value.
-	 * @return string
-	 */
-	private function normalize( string $value ): string {
-		return ErrorVocabulary::normalize( $value );
-	}
-
-	/**
 	 * Whether a state proves the key was accepted by the gateway.
 	 *
 	 * Single owner for the fail-open safety policy: every caller that decides
@@ -504,8 +475,10 @@ final class ConnectionDiagnostics {
 	/**
 	 * Build a stable, non-sensitive result.
 	 *
-	 * Delegates to DiagnosticResult so factories pass named fields through
-	 * one value object instead of a positional bool bag.
+	 * Constructs the value object with named arguments so a field-order
+	 * slip at this single funnel is a named mismatch, not a silent bool
+	 * swap. Factories pass scalars positionally here only; the object
+	 * boundary itself is name-checked.
 	 *
 	 * @param string $state      Safe state name.
 	 * @param bool   $configured Whether authorization was accepted.
@@ -516,6 +489,13 @@ final class ConnectionDiagnostics {
 	 * @return array<string, mixed>
 	 */
 	private function result( string $state, bool $configured, bool $verified, bool $usable, int $status, string $code ): array {
-		return DiagnosticResult::make( $state, $configured, $verified, $usable, $status, $code );
+		return ( new DiagnosticResult(
+			state: $state,
+			configured: $configured,
+			verified: $verified,
+			usable: $usable,
+			status: $status,
+			code: $code
+		) )->toArray();
 	}
 }

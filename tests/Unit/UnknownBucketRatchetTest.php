@@ -15,6 +15,7 @@ namespace OpenCodeConnector\Tests\Unit {
 
 	use Brain\Monkey\Functions;
 	use OpenCodeConnector\Availability\ConnectionDiagnostics;
+	use OpenCodeConnector\Availability\LastGoodStore;
 	use OpenCodeConnector\Availability\OpenCodeProviderAvailability;
 	use OpenCodeConnector\Metadata\Catalog;
 	use PHPUnit\Framework\Attributes\PreserveGlobalState;
@@ -562,7 +563,7 @@ namespace OpenCodeConnector\Tests\Unit {
 		 * Rotations delivered outside the options table — a `wp-config.php`
 		 * constant or an environment variable — fire none of the bust hooks,
 		 * so without an age bound the 30-day flag could outlive the rotation
-		 * it describes. Past `LAST_GOOD_MAX_AGE` without a fresh keyed
+		 * it describes. Past `LastGoodStore::MAX_AGE` without a fresh keyed
 		 * confirmation, a could-not-be-checked verdict reports not-configured.
 		 *
 		 * @return void
@@ -576,16 +577,16 @@ namespace OpenCodeConnector\Tests\Unit {
 				define( 'MINUTE_IN_SECONDS', 60 );
 			}
 
-			$max_age = (int) ( new \ReflectionClass( OpenCodeProviderAvailability::class ) )->getConstant( 'LAST_GOOD_MAX_AGE' );
-			self::assertGreaterThan( 0, $max_age, 'The fallback age cap must exist and be positive.' );
+		$max_age = (int) ( new \ReflectionClass( LastGoodStore::class ) )->getConstant( 'MAX_AGE' );
+		self::assertGreaterThan( 0, $max_age, 'The fallback age cap must exist and be positive.' );
 
-			$flag  = Catalog::AVAIL_PREFIX . 'go' . Catalog::LAST_GOOD_SUFFIX;
-			$store = array(
-				$flag => array(
-					'v'  => '1',
-					'ts' => time() - $max_age - 60,
-				),
-			);
+		$flag  = Catalog::AVAIL_PREFIX . 'go' . Catalog::LAST_GOOD_SUFFIX;
+		$store = array(
+			$flag => array(
+				'v'  => '1',
+				'ts' => time() - $max_age - 60,
+			),
+		);
 
 			Functions\when( 'get_transient' )->alias(
 				static function ( string $key ) use ( &$store ): mixed {
@@ -611,7 +612,7 @@ namespace OpenCodeConnector\Tests\Unit {
 		 * A recently confirmed flag still fails open (control for the age cap).
 		 *
 		 * The cap must only end fallbacks that have gone unconfirmed, never
-		 * the normal outage path: a flag confirmed within `LAST_GOOD_MAX_AGE`
+		 * the normal outage path: a flag confirmed within `LastGoodStore::MAX_AGE`
 		 * still carries a could-not-be-checked verdict.
 		 *
 		 * @return void
@@ -625,16 +626,16 @@ namespace OpenCodeConnector\Tests\Unit {
 				define( 'MINUTE_IN_SECONDS', 60 );
 			}
 
-			$max_age = (int) ( new \ReflectionClass( OpenCodeProviderAvailability::class ) )->getConstant( 'LAST_GOOD_MAX_AGE' );
-			self::assertGreaterThan( 0, $max_age, 'The fallback age cap must exist and be positive.' );
+		$max_age = (int) ( new \ReflectionClass( LastGoodStore::class ) )->getConstant( 'MAX_AGE' );
+		self::assertGreaterThan( 0, $max_age, 'The fallback age cap must exist and be positive.' );
 
-			$flag  = Catalog::AVAIL_PREFIX . 'go' . Catalog::LAST_GOOD_SUFFIX;
-			$store = array(
-				$flag => array(
-					'v'  => '1',
-					'ts' => time() - $max_age + 3600,
-				),
-			);
+		$flag  = Catalog::AVAIL_PREFIX . 'go' . Catalog::LAST_GOOD_SUFFIX;
+		$store = array(
+			$flag => array(
+				'v'  => '1',
+				'ts' => time() - $max_age + 3600,
+			),
+		);
 
 			Functions\when( 'get_transient' )->alias(
 				static function ( string $key ) use ( &$store ): mixed {

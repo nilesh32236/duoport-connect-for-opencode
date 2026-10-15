@@ -147,23 +147,19 @@ final class CatalogWatch {
 				}
 				if ( array_key_exists( 'endpoint_family', $snapshot ) && $snapshot['endpoint_family'] !== $record['endpoint_family'] ) {
 					$states[] = 'endpoint_changed';
-					$states[] = 'verification_required';
-					$status   = 'verification_required';
+					$this->markVerificationRequired( $states, $status );
 				}
 				if ( $this->capabilities_changed( $snapshot, $record ) ) {
 					$states[] = 'capability_changed';
-					$states[] = 'verification_required';
-					$status   = 'verification_required';
+					$this->markVerificationRequired( $states, $status );
 				}
 				if ( $this->free_changed( $snapshot, $record ) ) {
 					$states[] = 'free_changed';
-					$states[] = 'verification_required';
-					$status   = 'verification_required';
+					$this->markVerificationRequired( $states, $status );
 				}
 				if ( $this->metadata_changed( $snapshot, $record ) ) {
 					$states[] = 'metadata_changed';
-					$states[] = 'verification_required';
-					$status   = 'verification_required';
+					$this->markVerificationRequired( $states, $status );
 				}
 			}
 			if ( $has_malformed ) {
@@ -172,6 +168,24 @@ final class CatalogWatch {
 			$results[] = $this->result( $id, $status, $states, isset( $baseline[ $key ] ) );
 		}
 		return $results;
+	}
+
+	/**
+	 * Mark a diff row as needing human verification.
+	 *
+	 * Single home for the append-state plus set-status pair every change
+	 * kind repeats: a fifth change kind calls this instead of copying the
+	 * two lines a fifth time and risking half of the pair.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param array<int, string> $states State list (updated in place).
+	 * @param string             $status Primary status (updated in place).
+	 * @return void
+	 */
+	private function markVerificationRequired( array &$states, string &$status ): void {
+		$states[] = 'verification_required';
+		$status   = 'verification_required';
 	}
 
 	/**

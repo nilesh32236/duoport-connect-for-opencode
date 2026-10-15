@@ -20,6 +20,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use OpenCodeConnector\Http\GoRequestHeaders;
+use OpenCodeConnector\Metadata\Catalog;
 use WordPress\AiClient\Providers\Http\DTO\Request;
 use WordPress\AiClient\Providers\Http\DTO\RequestOptions;
 use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
@@ -95,9 +96,11 @@ trait BuildsProviderRequest {
 	/**
 	 * Apply the shared Go header pair, fail-open.
 	 *
-	 * Single seam for the `GoRequestHeaders::for_go()` call the text and
-	 * image paths share, so the next header change lands in both. A
-	 * missing helper degrades to the caller's headers, never a fatal.
+	 * Thin seam over `GoRequestHeaders::forCatalog()`, which owns the
+	 * catalog-branch header choice (guarded for_go() call plus the
+	 * session-only fallback) the text, image, and probe paths share, so
+	 * the next header change lands in both. A missing helper degrades to
+	 * the caller's headers, never a fatal.
 	 *
 	 * @since 0.1.8
 	 *
@@ -107,8 +110,8 @@ trait BuildsProviderRequest {
 	 */
 	protected function goHeaders( array $headers, $data ): array {
 		try {
-			if ( class_exists( GoRequestHeaders::class ) && method_exists( GoRequestHeaders::class, 'for_go' ) ) {
-				return GoRequestHeaders::for_go( $headers, $data );
+			if ( class_exists( GoRequestHeaders::class ) && method_exists( GoRequestHeaders::class, 'forCatalog' ) ) {
+				return GoRequestHeaders::forCatalog( Catalog::GO, $headers, $data );
 			}
 		} catch ( \Throwable $header_exception ) {
 			unset( $header_exception );

@@ -117,13 +117,27 @@ final class ModelRadarRenderer {
 	/**
 	 * Human label for one change row.
 	 *
+	 * A status-to-label map plus the free-candidate suffix, so the next
+	 * status value extends a table row instead of a nested ternary.
+	 *
 	 * @since 0.1.8
 	 *
 	 * @param array<string, mixed> $change Change row.
 	 * @return string
 	 */
 	public function changeLabel( array $change ): string {
-		$label = 'retired' === ( $change['status'] ?? '' ) ? 'retired' : ( 'verification_required' === ( $change['status'] ?? '' ) ? 'verification-required' : ( ! empty( $change['supported'] ) ? 'reviewed' : 'registry-candidate' ) );
+		$labels = array(
+			'retired'               => 'retired',
+			'verification_required' => 'verification-required',
+		);
+		$status = (string) ( $change['status'] ?? '' );
+		if ( isset( $labels[ $status ] ) ) {
+			$label = $labels[ $status ];
+		} elseif ( ! empty( $change['supported'] ) ) {
+			$label = 'reviewed';
+		} else {
+			$label = 'registry-candidate';
+		}
 		if ( ! empty( $change['free_candidate'] ) ) {
 			$label .= '; free-candidate';
 		}
