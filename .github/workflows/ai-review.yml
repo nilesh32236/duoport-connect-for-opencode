@@ -419,8 +419,11 @@ jobs:
             sleep 30
           done
           [ "$STATE" = "green" ] || { echo "CI did not go green in time."; exit 1; }
-          # The main ruleset requires an up-to-date head. Try a normal merge,
-          # then an admin merge (checks are already verified green above).
-          gh pr merge "$PR" --repo "$REPOSITORY" --squash --delete-branch \
-            || gh pr merge "$PR" --repo "$REPOSITORY" --squash --delete-branch --admin
+          # The main ruleset requires an up-to-date head. Do NOT fall back to
+          # --admin: bypassing branch protection is forbidden by the campaign
+          # rules, and an admin merge here would land a PR the ruleset rejected
+          # (stale head, missing required check) despite the CI poll above. If
+          # the normal merge fails, the job fails loudly and the PR is resolved
+          # by a human/agent instead of being forced through.
+          gh pr merge "$PR" --repo "$REPOSITORY" --squash --delete-branch
           gh pr edit "$PR" --repo "$REPOSITORY" --remove-label "autofix:ready" --add-label "autofix:merged" 2>/dev/null || true
