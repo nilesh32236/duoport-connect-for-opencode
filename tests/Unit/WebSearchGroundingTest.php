@@ -155,11 +155,11 @@ namespace OpenCodeConnector\Tests\Unit {
 		 * built: no `webSearch` option is emitted anywhere.
 		 */
 		public function test_mis_declared_pending_model_is_filtered_without_grounding(): void {
-			ModelAllowlist::setWebSearchCapableForTests( array( 'go' => array( 'glm-5' ), 'zen' => array() ) );
+			ModelAllowlist::setWebSearchCapableForTests( array( 'go' => array( 'glm-5.1' ), 'zen' => array() ) );
 
 			$list = $this->parse_rows(
 				new OpenCodeGoModelMetadataDirectory(),
-				array( array( 'id' => 'glm-5' ) )
+				array( array( 'id' => 'glm-5.1' ) )
 			);
 
 			self::assertSame( array(), $list, 'A pending-verification row must be filtered, not grounded.' );

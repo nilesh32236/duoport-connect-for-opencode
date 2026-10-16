@@ -155,9 +155,9 @@ final class ToolCapabilityTest extends MonkeyTestCase {
 	 * generation cannot be attempted on it.
 	 */
 	public function test_mis_declared_pending_model_never_advertises_web_search(): void {
-		ModelAllowlist::setWebSearchCapableForTests( array( 'go' => array( 'glm-5' ), 'zen' => array() ) );
+		ModelAllowlist::setWebSearchCapableForTests( array( 'go' => array( 'glm-5.1' ), 'zen' => array() ) );
 		try {
-			self::assertFalse( \OpenCodeConnector\Metadata\ModelRegistry::supports( 'glm-5', 'go', 'web_search' ) );
+			self::assertFalse( \OpenCodeConnector\Metadata\ModelRegistry::supports( 'glm-5.1', 'go', 'web_search' ) );
 		} finally {
 			ModelAllowlist::setWebSearchCapableForTests( null );
 		}
