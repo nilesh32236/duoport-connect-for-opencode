@@ -47,17 +47,37 @@ final class CompatibilityDiagnostics {
 	/**
 	 * Inspect the current WordPress/AI Client/provider surface.
 	 *
-	 * The optional arguments are a small test seam; production callers use
-	 * no arguments. No connector option or credential API is called.
+	 * The `$registry`/`$wordpress_version` arguments are a small test seam;
+	 * production callers use the defaults. No connector option or credential
+	 * API is called.
+	 *
+	 * Read-only AI gates: when `$include_gates` is true the result also
+	 * carries `ai_supported` (the `wp_supports_ai()` verdict, or false when
+	 * the `WP_AI_SUPPORT` constant hard-disables AI) and `prompt_prevented`
+	 * (whether a `wp_ai_client_prevent_prompt` filter is registered and may
+	 * therefore prevent a prompt). Both are `null` on WordPress under 7.0 or
+	 * when the corresponding WP function is unavailable. They are
+	 * informational only: they never add entries to `issues` and never flip
+	 * `ok`, so a prevented prompt is never misreported as not-configured. A
+	 * present prevent filter means prompts MAY be prevented — prevention
+	 * itself is evaluated per prompt by core against a builder clone, not
+	 * here. The gate probes are skipped entirely unless requested, so callers
+	 * that ignore them (e.g. the admin notice) pay nothing on the hot path.
+	 *
+	 * @since 0.1.5
+	 * @since 0.1.10 Added optional `$include_gates` and the `ai_supported` /
+	 *               `prompt_prevented` fields it produces.
 	 *
 	 * @param object|null $registry Optional registry override for tests.
 	 * @param string|null $wordpress_version Optional WordPress version override for tests.
+	 * @param bool        $include_gates When true, add the informational AI gate fields.
 	 * @return array<string, mixed>
 	 */
-	public function inspect( ?object $registry = null, ?string $wordpress_version = null ): array {
-		$wordpress_version = $wordpress_version ?? $this->get_wordpress_version();
-		$sdk_available     = class_exists( AiClient::class ) || null !== $registry;
-		$issues            = array();
+	public function inspect( ?object $registry = null, ?string $wordpress_version = null, bool $include_gates = false ): array {
+		$wordpress_version   = $wordpress_version ?? $this->get_wordpress_version();
+		$wordpress_supported = version_compare( $wordpress_version, self::MINIMUM_WORDPRESS_VERSION, '>=' );
+		$sdk_available       = class_exists( AiClient::class ) || null !== $registry;
+		$issues              = array();
 
 		$issues = array_merge( $issues, $this->checkWordPress( $wordpress_version ) );
 		if ( ! $sdk_available ) {
@@ -81,9 +101,9 @@ final class CompatibilityDiagnostics {
 			$issues    = array_merge( $issues, $checked['issues'] );
 		}
 
-		return array(
+		$status = array(
 			'wordpress_version'   => $wordpress_version,
-			'wordpress_supported' => version_compare( $wordpress_version, self::MINIMUM_WORDPRESS_VERSION, '>=' ),
+			'wordpress_supported' => $wordpress_supported,
 			'sdk_available'       => $sdk_available,
 			'registry_available'  => $registry_available,
 			'registry_methods'    => $registry_methods,
@@ -91,6 +111,14 @@ final class CompatibilityDiagnostics {
 			'issues'              => array_values( array_unique( $issues ) ),
 			'ok'                  => array() === $issues,
 		);
+
+		if ( $include_gates ) {
+			$gates                      = $this->checkAiGates( $wordpress_supported );
+			$status['ai_supported']     = $gates['ai_supported'];
+			$status['prompt_prevented'] = $gates['prompt_prevented'];
+		}
+
+		return $status;
 	}
 
 	/**
@@ -106,6 +134,67 @@ final class CompatibilityDiagnostics {
 			return array( 'unsupported-wordpress-version' );
 		}
 		return array();
+	}
+
+	/**
+	 * Read the core AI gates without affecting the diagnostic verdict.
+	 *
+	 * Read-only and credential-blind: calls only `wp_supports_ai()` and the
+	 * `has_filter( 'wp_ai_client_prevent_prompt' )` presence check, and never
+	 * reads any core-managed connector key setting value. Every WP surface is
+	 * guarded (`function_exists()` before each call and `defined()` for the
+	 * `WP_AI_SUPPORT` hard-disable); the 7.0 floor is enforced once by
+	 * `inspect()`, which passes its already-computed `$wordpress_supported`
+	 * verdict in so the comparison cannot drift. When the surface is
+	 * unavailable the corresponding field is `null` (legacy fallback). Never
+	 * throws; an unreadable gate is `null`, never `false`. The returned fields
+	 * never feed `issues`/`ok` — see `inspect()`.
+	 *
+	 * `prompt_prevented` reports filter PRESENCE, not a per-prompt verdict:
+	 * core evaluates the filter against a read-only builder clone for each
+	 * prompt, so a registered filter means prompts may be prevented, not
+	 * that the current one was.
+	 *
+	 * @since 0.1.10
+	 *
+	 * @param bool $wordpress_supported Whether the WordPress version meets the 7.0 floor.
+	 * @return array{ai_supported: bool|null, prompt_prevented: bool|null}
+	 */
+	private function checkAiGates( bool $wordpress_supported ): array {
+		$gates = array(
+			'ai_supported'     => null,
+			'prompt_prevented' => null,
+		);
+		if ( ! $wordpress_supported ) {
+			return $gates;
+		}
+		if ( defined( 'WP_AI_SUPPORT' ) && ! WP_AI_SUPPORT ) {
+			$gates['ai_supported'] = false;
+		} elseif ( function_exists( 'wp_supports_ai' ) ) {
+			$ai_readable = true;
+			try {
+				$ai_supported = (bool) wp_supports_ai();
+			} catch ( \Throwable ) {
+				// An unreadable gate is indeterminate, not false.
+				$ai_readable = false;
+			}
+			if ( $ai_readable ) {
+				$gates['ai_supported'] = $ai_supported;
+			}
+		}
+		if ( function_exists( 'has_filter' ) ) {
+			$prevent_readable = true;
+			try {
+				$hook = has_filter( 'wp_ai_client_prevent_prompt' );
+			} catch ( \Throwable ) {
+				// An unreadable gate is indeterminate, not absent.
+				$prevent_readable = false;
+			}
+			if ( $prevent_readable ) {
+				$gates['prompt_prevented'] = ( false !== $hook );
+			}
+		}
+		return $gates;
 	}
 
 	/**

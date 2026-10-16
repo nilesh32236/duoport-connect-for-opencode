@@ -34,6 +34,9 @@ require_once __DIR__ . '/src/autoload.php';
 add_action(
 	'admin_notices',
 	static function (): void {
+		if ( function_exists( 'current_user_can' ) && ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
 		$diagnostics = new Compatibility\CompatibilityDiagnostics();
 		$status      = $diagnostics->inspect();
 		if ( $status['ok'] ) {
@@ -55,6 +58,15 @@ add_action(
 // `isProviderConfigured()` probe (the same pattern Settings::render()
 // uses). This callback never calls get_option()/update_option() for any
 // `connectors_ai_*` value.
+//
+// The probe is a credential verdict, not a prompt-gate verdict: a `false`
+// below may mean the key is missing/invalid, but it may also mean a core
+// gate (`WP_AI_SUPPORT`, `wp_supports_ai()`, or a
+// `wp_ai_client_prevent_prompt` filter) is refusing prompts while the
+// credential itself is fine. Notice logic is intentionally unchanged
+// (read-only verification first); a prevented prompt must not be misread
+// as not-configured — see the `ai_supported`/`prompt_prevented` fields on
+// CompatibilityDiagnostics::inspect().
 add_action(
 	'admin_notices',
 	static function (): void {
@@ -108,6 +120,12 @@ add_action(
 add_action(
 	'init',
 	static function (): void {
+		// Provider registration only — core auto-discovers these providers
+		// into connectors on `init` priority 15 and then fires
+		// `wp_connectors_init`. No manual connector registration is performed
+		// here and no `wp_connectors_init` callback is registered anywhere in
+		// this plugin (locked by NoSharedSettingTest): each catalog keeps its
+		// own core-managed `connectors_ai_opencode_{go,zen}_api_key` setting.
 		if ( ! class_exists( \WordPress\AiClient\AiClient::class ) ) {
 			return;
 		}

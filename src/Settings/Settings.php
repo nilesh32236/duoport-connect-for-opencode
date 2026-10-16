@@ -237,6 +237,14 @@ final class Settings {
 	 * Credential-blind by design: status comes only from the boolean
 	 * `isProviderConfigured()` probe. Never reads `connectors_ai_*` values.
 	 *
+	 * The probe is a credential verdict, not a prompt-gate verdict: `false`
+	 * here may mean the key is missing/invalid, but it may also mean a core
+	 * gate (`WP_AI_SUPPORT` hard-disable, `wp_supports_ai()` returning false,
+	 * or a `wp_ai_client_prevent_prompt` filter) is refusing prompts while the
+	 * credential itself is fine. A prevented prompt must not be misread as
+	 * not-configured; see the read-only `ai_supported`/`prompt_prevented`
+	 * fields on `CompatibilityDiagnostics::inspect()`.
+	 *
 	 * @since 0.1.6
 	 *
 	 * @return array{go: bool, zen: bool}

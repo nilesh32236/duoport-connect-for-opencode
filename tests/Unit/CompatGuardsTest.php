@@ -166,6 +166,94 @@ final class CompatGuardsTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * AI gate probes must stay guarded, read-only, and credential-blind.
+	 *
+	 * CompatibilityDiagnostics::inspect() reports the core prevent-prompt
+	 * gates (`wp_supports_ai`, `wp_ai_client_prevent_prompt`, `WP_AI_SUPPORT`)
+	 * as informational fields only: every WP surface needs its guard
+	 * (`function_exists` / `has_filter` / `defined`), the 7.0 floor is
+	 * derived once by `inspect()` and reused by the probe, the fields must
+	 * never feed `ok`/`issues`, and no `connectors_ai_*` value may be read.
+	 *
+	 * @return void
+	 */
+	public function test_ai_gate_probes_are_guarded_and_credential_blind(): void {
+		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Compatibility/CompatibilityDiagnostics.php' );
+
+		self::assertStringContainsString( "function_exists( 'wp_supports_ai' )", $source );
+		self::assertStringContainsString( "function_exists( 'has_filter' )", $source );
+		self::assertStringContainsString( "has_filter( 'wp_ai_client_prevent_prompt' )", $source );
+		self::assertMatchesRegularExpression(
+			'/\$wordpress_supported\s*=\s*version_compare\(\s*\$wordpress_version,\s*self::MINIMUM_WORDPRESS_VERSION/',
+			$source,
+			'The 7.0 gate floor must be derived once in inspect() from the minimum supported version.'
+		);
+		self::assertMatchesRegularExpression(
+			'/checkAiGates\(\s*\$wordpress_supported\s*\)/',
+			$source,
+			'checkAiGates() must reuse inspect()\'s version verdict instead of re-deriving the 7.0 floor.'
+		);
+		self::assertStringContainsString( "defined( 'WP_AI_SUPPORT' )", $source );
+		self::assertStringContainsString( "'ai_supported'", $source );
+		self::assertStringContainsString( "'prompt_prevented'", $source );
+		self::assertStringNotContainsString( 'connectors_ai_', $source );
+		self::assertDoesNotMatchRegularExpression(
+			'/\bget(?:_site|_network|_blog)?_option\b/',
+			$source,
+			'The gate probe must stay credential-blind: no WordPress option-reading function.'
+		);
+	}
+
+	/**
+	 * isConfigured() is a credential verdict and never consults the gates.
+	 *
+	 * Asserted by behaviour: a healthy 2xx probe must read as configured even
+	 * if prompts were gated. The gate functions are stubbed with `never()` so
+	 * the test fails if the availability path ever calls `wp_supports_ai()`
+	 * or `has_filter()`. A prevented prompt is never misreported as
+	 * not-configured.
+	 *
+	 * @return void
+	 */
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_is_configured_ignores_prompt_gates(): void {
+		require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+		require_once __DIR__ . '/Fixtures/SdkStubs.php';
+
+		if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+			define( 'MINUTE_IN_SECONDS', 60 );
+		}
+
+		// Gate functions must not be consulted by the availability path.
+		Functions\expect( 'wp_supports_ai' )->never();
+		Functions\expect( 'has_filter' )->never();
+		Functions\when( 'get_transient' )->justReturn( false );
+		Functions\when( 'set_transient' )->justReturn( true );
+		Functions\when( 'delete_transient' )->justReturn( true );
+		Functions\when( 'wp_rand' )->justReturn( 0 );
+
+		$availability = new \OpenCodeConnector\Availability\OpenCodeProviderAvailability( 'go' );
+		$availability->setHttpTransporter(
+			new class() {
+				public function send( mixed $request ): mixed {
+					unset( $request );
+					return new \WordPress\AiClient\Providers\Http\DTO\Response( 200, null );
+				}
+			}
+		);
+		$availability->setRequestAuthentication(
+			new class() {
+				public function authenticateRequest( mixed $request ): mixed {
+					return $request;
+				}
+			}
+		);
+
+		self::assertTrue( $availability->isConfigured(), 'A valid key stays configured regardless of active prompt gates.' );
+	}
+
+	/**
 	 * Silent early returns must log under WP_DEBUG like the catch blocks.
 	 *
 	 * @return void
