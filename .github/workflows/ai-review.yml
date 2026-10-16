@@ -143,8 +143,7 @@ jobs:
       github.event.action != 'closed' &&
       github.actor != 'github-actions[bot]' &&
       !endsWith(github.actor, '[bot]') &&
-      !startsWith(github.event.pull_request.head.ref, 'autofix/') &&
-      !contains(github.event.pull_request.labels.*.name, 'autofix') &&
+        !contains(github.event.pull_request.labels.*.name, 'autofix') &&
       (
         github.event_name == 'pull_request' ||
         (
@@ -263,7 +262,8 @@ jobs:
       (
         github.event_name == 'pull_request' &&
         github.event.action == 'labeled' &&
-        github.event.label.name == 'autofix'
+        github.event.label.name == 'autofix' &&
+        !startsWith(github.event.pull_request.head.ref, 'autofix/')
       ) ||
       (
         github.event_name == 'issue_comment' &&

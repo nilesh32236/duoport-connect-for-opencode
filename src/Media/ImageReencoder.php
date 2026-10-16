@@ -26,15 +26,6 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class ImageReencoder {
 	/**
-	 * Maximum decoded pixel count (25 megapixels), mirroring the saver cap.
-	 *
-	 * @since 0.1.8
-	 *
-	 * @var int
-	 */
-	public const MAX_PIXELS = 25000000;
-
-	/**
 	 * Re-encode a payload so only decoded image data survives. Fail closed.
 	 *
 	 * @since 0.1.8

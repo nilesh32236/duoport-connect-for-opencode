@@ -227,46 +227,6 @@ final class ImageAttachmentSaver {
 	}
 
 	/**
-	 * Header-only pixel dimensions of a payload.
-	 *
-	 * Reads the container header via `getimagesizefromstring()` without
-	 * decoding any pixels, so calling it cannot exhaust memory no matter
-	 * what dimensions the header declares. Returns null when the buffer
-	 * has no parseable image header — callers fail closed on null.
-	 *
-	 * Never throws.
-	 *
-	 * @since 0.1.9
-	 *
-	 * @param string $image_bytes Raw bytes.
-	 * @return array{0:int,1:int}|null Width and height, or null when unknown.
-	 */
-	private static function image_dimensions( string $image_bytes ): ?array {
-		$probe = self::header_probe( $image_bytes );
-		if ( null === $probe ) {
-			return null;
-		}
-		return array( $probe['width'], $probe['height'] );
-	}
-
-	/**
-	 * MIME type for a file extension, restricted to the allowlist.
-	 *
-	 * Inverse of `ImageMime::extensionFor()` for the output-identity check:
-	 * maps what the editor actually wrote (its output path's extension) back
-	 * to a MIME type. Returns null for anything outside the allowlist, so an
-	 * unexpected output format fails closed downstream.
-	 *
-	 * @since 0.1.9
-	 *
-	 * @param string $extension File extension without the dot.
-	 * @return string|null Allowlisted MIME type, or null when unmapped.
-	 */
-	private static function mime_for_extension( string $extension ): ?string {
-		return ImageMime::mimeForExtension( $extension );
-	}
-
-	/**
 	 * Re-encode a payload so only decoded image data survives.
 	 *
 	 * The reason this exists. Everything upstream of it — the allowlist, the
@@ -299,20 +259,6 @@ final class ImageAttachmentSaver {
 	 */
 	private static function reencode_image( string $image_bytes, string $detected_mime ): array|\WP_Error {
 		return ImageReencoder::reencode( $image_bytes, $detected_mime );
-	}
-
-	/**
-	 * Shared decode-failure error.
-	 *
-	 * @since 0.1.9
-	 *
-	 * @return \WP_Error
-	 */
-	private static function decode_error(): \WP_Error {
-		return new \WP_Error(
-			'opencode_image_decode',
-			__( 'The generated image could not be decoded, so it was not saved.', 'duoport-connect-for-opencode' )
-		);
 	}
 
 	/**
