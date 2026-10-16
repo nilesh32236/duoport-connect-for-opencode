@@ -59,11 +59,14 @@ final class ModelRegistryTest extends MonkeyTestCase {
 	 *
 	 * The Zen pending set is currently empty: its only entry
 	 * (`deepseek-v4-flash-free`) was retired from the live catalog and
-	 * removed from the allowlist rather than carried as a dead row.
+	 * removed from the allowlist rather than carried as a dead row. Five Go
+	 * IDs previously pending (`glm-5`, `kimi-k2.5`, `mimo-v2-pro`,
+	 * `mimo-v2-omni`, `hy3-preview`) left the allowlist for the same reason;
+	 * `glm-5.1` is live but still absent from the published endpoint table.
 	 */
 	public function test_pending_endpoint_verification_is_unsupported(): void {
 		$pending = array(
-			'go'  => array( 'glm-5.1', 'glm-5', 'kimi-k2.5', 'mimo-v2-pro', 'mimo-v2-omni', 'hy3-preview' ),
+			'go'  => array( 'glm-5.1' ),
 			'zen' => array(),
 		);
 		foreach ( $pending as $catalog => $ids ) {
@@ -147,7 +150,7 @@ final class ModelRegistryTest extends MonkeyTestCase {
 	 * construction at all.
 	 */
 	public function test_retired_zen_ids_have_no_registry_record(): void {
-		foreach ( array( 'mimo-v2.5-free', 'deepseek-v4-flash-free' ) as $id ) {
+		foreach ( array( 'mimo-v2.5-free', 'deepseek-v4-flash-free', 'nemotron-3-ultra-free' ) as $id ) {
 			self::assertNull( ModelRegistry::record( $id, 'zen' ) );
 			self::assertFalse( ModelRegistry::supports( $id, 'zen', 'text' ) );
 			self::assertFalse( ModelRegistry::supports( $id, 'zen', 'tools' ) );
@@ -160,7 +163,7 @@ final class ModelRegistryTest extends MonkeyTestCase {
 	public function test_catalogs_and_free_labels_are_explicit(): void {
 		$go_records   = ModelRegistry::records( 'go' );
 		$zen_records  = ModelRegistry::records( 'zen' );
-		$zen_free     = ModelRegistry::record( 'nemotron-3-ultra-free', 'zen' );
+		$zen_free     = ModelRegistry::record( 'nemotron-3.5-lightning-free', 'zen' );
 
 		self::assertNotEmpty( $go_records );
 		self::assertNotEmpty( $zen_records );
@@ -178,7 +181,7 @@ final class ModelRegistryTest extends MonkeyTestCase {
 	 * re-sort on a name that belongs to the other catalog.
 	 */
 	public function test_free_labels_are_per_catalog(): void {
-		foreach ( array( 'nemotron-3-ultra-free', 'nemotron-3.5-lightning-free', 'big-pickle' ) as $id ) {
+		foreach ( array( 'nemotron-3.5-lightning-free', 'big-pickle' ) as $id ) {
 			self::assertTrue( \OpenCodeConnector\Metadata\ModelAllowlist::isFree( $id, 'zen' ) );
 			self::assertFalse( \OpenCodeConnector\Metadata\ModelAllowlist::isFree( $id, 'go' ) );
 		}
@@ -204,13 +207,19 @@ final class ModelRegistryTest extends MonkeyTestCase {
 			$routable[ $catalog ] = $count;
 		}
 		self::assertSame( 11, $routable['go'] );
-		self::assertSame( 15, $routable['zen'] );
+		self::assertSame( 14, $routable['zen'] );
 		$readme = (string) file_get_contents( dirname( __DIR__, 2 ) . '/README.md' );
 		self::assertStringContainsString( 'Go: ' . $routable['go'], $readme );
 		self::assertStringContainsString( 'Zen: ' . $routable['zen'], $readme );
 		$features = (string) file_get_contents( dirname( __DIR__, 2 ) . '/readme.txt' );
 		self::assertStringContainsString( 'Go: ' . $routable['go'], $features );
 		self::assertStringContainsString( 'Zen: ' . $routable['zen'], $features );
+		// The changelog shipped in readme.txt must not keep a stale count:
+		// the previous "Zen: 15" contradicted the "Zen: 14" claim above and
+		// slipped through the contains-only assertions.
+		self::assertStringNotContainsString( 'Zen: 15', $features );
+		self::assertStringNotContainsString( 'Go: 15', $features );
+		self::assertStringNotContainsString( 'Zen: 15', $readme );
 	}
 
 	/**

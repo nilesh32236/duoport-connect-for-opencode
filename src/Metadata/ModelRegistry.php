@@ -82,14 +82,17 @@ final class ModelRegistry {
 	 * recorded as unverified.
 	 *
 	 * Per-catalog, never shared between Go and Zen: the evidence gap is
-	 * catalog-specific (the Go endpoint table omits the six Go IDs), so
+	 * catalog-specific (the Go endpoint table omits `glm-5.1`), so
 	 * demoting an ID in one catalog must not hide the same ID where it is
 	 * reviewed. Every entry here resolves to ENDPOINT_FAMILY_UNSUPPORTED with
 	 * VERIFICATION_REQUIRED_STATUS until a chat/completions request with
-	 * that model returns 2xx. The Zen set is currently empty: its only
-	 * pending ID (`deepseek-v4-flash-free`) was retired from the live Zen
-	 * `/models` catalog and removed from the allowlist instead of carried
-	 * as a dead baseline row.
+	 * that model returns 2xx. Five Go IDs that were previously pending
+	 * (`glm-5`, `kimi-k2.5`, `mimo-v2-pro`, `mimo-v2-omni`, `hy3-preview`)
+	 * are no longer in the live Go `/models` catalog, so they were removed
+	 * from the allowlist instead of carried as dead baseline rows. The Zen
+	 * set is currently empty: its only pending ID (`deepseek-v4-flash-free`)
+	 * was retired from the live Zen `/models` catalog and removed from the
+	 * allowlist instead of carried as a dead baseline row.
 	 *
 	 * @since 0.1.9
 	 *
@@ -98,11 +101,6 @@ final class ModelRegistry {
 	private const PENDING_ENDPOINT_VERIFICATION = array(
 		Catalog::GO  => array(
 			'glm-5.1',
-			'glm-5',
-			'kimi-k2.5',
-			'mimo-v2-pro',
-			'mimo-v2-omni',
-			'hy3-preview',
 		),
 		Catalog::ZEN => array(),
 	);

@@ -56,7 +56,7 @@ Only reviewed chat/completions records are advertised by default. The current ad
 = Features =
 
 * Two providers (`opencode-go` / `opencode-zen`) auto-discovered by the Connectors screen.
-* Reviewed chat/completions-routable models per catalog (Go: 11, Zen: 15) — present in the live OpenCode `/models` catalog and recorded as routable in the reviewed registry.
+* Reviewed chat/completions-routable models per catalog (Go: 11, Zen: 14) — recorded as routable in the reviewed registry (live catalog drift is tracked separately by the Model Radar).
 * Explicitly reviewed free models labeled `(Free)` in the model picker (Zen catalog).
 * Credential-free Model Radar and catalog watch for fast-follow verification work.
 * Availability probe with transient caching — validates key without calling `/models`.
@@ -95,7 +95,7 @@ No. Requires WordPress 7.0+ and PHP 8.2+. On older installs an admin notice is s
 
 = Why does the dashboard still say "connected" when the provider is answering with an error? =
 
-When the gateway answers with a response this plugin has no rule for (for example a new status or error shape), the dashboard keeps the value from the last successful check instead of flipping to "not connected", so an unrecognised reply does not disconnect a working key. That stored value is written only by a successful check, lasts up to 30 days from that check (each new success extends it), and the probe result itself is cached for roughly five minutes, so a change can lag behind the gateway by that much. Only a recognised credential answer (an invalid or missing key) clears the stored value; a failure naming the probed model also leaves it alone, and a catalog that never checked successfully still reads "not connected". If the stored value looks stale, change or re-enter the key for that catalog on Settings → Connectors, which clears it, or wait for a later probe to return a definitive answer.
+When the gateway answers with a response this plugin has no rule for (for example a new status or error shape), the dashboard keeps the value from the last successful check instead of flipping to "not connected", so an unrecognised reply does not disconnect a working key. That stored value is written only by a successful check and is kept for up to 30 days from that check (each new success extends it), but it only arms the fallback for the 2-day freshness window (LastGoodStore::MAX_AGE); the probe result itself is cached for roughly five minutes, so a change can lag behind the gateway by that much. Only a recognised credential answer (an invalid or missing key) clears the stored value; a failure naming the probed model also leaves it alone, and a catalog that never checked successfully still reads "not connected". If the stored value looks stale, change or re-enter the key for that catalog on Settings → Connectors, which clears it, or wait for a later probe to return a definitive answer.
 
 = Is DuoPort affiliated with OpenCode? =
 
@@ -115,7 +115,8 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 = 0.1.9 =
 * Fixed: three Zen MiniMax models (minimax-m3, minimax-m2.7, minimax-m2.5) were allowlisted but blocked as unsupported, hiding them from the picker and failing generation. They match OpenCode's published Zen chat/completions endpoint table and are now routed as chat.
-* Changed: allowlisted models whose chat/completions family is not evidenced in OpenCode's published endpoint/pricing tables are now recorded as verification-required and stay hidden until a chat/completions probe passes (Go: glm-5.1, glm-5, kimi-k2.5, mimo-v2-pro, mimo-v2-omni, hy3-preview). Default-visible counts are now Go: 11, Zen: 15.
+* Changed: allowlisted models whose chat/completions family is not evidenced in OpenCode's published endpoint/pricing tables are now recorded as verification-required and stay hidden until a chat/completions probe passes (Go: glm-5.1). Default-visible counts are now Go: 11, Zen: 14.
+* Removed: five retired Go IDs (`glm-5`, `kimi-k2.5`, `mimo-v2-pro`, `mimo-v2-omni`, `hy3-preview`) left the allowlist because they are no longer present in the live Go `/models` catalog, and `nemotron-3-ultra-free` left the Zen allowlist and free set for the same reason.
 * Removed: `mimo-v2.5-free` and `deepseek-v4-flash-free` left the Zen allowlist and free set — neither ID is present in the live Zen `/models` catalog anymore. `big-pickle` keeps its reviewed free label: it is billed Free in OpenCode's published Zen pricing table (https://opencode.ai/docs/zen/#pricing).
 * Fixed: free-model labels are now per-catalog, so a free-named ID in one catalog can never mislabel the other catalog's picker.
 * Fixed: network uninstall now sweeps the settings row and plugin transients on every subsite (capped), instead of only the current site.
@@ -141,9 +142,10 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
   has no rule for, the dashboard keeps reporting the last successful check
   ("connected") instead of flipping to "not connected", so an unrecognised
   reply or outage does not disconnect a working key. That stored value is
-  written only by a successful check and lasts up to 30 days from that check
-  (each new success extends it), plus roughly five minutes of cached probe
-  result before a new probe is sent, so a change can lag behind the gateway
+  written only by a successful check, kept for up to 30 days from that check
+  but only arming the fallback for the 2-day freshness window (each new success
+  extends both), plus roughly five minutes of cached probe result before a new
+  probe is sent, so a change can lag behind the gateway
   by that much. Only a recognised credential answer (an invalid or missing
   key) clears the stored value; a failure naming the probed model leaves it
   alone too, and a catalog that never checked successfully still reads "not
@@ -184,7 +186,7 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 == Upgrade Notice ==
 = 0.1.9 =
-<p>No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release routes the three Zen MiniMax models as chat/completions per OpenCode's published endpoint table, holds six allowlisted Go models with unverified endpoint families as verification-required until probed, removes two retired Zen IDs absent from the live catalog, labels free models per catalog, and sweeps every subsite on network uninstall.</p>
+<p>No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release routes the three Zen MiniMax models as chat/completions per OpenCode's published endpoint table, holds the one allowlisted Go model (glm-5.1) with an unverified endpoint family as verification-required until probed, removes five retired Go IDs and two retired Zen IDs absent from the live catalog, labels free models per catalog, and sweeps every subsite on network uninstall.</p>
 
 
 = 0.1.8 =

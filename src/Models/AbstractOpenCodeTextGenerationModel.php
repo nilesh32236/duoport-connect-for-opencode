@@ -50,6 +50,20 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	private ?CapabilityAwareFallback $fallback_override = null;
 
 	/**
+	 * Memoized resolved fallback selector.
+	 *
+	 * CapabilityAwareFallback is stateless, and fallbackSelector() is called
+	 * more than once per tool request (prepareToolsParam() then
+	 * createRequest() via selectRouteModel()), so resolving it once keeps the
+	 * allocation count down. Reset whenever the override changes.
+	 *
+	 * @since 0.1.10
+	 *
+	 * @var CapabilityAwareFallback|null
+	 */
+	private ?CapabilityAwareFallback $fallback_resolved = null;
+
+	/**
 	 * Inject a fallback selector double for isolated tests.
 	 *
 	 * Production callers never set this; the canonical registry-backed
@@ -62,6 +76,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 */
 	public function setFallback( CapabilityAwareFallback $fallback ): void {
 		$this->fallback_override = $fallback;
+		$this->fallback_resolved = null;
 	}
 
 	/**
@@ -75,7 +90,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	 * @return CapabilityAwareFallback
 	 */
 	protected function fallbackSelector(): CapabilityAwareFallback {
-		return $this->fallback_override ?? new CapabilityAwareFallback();
+		return $this->fallback_resolved ??= ( $this->fallback_override ?? new CapabilityAwareFallback() );
 	}
 
 	/**
@@ -182,7 +197,21 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	}
 
 	/**
-	 * OpenCode expects json_schema with name wrapper; SDK sends bare schema.
+	 * Emit the OpenAI `json_schema` response-format envelope.
+	 *
+	 * The OpenAI Chat Completions spec requires `response_format.json_schema`
+	 * to be an object carrying a `name` (and the schema under `schema`); a
+	 * bare schema under `json_schema` is rejected by compliant endpoints with
+	 * `400 missing response_format.json_schema.name`. The SDK base method
+	 * (AbstractOpenAiCompatibleTextGenerationModel::prepareResponseFormatParam())
+	 * still emits the bare shape, so this override supplies the required
+	 * envelope rather than duplicating the base.
+	 *
+	 * Only `name` is mandatory in the spec; `strict` is intentionally omitted
+	 * because the OpenAI-compatible servers this gateway fronts differ in
+	 * their `strict` handling, and forcing it could reject otherwise-valid
+	 * schemas. The fixed identifier stays within the spec's
+	 * `^[a-zA-Z0-9_-]{1,64}$` constraint.
 	 *
 	 * @since 0.1.0
 	 *
@@ -196,7 +225,6 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 				'json_schema' => array(
 					'name'   => 'response',
 					'schema' => $output_schema,
-					'strict' => true,
 				),
 			);
 		}

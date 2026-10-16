@@ -173,19 +173,19 @@ namespace OpenCodeConnector\Tests\Unit {
 		 */
 		public function test_image_allowlist_is_empty_fail_open(): void {
 			foreach ( array( 'go', 'zen' ) as $catalog ) {
-				self::assertFalse( ModelAllowlist::isImageCapable( 'glm-5', $catalog ) );
-				self::assertFalse( ModelAllowlist::isImageCapable( 'nemotron-3-ultra-free', $catalog ) );
+				self::assertFalse( ModelAllowlist::isImageCapable( 'glm-5.3', $catalog ) );
+				self::assertFalse( ModelAllowlist::isImageCapable( 'nemotron-3.5-lightning-free', $catalog ) );
 				self::assertFalse( ModelAllowlist::isImageCapable( 'no-such-model', $catalog ) );
 			}
-			self::assertFalse( ModelAllowlist::isImageCapable( 'glm-5', 'no-such-catalog' ) );
+			self::assertFalse( ModelAllowlist::isImageCapable( 'glm-5.3', 'no-such-catalog' ) );
 		}
 
 		/**
 		 * Text allowlist semantics are unchanged by the image path.
 		 */
 		public function test_text_allowlist_unaffected(): void {
-			self::assertTrue( ModelAllowlist::isAllowed( 'glm-5', 'go' ) );
-			self::assertTrue( ModelAllowlist::isAllowed( 'nemotron-3-ultra-free', 'zen' ) );
+			self::assertTrue( ModelAllowlist::isAllowed( 'glm-5.3', 'go' ) );
+			self::assertTrue( ModelAllowlist::isAllowed( 'nemotron-3.5-lightning-free', 'zen' ) );
 			self::assertFalse( ModelAllowlist::isAllowed( 'no-such-model', 'go' ) );
 		}
 
@@ -290,7 +290,7 @@ namespace OpenCodeConnector\Tests\Unit {
 
 			$rows = array(
 				array( 'id' => 'glm-5.3' ),
-				array( 'id' => 'nemotron-3-ultra-free' ),
+				array( 'id' => 'nemotron-3.5-lightning-free' ),
 				array( 'id' => 'no-such-model' ),
 				array( 'id' => '' ),
 			);

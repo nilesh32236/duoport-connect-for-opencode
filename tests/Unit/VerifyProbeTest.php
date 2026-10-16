@@ -221,6 +221,58 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
+		 * An unrecognised catalog is a config error, not a credential verdict.
+		 *
+		 * Catalog::providerClassFor() returns '' for an unknown slug. That is
+		 * a programming/config error, so it must surface as
+		 * could-not-be-checked rather than invalid_key, which would render a
+		 * code bug on the settings page as a rejected key.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_verify_maps_an_unknown_catalog_to_could_not_be_checked(): void {
+			$this->boot();
+			$ttls = array();
+			$this->stub_transients_stateless( $ttls );
+
+			list( $availability, $transporter ) = $this->make_availability( new Response( 200, null ), 'not-a-catalog' );
+			$verdict = $availability->verify();
+
+			self::assertSame( 'could-not-be-checked', $verdict['state'] );
+			self::assertSame( 0, $transporter->calls, 'An unknown catalog must not be probed.' );
+			self::assertSame( 'uncheckable', $verdict['diagnosis']['state'] ?? '' );
+		}
+
+		/**
+		 * The same unknown-catalog mapping must hold on the PROBE path.
+		 *
+		 * `isConfigured()` goes through `probe()`. Reporting `not_configured`
+		 * there was a definitive negative that contradicted `verify()` and
+		 * AGENTS.md ("only a proven invalid or missing key reports not
+		 * configured"), and it rendered an unregistered catalog slug — a
+		 * code/config error — as a rejected key on the settings UI.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_probe_maps_an_unknown_catalog_to_could_not_be_checked(): void {
+			$this->boot();
+			$ttls = array();
+			$this->stub_transients_stateless( $ttls );
+
+			list( $availability, $transporter ) = $this->make_availability( new Response( 200, null ), 'not-a-catalog' );
+			$configured = $availability->isConfigured();
+
+			self::assertFalse( $configured, 'With no last-known-good the fallback is still false.' );
+			self::assertSame( 0, $transporter->calls, 'An unknown catalog must not be probed.' );
+			self::assertSame( 'uncheckable', $availability->getLastResult()['state'] ?? '' );
+			self::assertNotSame( 'not_configured', $availability->getLastResult()['state'] ?? '' );
+		}
+
+		/**
 		 * An infrastructure fault must never be cached as a credential verdict.
 		 *
 		 * `verify()` used to catch every \Throwable around credential resolution

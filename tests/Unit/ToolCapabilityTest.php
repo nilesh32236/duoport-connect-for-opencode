@@ -44,7 +44,7 @@ final class ToolCapabilityTest extends MonkeyTestCase {
 	 * Paid allowlisted models are tool-capable in their own catalog.
 	 */
 	public function test_paid_allowlisted_models_are_tool_capable(): void {
-		self::assertTrue( ModelAllowlist::isToolCapable( 'glm-5', 'go' ) );
+		self::assertTrue( ModelAllowlist::isToolCapable( 'glm-5.3', 'go' ) );
 		self::assertTrue( ModelAllowlist::isToolCapable( 'kimi-k3', 'go' ) );
 		self::assertTrue( ModelAllowlist::isToolCapable( 'mimo-v2.5', 'go' ) );
 		self::assertTrue( ModelAllowlist::isToolCapable( 'glm-5', 'zen' ) );
@@ -53,13 +53,13 @@ final class ToolCapabilityTest extends MonkeyTestCase {
 	/**
 	 * Verification-required endpoint records are not tool-capable.
 	 *
-	 * The Zen pending set is currently empty (its only entry was
-	 * retired from the live catalog), so this covers the six Go IDs;
-	 * retired Zen IDs are not tool-capable either because they are no
-	 * longer allowlisted at all.
+	 * `glm-5.1` is the only remaining Go pending ID; the other five
+	 * (`glm-5`, `kimi-k2.5`, `mimo-v2-pro`, `mimo-v2-omni`, `hy3-preview`)
+	 * left the allowlist when they left the live catalog. Retired Zen IDs
+	 * are not tool-capable either because they are no longer allowlisted.
 	 */
 	public function test_pending_verification_routes_are_not_tool_capable(): void {
-		foreach ( array( 'glm-5.1', 'glm-5', 'kimi-k2.5', 'mimo-v2-pro', 'mimo-v2-omni', 'hy3-preview' ) as $id ) {
+		foreach ( array( 'glm-5.1' ) as $id ) {
 			self::assertFalse( \OpenCodeConnector\Metadata\ModelRegistry::supports( $id, 'go', 'tools' ) );
 		}
 		self::assertFalse( \OpenCodeConnector\Metadata\ModelRegistry::supports( 'mimo-v2.5-free', 'zen', 'tools' ) );
@@ -78,7 +78,6 @@ final class ToolCapabilityTest extends MonkeyTestCase {
 	 * Free models never advertise tools (spend/injection surface stays bounded).
 	 */
 	public function test_free_models_are_not_tool_capable(): void {
-		self::assertFalse( ModelAllowlist::isToolCapable( 'nemotron-3-ultra-free', 'zen' ) );
 		self::assertFalse( ModelAllowlist::isToolCapable( 'nemotron-3.5-lightning-free', 'zen' ) );
 		self::assertFalse( ModelAllowlist::isToolCapable( 'big-pickle', 'zen' ) );
 	}
@@ -111,6 +110,7 @@ final class ToolCapabilityTest extends MonkeyTestCase {
 		self::assertFalse( ModelAllowlist::isWebSearchCapable( 'glm-5', 'go' ) );
 		self::assertFalse( ModelAllowlist::isWebSearchCapable( 'kimi-k3', 'zen' ) );
 		self::assertFalse( ModelAllowlist::isWebSearchCapable( 'nemotron-3-ultra-free', 'zen' ) );
+		self::assertFalse( ModelAllowlist::isWebSearchCapable( 'nemotron-3.5-lightning-free', 'zen' ) );
 		self::assertFalse( ModelAllowlist::isWebSearchCapable( 'glm-5', 'unknown-catalog' ) );
 		self::assertFalse( ModelAllowlist::isWebSearchCapable( '', 'go' ) );
 	}
@@ -155,9 +155,9 @@ final class ToolCapabilityTest extends MonkeyTestCase {
 	 * generation cannot be attempted on it.
 	 */
 	public function test_mis_declared_pending_model_never_advertises_web_search(): void {
-		ModelAllowlist::setWebSearchCapableForTests( array( 'go' => array( 'glm-5' ), 'zen' => array() ) );
+		ModelAllowlist::setWebSearchCapableForTests( array( 'go' => array( 'glm-5.1' ), 'zen' => array() ) );
 		try {
-			self::assertFalse( \OpenCodeConnector\Metadata\ModelRegistry::supports( 'glm-5', 'go', 'web_search' ) );
+			self::assertFalse( \OpenCodeConnector\Metadata\ModelRegistry::supports( 'glm-5.1', 'go', 'web_search' ) );
 		} finally {
 			ModelAllowlist::setWebSearchCapableForTests( null );
 		}

@@ -94,25 +94,6 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		'api key not configured',
 	);
 
-	/**
-	 * Maximum age of the last-known-good fallback, in seconds.
-	 *
-	 * Fail-open is bounded: a flag armed by a keyed success stops carrying
-	 * could-not-be-checked verdicts once this long has passed without a fresh
-	 * keyed confirmation. The bound exists because key rotations delivered
-	 * outside the options table — a `wp-config.php` constant or an
-	 * environment variable — fire none of the cache-bust hooks, so without it
-	 * the flag could outlive the rotation it describes by up to its full
-	 * transient TTL. Every keyed success re-arms the flag with a fresh
-	 * timestamp, so a genuinely healthy key never reaches this bound; only a
-	 * key that has not been confirmed for two days stops failing open.
-	 *
-	 * Literal seconds rather than `48 * HOUR_IN_SECONDS` so the value is
-	 * available before WP defines its time constants.
-	 *
-	 * @since 0.1.10
-	 */
-	private const LAST_GOOD_MAX_AGE = 172800;
 
 	/**
 	 * Guarded jitter source for probe cache windows.
@@ -356,6 +337,19 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			return $early;
 		}
 
+		// An unrecognised catalog fails closed instead of silently probing as
+		// the Zen catalog. This is a programming/config error (an unregistered
+		// catalog slug), not a credential verdict: reporting it as
+		// `invalid_key` would render a code bug on the settings UI as if the
+		// user's key were rejected. The mapping is pure local work needing no
+		// credential and no stampede lock, so it runs before either.
+		$cls = Catalog::providerClassFor( $this->catalog );
+		if ( '' === $cls ) {
+			$verdict = $this->verify_result( 'could-not-be-checked', null, $diagnostics );
+			$this->store_verify_verdict( $tkey, $lock_key, $verdict );
+			return $verdict;
+		}
+
 		try {
 			$this->getRequestAuthentication();
 		} catch ( \Throwable $exception ) {
@@ -378,16 +372,6 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 				unset( $lock_exception );
 				// Fail-open: proceed without the lock.
 			}
-		}
-
-		// An unrecognised catalog fails closed instead of silently probing as
-		// the Zen catalog: the mapping lives in Catalog::providerClassFor()
-		// so a future third catalog cannot fall through to a wrong branch.
-		$cls = Catalog::providerClassFor( $this->catalog );
-		if ( '' === $cls ) {
-			$verdict = $this->verify_result( 'invalid_key', null, $diagnostics );
-			$this->store_verify_verdict( $tkey, $lock_key, $verdict );
-			return $verdict;
 		}
 
 		$diagnosis = $this->sendVerifyProbe( $cls, $diagnostics );
@@ -721,7 +705,27 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 
 		$diagnostics = $this->diagnostics();
-		$credential  = $this->resolveCredentialOrUncheckable( $diagnostics );
+
+		// An unrecognised catalog fails closed instead of silently probing as
+		// the Zen catalog; see verify() for why the mapping has one home. This
+		// guard runs BEFORE credential resolution and BEFORE the stampede lock,
+		// mirroring verify(): an unregistered catalog slug is a code/config
+		// error, not a statement about the credential, so probe() must not
+		// reach resolveCredentialOrUncheckable() (which can write
+		// last-known-good false for a missing key) and must not take a lock it
+		// would only release. It degrades to could-not-be-checked
+		// (uncheckable) exactly like verify(); only a proven invalid or missing
+		// key reports not-configured (AGENTS.md). The verdict is persisted so
+		// readProbeCache() serves it for the window instead of re-deriving it on
+		// every call.
+		$cls = Catalog::providerClassFor( $this->catalog );
+		if ( '' === $cls ) {
+			$this->last_result = $diagnostics->uncheckable();
+			$this->persistProbeResult( $tkey, 'uncheckable' );
+			return $this->last_result;
+		}
+
+		$credential = $this->resolveCredentialOrUncheckable( $diagnostics );
 		if ( null !== $credential ) {
 			return $credential;
 		}
@@ -729,21 +733,16 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		// Set lock before network I/O (10s).
 		$this->setCached( $lock_key, 1, 10 );
 
-		// An unrecognised catalog fails closed instead of silently probing as
-		// the Zen catalog; see verify() for why the mapping has one home.
-		$cls = Catalog::providerClassFor( $this->catalog );
-		if ( '' === $cls ) {
-			$this->last_result = $diagnostics->notConfigured();
-			$this->writeLastGood( false );
-			return $this->last_result;
-		}
 		$this->last_result = $this->sendAvailabilityProbe( $cls, $diagnostics );
-		$this->deleteCached( $lock_key );
-		$state = isset( $this->last_result['state'] ) && is_string( $this->last_result['state'] ) ? $this->last_result['state'] : '';
+		$state             = isset( $this->last_result['state'] ) && is_string( $this->last_result['state'] ) ? $this->last_result['state'] : '';
+		// Persist BEFORE releasing the stampede lock. Releasing first left a
+		// window in which another request acquired the lock and probed again
+		// before the verdict was stored, so the second probe could overwrite a
+		// fresher result with a stale one.
 		$this->persistProbeResult( $tkey, $state );
+		$this->deleteCached( $lock_key );
 		return $this->last_result;
 	}
-
 	/**
 	 * Resolve the request credential, or return an early verdict.
 	 *
@@ -942,7 +941,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * The current shape is `array( 'v' => '1', 'ts' => <unix time> )`: the
 	 * string sentinel keeps the stored type stable across the database
 	 * round-trip (an int `1` comes back as string `'1'`), and the timestamp
-	 * bounds the fallback by age — see LAST_GOOD_MAX_AGE. The age cap binds
+	 * bounds the fallback by age — see LastGoodStore::MAX_AGE. The age cap binds
 	 * only timestamped shapes.
 	 *
 	 * Legacy shapes (int `1`, string `'1'`) predate the timestamp and read as
@@ -1056,7 +1055,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * serialised value is never equal — both the value row and the timeout
 	 * row move on each rewrite, and that rewrite is the rolling behaviour
 	 * above, not a pointless write. The timestamp is what `readLastGood()`
-	 * bounds by LAST_GOOD_MAX_AGE (timestamped shapes only; pre-timestamp
+	 * bounds by LastGoodStore::MAX_AGE (timestamped shapes only; pre-timestamp
 	 * int/string shapes read as armed until a keyed success upgrades them),
 	 * so a flag that has not been confirmed since before a `wp-config.php` or
 	 * environment rotation stops failing open.

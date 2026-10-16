@@ -39,7 +39,7 @@ Visit https://opencode.ai/auth and sign up for Go or Zen. In most cases, the sam
 In most cases, yes. OpenCode uses a unified auth domain — paste the same key into both fields. Each catalog keeps its own field so WordPress can validate them independently.
 
 **Which models are available?**
-By default only reviewed chat/completions-routable models are shown (Go: 11, Zen: 15 including free models). Allowlisted models whose endpoint family is not yet verified stay hidden until a chat/completions probe passes. Enable **Show all models** to expose every other model from the API, including non-chat models that may fail.
+By default only reviewed chat/completions-routable models are shown (Go: 11, Zen: 14 including free models). Allowlisted models whose endpoint family is not yet verified stay hidden until a chat/completions probe passes. Enable **Show all models** to expose every other model from the API, including non-chat models that may fail.
 
 **Does it work without WordPress 7.0?**
 No. It requires WordPress 7.0+ and PHP 8.2+. On older installs an admin notice is shown and registration is skipped.

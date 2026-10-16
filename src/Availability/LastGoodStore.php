@@ -30,6 +30,23 @@ final class LastGoodStore {
 	/**
 	 * Maximum age of the last-known-good fallback, in seconds (48h).
 	 *
+	 * Fail-open is bounded: a flag armed by a keyed success stops carrying
+	 * could-not-be-checked verdicts once this long has passed without a fresh
+	 * keyed confirmation. The bound exists because key rotations delivered
+	 * outside the options table — a `wp-config.php` constant or an environment
+	 * variable — fire none of the cache-bust hooks, so without it the flag
+	 * could outlive the rotation it describes by up to its full transient TTL.
+	 * Every keyed success re-arms the flag with a fresh timestamp, so a
+	 * genuinely healthy key never reaches this bound; the stored transient
+	 * itself may live longer, but it only arms the fallback for this window.
+	 *
+	 * The bound applies to the timestamped shape only. Legacy scalar truthy
+	 * values (`1`, `'1'`) predate the timestamp and read as armed with no age
+	 * bound until the next keyed success upgrades them — see
+	 * `OpenCodeProviderAvailability::readLastGood()`. That unbounded read is
+	 * deliberate: treating a pre-upgrade flag as expired would disconnect
+	 * working keys on upgrade.
+	 *
 	 * @since 0.1.8
 	 *
 	 * @var int
