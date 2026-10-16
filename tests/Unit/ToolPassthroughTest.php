@@ -75,6 +75,9 @@ final class ToolPassthroughTestModel extends AbstractOpenCodeTextGenerationModel
 	public function expose_prepare_tools( array $declarations ): array {
 		return $this->prepareToolsParam( $declarations );
 	}
+	public function expose_prepare_response_format( ?array $schema ): array {
+		return $this->prepareResponseFormatParam( $schema );
+	}
 }
 
 /**
@@ -167,5 +170,37 @@ final class ToolPassthroughTest extends MonkeyTestCase {
 		$model = new ToolPassthroughTestModel( 'glm-5.3', 'go' );
 
 		self::assertSame( array(), $model->expose_prepare_tools( array() ) );
+	}
+
+	/**
+	 * Structured output emits the spec-required json_schema envelope.
+	 *
+	 * The OpenAI Chat Completions spec requires `response_format.json_schema`
+	 * to be an object with a `name` and the schema under `schema`; a bare
+	 * schema is rejected with 400. The SDK base method still emits the bare
+	 * shape, so this locks the override's envelope and the null fallback.
+	 * `strict` is deliberately absent.
+	 */
+	public function test_response_format_uses_spec_envelope(): void {
+		$model  = new ToolPassthroughTestModel( 'glm-5.3', 'go' );
+		$schema = array(
+			'type'       => 'object',
+			'properties' => array( 'a' => array( 'type' => 'string' ) ),
+		);
+
+		self::assertSame(
+			array(
+				'type'        => 'json_schema',
+				'json_schema' => array(
+					'name'   => 'response',
+					'schema' => $schema,
+				),
+			),
+			$model->expose_prepare_response_format( $schema )
+		);
+		self::assertSame(
+			array( 'type' => 'json_object' ),
+			$model->expose_prepare_response_format( null )
+		);
 	}
 }

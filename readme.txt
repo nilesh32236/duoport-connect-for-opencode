@@ -56,7 +56,7 @@ Only reviewed chat/completions records are advertised by default. The current ad
 = Features =
 
 * Two providers (`opencode-go` / `opencode-zen`) auto-discovered by the Connectors screen.
-* Reviewed chat/completions-routable models per catalog (Go: 11, Zen: 14) — present in the live OpenCode `/models` catalog and recorded as routable in the reviewed registry.
+* Reviewed chat/completions-routable models per catalog (Go: 11, Zen: 14) — recorded as routable in the reviewed registry (live catalog drift is tracked separately by the Model Radar).
 * Explicitly reviewed free models labeled `(Free)` in the model picker (Zen catalog).
 * Credential-free Model Radar and catalog watch for fast-follow verification work.
 * Availability probe with transient caching — validates key without calling `/models`.
@@ -115,7 +115,8 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 = 0.1.9 =
 * Fixed: three Zen MiniMax models (minimax-m3, minimax-m2.7, minimax-m2.5) were allowlisted but blocked as unsupported, hiding them from the picker and failing generation. They match OpenCode's published Zen chat/completions endpoint table and are now routed as chat.
-* Changed: allowlisted models whose chat/completions family is not evidenced in OpenCode's published endpoint/pricing tables are now recorded as verification-required and stay hidden until a chat/completions probe passes (Go: glm-5.1, glm-5, kimi-k2.5, mimo-v2-pro, mimo-v2-omni, hy3-preview). Default-visible counts are now Go: 11, Zen: 15.
+* Changed: allowlisted models whose chat/completions family is not evidenced in OpenCode's published endpoint/pricing tables are now recorded as verification-required and stay hidden until a chat/completions probe passes (Go: glm-5.1). Default-visible counts are now Go: 11, Zen: 14.
+* Removed: five retired Go IDs (`glm-5`, `kimi-k2.5`, `mimo-v2-pro`, `mimo-v2-omni`, `hy3-preview`) left the allowlist because they are no longer present in the live Go `/models` catalog, and `nemotron-3-ultra-free` left the Zen allowlist and free set for the same reason.
 * Removed: `mimo-v2.5-free` and `deepseek-v4-flash-free` left the Zen allowlist and free set — neither ID is present in the live Zen `/models` catalog anymore. `big-pickle` keeps its reviewed free label: it is billed Free in OpenCode's published Zen pricing table (https://opencode.ai/docs/zen/#pricing).
 * Fixed: free-model labels are now per-catalog, so a free-named ID in one catalog can never mislabel the other catalog's picker.
 * Fixed: network uninstall now sweeps the settings row and plugin transients on every subsite (capped), instead of only the current site.
@@ -184,7 +185,7 @@ This plugin connects to the OpenCode API (https://opencode.ai) to list models, c
 
 == Upgrade Notice ==
 = 0.1.9 =
-<p>No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release routes the three Zen MiniMax models as chat/completions per OpenCode's published endpoint table, holds six allowlisted Go models with unverified endpoint families as verification-required until probed, removes two retired Zen IDs absent from the live catalog, labels free models per catalog, and sweeps every subsite on network uninstall.</p>
+<p>No configuration migration is required. Existing Go and Zen connector keys remain separate and unchanged. This release routes the three Zen MiniMax models as chat/completions per OpenCode's published endpoint table, holds the one allowlisted Go model (glm-5.1) with an unverified endpoint family as verification-required until probed, removes five retired Go IDs and two retired Zen IDs absent from the live catalog, labels free models per catalog, and sweeps every subsite on network uninstall.</p>
 
 
 = 0.1.8 =

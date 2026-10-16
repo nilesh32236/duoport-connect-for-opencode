@@ -150,7 +150,7 @@ final class ModelRegistryTest extends MonkeyTestCase {
 	 * construction at all.
 	 */
 	public function test_retired_zen_ids_have_no_registry_record(): void {
-		foreach ( array( 'mimo-v2.5-free', 'deepseek-v4-flash-free' ) as $id ) {
+		foreach ( array( 'mimo-v2.5-free', 'deepseek-v4-flash-free', 'nemotron-3-ultra-free' ) as $id ) {
 			self::assertNull( ModelRegistry::record( $id, 'zen' ) );
 			self::assertFalse( ModelRegistry::supports( $id, 'zen', 'text' ) );
 			self::assertFalse( ModelRegistry::supports( $id, 'zen', 'tools' ) );
@@ -214,6 +214,12 @@ final class ModelRegistryTest extends MonkeyTestCase {
 		$features = (string) file_get_contents( dirname( __DIR__, 2 ) . '/readme.txt' );
 		self::assertStringContainsString( 'Go: ' . $routable['go'], $features );
 		self::assertStringContainsString( 'Zen: ' . $routable['zen'], $features );
+		// The changelog shipped in readme.txt must not keep a stale count:
+		// the previous "Zen: 15" contradicted the "Zen: 14" claim above and
+		// slipped through the contains-only assertions.
+		self::assertStringNotContainsString( 'Zen: 15', $features );
+		self::assertStringNotContainsString( 'Go: 15', $features );
+		self::assertStringNotContainsString( 'Zen: 15', $readme );
 	}
 
 	/**

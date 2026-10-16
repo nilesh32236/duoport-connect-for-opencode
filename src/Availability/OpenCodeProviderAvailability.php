@@ -356,6 +356,19 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			return $early;
 		}
 
+		// An unrecognised catalog fails closed instead of silently probing as
+		// the Zen catalog. This is a programming/config error (an unregistered
+		// catalog slug), not a credential verdict: reporting it as
+		// `invalid_key` would render a code bug on the settings UI as if the
+		// user's key were rejected. The mapping is pure local work needing no
+		// credential and no stampede lock, so it runs before either.
+		$cls = Catalog::providerClassFor( $this->catalog );
+		if ( '' === $cls ) {
+			$verdict = $this->verify_result( 'could-not-be-checked', null, $diagnostics );
+			$this->store_verify_verdict( $tkey, $lock_key, $verdict );
+			return $verdict;
+		}
+
 		try {
 			$this->getRequestAuthentication();
 		} catch ( \Throwable $exception ) {
@@ -378,19 +391,6 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 				unset( $lock_exception );
 				// Fail-open: proceed without the lock.
 			}
-		}
-
-		// An unrecognised catalog fails closed instead of silently probing as
-		// the Zen catalog: the mapping lives in Catalog::providerClassFor()
-		// so a future third catalog cannot fall through to a wrong branch.
-		// This is a programming/config error (an unregistered catalog slug),
-		// not a credential verdict: reporting it as `invalid_key` would render
-		// a code bug on the settings UI as if the user's key were rejected.
-		$cls = Catalog::providerClassFor( $this->catalog );
-		if ( '' === $cls ) {
-			$verdict = $this->verify_result( 'could-not-be-checked', null, $diagnostics );
-			$this->store_verify_verdict( $tkey, $lock_key, $verdict );
-			return $verdict;
 		}
 
 		$diagnosis = $this->sendVerifyProbe( $cls, $diagnostics );
@@ -733,11 +733,17 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		$this->setCached( $lock_key, 1, 10 );
 
 		// An unrecognised catalog fails closed instead of silently probing as
-		// the Zen catalog; see verify() for why the mapping has one home.
+		// the Zen catalog; see verify() for why the mapping has one home. It
+		// reports not-configured (a definitive negative, so isConfigured() is
+		// still false) but must NOT clear last-known-good: an unregistered
+		// catalog slug is a code/config error, not a statement about the
+		// credential, so it degrades indeterminate rather than deleting the
+		// 30-day fallback for a valid key. The stampede lock is released
+		// before returning so isConfigured() does not re-enter holding it.
 		$cls = Catalog::providerClassFor( $this->catalog );
 		if ( '' === $cls ) {
 			$this->last_result = $diagnostics->notConfigured();
-			$this->writeLastGood( false );
+			$this->deleteCached( $lock_key );
 			return $this->last_result;
 		}
 		$this->last_result = $this->sendAvailabilityProbe( $cls, $diagnostics );
