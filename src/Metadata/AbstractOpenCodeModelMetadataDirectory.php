@@ -287,8 +287,9 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	 * transport is inherited from the OpenAI-compatible base model (tools
 	 * param + tool_calls response parsing), so tool-verified models
 	 * advertise it and stop being filtered out of Abilities-API tool tasks.
-	 * Web search stays gated until the chat/completions payload is
-	 * gateway-verified (fail-open default).
+	 * Web search stays default-deny: only contract-verified models advertise
+	 * it, and unverified models are explicitly unsupported (text-only) so no
+	 * hallucinated grounding occurs on mis-declared models.
 	 *
 	 * @since 0.1.8
 	 *
@@ -303,9 +304,39 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 			$opts[] = new SupportedOption( OptionEnum::functionDeclarations() );
 		}
 		if ( ModelRegistry::supports( $id, $this->catalogKey(), 'web_search' ) ) {
-			$opts[] = new SupportedOption( OptionEnum::webSearch() );
+			$web_search_option = $this->webSearchOption();
+			if ( null !== $web_search_option ) {
+				$opts[] = $web_search_option;
+			}
 		}
 		return new ModelMetadata( $id, $this->displayNameFor( $id, $record ), array( CapabilityEnum::textGeneration(), CapabilityEnum::chatHistory() ), $opts );
+	}
+
+	/**
+	 * Build the web-search option, or null when the SDK build predates it.
+	 *
+	 * Legacy fallback for WP 7.0 SDK variance: older wordpress-ai-client
+	 * builds may not serve `OptionEnum::webSearch()`, so the option is
+	 * omitted and the model degrades to text-only instead of fataling. The
+	 * probe is `is_callable()`, not `method_exists()`: the enum factories
+	 * are magic (`__callStatic` on AbstractEnum, invisible to
+	 * `method_exists()`), so `method_exists()` would stay permanently false
+	 * and silently suppress even verified models. Credential-blind: reads
+	 * no stored option values. Never throws.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @return SupportedOption|null
+	 */
+	private function webSearchOption(): ?SupportedOption {
+		try {
+			if ( ! is_callable( array( OptionEnum::class, 'webSearch' ) ) ) {
+				return null;
+			}
+			return new SupportedOption( OptionEnum::webSearch() );
+		} catch ( \Throwable ) {
+			return null;
+		}
 	}
 
 	/**

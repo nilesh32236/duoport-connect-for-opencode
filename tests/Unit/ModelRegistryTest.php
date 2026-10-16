@@ -9,9 +9,19 @@ declare(strict_types=1);
 
 namespace OpenCodeConnector\Tests\Unit;
 
+use OpenCodeConnector\Metadata\ModelAllowlist;
 use OpenCodeConnector\Metadata\ModelRegistry;
 
 final class ModelRegistryTest extends MonkeyTestCase {
+
+	/**
+	 * Always reset the web-search test seam so the default-deny gate is the
+	 * starting point for every spec.
+	 */
+	protected function tearDown(): void {
+		ModelAllowlist::setWebSearchCapableForTests( null );
+		parent::tearDown();
+	}
 
 	/**
 	 * Curated records expose provenance and conservative capabilities.
@@ -88,6 +98,44 @@ final class ModelRegistryTest extends MonkeyTestCase {
 		self::assertFalse( ModelRegistry::supports( 'unreviewed-model', 'go', 'tools' ) );
 		self::assertFalse( ModelRegistry::supports( 'deepseek-v4-pro', 'go', 'tools' ) );
 		self::assertFalse( ModelRegistry::supports( 'glm-5.3', 'go', 'unknown-capability' ) );
+	}
+
+	/**
+	 * Web search is default-deny for allowlisted and pending models alike.
+	 *
+	 * No grounding contract is verified yet, so routable models and
+	 * pending-verification models both report web_search unsupported.
+	 */
+	public function test_web_search_is_default_deny_for_allowlisted_and_pending_models(): void {
+		foreach ( array( 'glm-5.3', 'kimi-k3', 'mimo-v2.5' ) as $id ) {
+			self::assertFalse( ModelRegistry::supports( $id, 'go', 'web_search' ) );
+		}
+		foreach ( array( 'glm-5', 'glm-5.1', 'kimi-k2.5', 'mimo-v2-pro', 'mimo-v2-omni', 'hy3-preview' ) as $id ) {
+			self::assertFalse( ModelRegistry::supports( $id, 'go', 'web_search' ) );
+		}
+		foreach ( array( 'glm-5.2', 'kimi-k3', 'minimax-m3' ) as $id ) {
+			self::assertFalse( ModelRegistry::supports( $id, 'zen', 'web_search' ) );
+		}
+	}
+
+	/**
+	 * A contract-verified model advertises web search through the registry.
+	 *
+	 * Gate-on path, via the test seam (no live gateway probe): the verified
+	 * record carries web_search, while the same ID in the other catalog
+	 * stays denied (per-catalog default-deny).
+	 */
+	public function test_verified_model_advertises_web_search_through_registry(): void {
+		ModelAllowlist::setWebSearchCapableForTests( array( 'go' => array( 'glm-5.3' ), 'zen' => array() ) );
+		try {
+			self::assertTrue( ModelRegistry::supports( 'glm-5.3', 'go', 'web_search' ) );
+			$record = ModelRegistry::record( 'glm-5.3', 'go' );
+			self::assertIsArray( $record );
+			self::assertTrue( $record['capabilities']['web_search'] );
+			self::assertFalse( ModelRegistry::supports( 'glm-5.3', 'zen', 'web_search' ) );
+		} finally {
+			ModelAllowlist::setWebSearchCapableForTests( null );
+		}
 	}
 
 	/**

@@ -191,6 +191,9 @@ final class ModelRegistry {
 		$capabilities    = array(
 			'text'       => $route_supported,
 			'tools'      => $route_supported && ModelAllowlist::isToolCapable( $id, $catalog ),
+			// Default-deny web search: the pending-verification (unsupported)
+			// family vetoes even allowlisted IDs, so a mis-declared model
+			// degrades to text-only instead of hallucinating grounding.
 			'web_search' => $route_supported && ModelAllowlist::isWebSearchCapable( $id, $catalog ),
 			'image'      => $route_supported && ModelAllowlist::isImageCapable( $id, $catalog ),
 		);
