@@ -221,6 +221,31 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
+		 * An unrecognised catalog is a config error, not a credential verdict.
+		 *
+		 * Catalog::providerClassFor() returns '' for an unknown slug. That is
+		 * a programming/config error, so it must surface as
+		 * could-not-be-checked rather than invalid_key, which would render a
+		 * code bug on the settings page as a rejected key.
+		 *
+		 * @return void
+		 */
+		#[RunInSeparateProcess]
+		#[PreserveGlobalState( false )]
+		public function test_verify_maps_an_unknown_catalog_to_could_not_be_checked(): void {
+			$this->boot();
+			$ttls = array();
+			$this->stub_transients_stateless( $ttls );
+
+			list( $availability, $transporter ) = $this->make_availability( new Response( 200, null ), 'not-a-catalog' );
+			$verdict = $availability->verify();
+
+			self::assertSame( 'could-not-be-checked', $verdict['state'] );
+			self::assertSame( 0, $transporter->calls, 'An unknown catalog must not be probed.' );
+			self::assertSame( 'uncheckable', $verdict['diagnosis']['state'] ?? '' );
+		}
+
+		/**
 		 * An infrastructure fault must never be cached as a credential verdict.
 		 *
 		 * `verify()` used to catch every \Throwable around credential resolution

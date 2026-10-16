@@ -55,20 +55,15 @@ final class ModelAllowlist {
 			'glm-5.3',
 			'glm-5.2',
 			'glm-5.1',
-			'glm-5',
 			'kimi-k3',
 			'kimi-k2.7-code',
 			'kimi-k2.6',
-			'kimi-k2.5',
 			'deepseek-v4-pro',
 			'deepseek-v4-flash',
 			'deepseek-v4.1-flash',
 			'mimo-v2.5-pro',
 			'mimo-v2.5',
-			'mimo-v2-pro',
-			'mimo-v2-omni',
 			'hy3',
-			'hy3-preview',
 		),
 		Catalog::ZEN => array(
 			'deepseek-v4-pro',
@@ -84,7 +79,6 @@ final class ModelAllowlist {
 			'kimi-k2.6',
 			'kimi-k2.5',
 			'big-pickle',
-			'nemotron-3-ultra-free',
 			'nemotron-3.5-lightning-free',
 		),
 	);
@@ -140,8 +134,8 @@ final class ModelAllowlist {
 	 * (https://opencode.ai/docs/zen/#pricing: "Big Pickle is a stealth model
 	 * that's free on OpenCode for a limited time"), so it keeps the reviewed
 	 * free label. Retired free IDs (`deepseek-v4-flash-free`,
-	 * `mimo-v2.5-free`, absent from the live Zen `/models` catalog) were
-	 * removed rather than kept as dead baseline rows.
+	 * `mimo-v2.5-free`, `nemotron-3-ultra-free`, absent from the live Zen
+	 * `/models` catalog) were removed rather than kept as dead baseline rows.
 	 *
 	 * @since 0.1.0
 	 * @since 0.1.9 Per-catalog shape; was a flat list.
@@ -151,7 +145,6 @@ final class ModelAllowlist {
 	private const FREE = array(
 		Catalog::GO  => array(),
 		Catalog::ZEN => array(
-			'nemotron-3-ultra-free',
 			'nemotron-3.5-lightning-free',
 			'big-pickle',
 		),
@@ -217,8 +210,9 @@ final class ModelAllowlist {
 	 * Whether a model is billed as free in a catalog.
 	 *
 	 * Per-catalog by design: the Go catalog already serves free-named IDs
-	 * (e.g. space-bunny-free) that are NOT reviewed here, so a flat lookup
-	 * would mislabel the other catalog's picker on the first name collision.
+	 * (e.g. longcat-2.5-preview-free) that are NOT reviewed here, so a flat
+	 * lookup would mislabel the other catalog's picker on the first name
+	 * collision.
 	 * An empty or unknown catalog falls back to the flat union so legacy and
 	 * catalog-blind callers fail open rather than fatal.
 	 *

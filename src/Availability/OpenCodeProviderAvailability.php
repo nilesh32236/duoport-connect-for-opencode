@@ -383,9 +383,12 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		// An unrecognised catalog fails closed instead of silently probing as
 		// the Zen catalog: the mapping lives in Catalog::providerClassFor()
 		// so a future third catalog cannot fall through to a wrong branch.
+		// This is a programming/config error (an unregistered catalog slug),
+		// not a credential verdict: reporting it as `invalid_key` would render
+		// a code bug on the settings UI as if the user's key were rejected.
 		$cls = Catalog::providerClassFor( $this->catalog );
 		if ( '' === $cls ) {
-			$verdict = $this->verify_result( 'invalid_key', null, $diagnostics );
+			$verdict = $this->verify_result( 'could-not-be-checked', null, $diagnostics );
 			$this->store_verify_verdict( $tkey, $lock_key, $verdict );
 			return $verdict;
 		}

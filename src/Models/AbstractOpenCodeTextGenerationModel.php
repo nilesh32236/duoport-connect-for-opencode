@@ -182,7 +182,15 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	}
 
 	/**
-	 * OpenCode expects json_schema with name wrapper; SDK sends bare schema.
+	 * Emit the SDK's verified OpenAI-compatible `json_schema` shape.
+	 *
+	 * Mirrors AbstractOpenAiCompatibleTextGenerationModel::prepareResponseFormatParam():
+	 * the bare output schema is passed through as `json_schema` with no
+	 * `name` wrapper and no `strict` flag. The previous override wrapped it
+	 * in `{ name: 'response', strict: true }` on an unverified claim that
+	 * the gateway required it; a gateway that rejects `strict` would fail
+	 * structured output for every non-DeepSeek model, so the SDK base shape
+	 * is kept until a live structured-output probe confirms the wrapper.
 	 *
 	 * @since 0.1.0
 	 *
@@ -193,11 +201,7 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 		if ( is_array( $output_schema ) ) {
 			return array(
 				'type'        => 'json_schema',
-				'json_schema' => array(
-					'name'   => 'response',
-					'schema' => $output_schema,
-					'strict' => true,
-				),
+				'json_schema' => $output_schema,
 			);
 		}
 		return array( 'type' => 'json_object' );

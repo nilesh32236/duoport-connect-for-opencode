@@ -56,7 +56,7 @@ Only reviewed chat/completions records are advertised by default. The current ad
 = Features =
 
 * Two providers (`opencode-go` / `opencode-zen`) auto-discovered by the Connectors screen.
-* Reviewed chat/completions-routable models per catalog (Go: 11, Zen: 15) — present in the live OpenCode `/models` catalog and recorded as routable in the reviewed registry.
+* Reviewed chat/completions-routable models per catalog (Go: 11, Zen: 14) — present in the live OpenCode `/models` catalog and recorded as routable in the reviewed registry.
 * Explicitly reviewed free models labeled `(Free)` in the model picker (Zen catalog).
 * Credential-free Model Radar and catalog watch for fast-follow verification work.
 * Availability probe with transient caching — validates key without calling `/models`.

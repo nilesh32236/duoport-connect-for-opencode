@@ -123,11 +123,11 @@ final class ToolPassthroughTest extends MonkeyTestCase {
 		$decls = array( new ToolPassthroughFakeDeclaration( array( 'name' => 'do_thing' ) ) );
 
 		self::assertSame( array(), ( new ToolPassthroughTestModel( 'deepseek-v4-pro', 'go' ) )->expose_prepare_tools( $decls ) );
-		self::assertSame( array(), ( new ToolPassthroughTestModel( 'nemotron-3-ultra-free', 'zen' ) )->expose_prepare_tools( $decls ) );
+		self::assertSame( array(), ( new ToolPassthroughTestModel( 'nemotron-3.5-lightning-free', 'zen' ) )->expose_prepare_tools( $decls ) );
 		self::assertSame( array(), ( new ToolPassthroughTestModel( 'no-such-model', 'go' ) )->expose_prepare_tools( $decls ) );
 		self::assertSame( array(), ( new ToolPassthroughTestModel( '', 'go' ) )->expose_prepare_tools( $decls ) );
 		self::assertSame( array(), ( new ToolPassthroughTestModel( 'gpt-4', 'zen' ) )->expose_prepare_tools( $decls ) );
-		foreach ( array( 'glm-5.1', 'kimi-k2.5' ) as $id ) {
+		foreach ( array( 'glm-5.1' ) as $id ) {
 			self::assertSame( array(), ( new ToolPassthroughTestModel( $id, 'go' ) )->expose_prepare_tools( $decls ) );
 		}
 	}

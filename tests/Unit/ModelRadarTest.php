@@ -94,9 +94,10 @@ final class ModelRadarTest extends MonkeyTestCase {
 		self::assertTrue( $report['catalogs']['go']['unreachable'] );
 		self::assertSame( 0, $report['catalogs']['go']['summary']['retired'] );
 		self::assertGreaterThan( 0, $report['catalogs']['zen']['summary']['retired'] );
-		// The two remaining Zen free-named IDs (both Nemotron); the retired
-		// `deepseek-v4-flash-free` / `mimo-v2.5-free` rows no longer count.
-		self::assertSame( 2, $report['catalogs']['zen']['summary']['retired_free_candidates'] );
+		// The one remaining Zen free-named ID (`nemotron-3.5-lightning-free`);
+		// the retired `deepseek-v4-flash-free` / `mimo-v2.5-free` /
+		// `nemotron-3-ultra-free` rows no longer count.
+		self::assertSame( 1, $report['catalogs']['zen']['summary']['retired_free_candidates'] );
 	}
 
 	/**
