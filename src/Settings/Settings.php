@@ -26,6 +26,16 @@ use WordPress\AiClient\AiClient;
  */
 final class Settings {
 	/**
+	 * Default value for the additive default-model setting.
+	 *
+	 * Empty means "no override": callers fall back to their own model
+	 * selection. Never a credential; safe to read anywhere.
+	 *
+	 * @since 0.1.9
+	 */
+	const DEFAULT_MODEL = '';
+
+	/**
 	 * Register settings and hooks.
 	 *
 	 * @since 0.1.0
@@ -38,7 +48,10 @@ final class Settings {
 			\OpenCodeConnector\OPTION_NAME,
 			array(
 				'type'              => 'array',
-				'default'           => array( 'show_all_models' => false ),
+				'default'           => array(
+					'show_all_models' => false,
+					'default_model'   => self::DEFAULT_MODEL,
+				),
 				'sanitize_callback' => array( $this, 'sanitize' ),
 			)
 		);
@@ -59,16 +72,102 @@ final class Settings {
 	/**
 	 * Sanitize settings.
 	 *
+	 * Additive schema: `show_all_models` keeps its boolean normalization
+	 * and `default_model` is an optional plain-text model ID (empty means
+	 * no override). Unknown keys are still discarded. Never reads or
+	 * writes any `connectors_ai_*` option value. Fail-open by design.
+	 *
 	 * @since 0.1.0
+	 * @since 0.1.9 Added the additive `default_model` key.
 	 *
 	 * @param mixed $value Raw value.
 	 * @return array
 	 */
 	public function sanitize( $value ): array {
+		$defaults = array(
+			'show_all_models' => false,
+			'default_model'   => self::DEFAULT_MODEL,
+		);
 		if ( ! is_array( $value ) ) {
-			return array( 'show_all_models' => false );
+			return $defaults;
 		}
-		return array( 'show_all_models' => ! empty( $value['show_all_models'] ) );
+		return array(
+			'show_all_models' => ! empty( $value['show_all_models'] ),
+			'default_model'   => self::sanitize_model( $value['default_model'] ?? self::DEFAULT_MODEL ),
+		);
+	}
+
+	/**
+	 * Normalize a raw default-model value to a safe string.
+	 *
+	 * Non-strings fail open to the empty default; strings are trimmed,
+	 * length-bounded, and passed through sanitize_text_field() when
+	 * available (with a legacy trim-only fallback). Never throws.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param mixed $raw Raw value.
+	 * @return string
+	 */
+	private static function sanitize_model( $raw ): string {
+		try {
+			if ( ! is_string( $raw ) ) {
+				return self::DEFAULT_MODEL;
+			}
+			$model = trim( $raw );
+			if ( function_exists( 'sanitize_text_field' ) ) {
+				try {
+					$model = sanitize_text_field( $model );
+				} catch ( \Throwable ) {
+					$model = trim( $raw );
+				}
+			}
+			if ( '' === $model ) {
+				return self::DEFAULT_MODEL;
+			}
+			if ( function_exists( 'mb_substr' ) ) {
+				try {
+					return mb_substr( $model, 0, 128 );
+				} catch ( \Throwable $substr_exception ) {
+					unset( $substr_exception );
+					// Fall through to the byte-safe fallback below.
+				}
+			}
+			return substr( $model, 0, 128 );
+		} catch ( \Throwable ) {
+			return self::DEFAULT_MODEL;
+		}
+	}
+
+	/**
+	 * Stored default-model override, or empty when none is set.
+	 *
+	 * Fail-open read of this plugin's own option only: a missing option,
+	 * a non-array value, or a non-string entry all read as "no override"
+	 * so callers fall back to their own model selection. Never reads any
+	 * `connectors_ai_*` option value. Never throws.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @return string
+	 */
+	public static function default_model(): string {
+		try {
+			if ( ! function_exists( 'get_option' ) ) {
+				return self::DEFAULT_MODEL;
+			}
+			$raw = get_option( \OpenCodeConnector\OPTION_NAME, array() );
+			if ( ! is_array( $raw ) ) {
+				return self::DEFAULT_MODEL;
+			}
+			$model = $raw['default_model'] ?? self::DEFAULT_MODEL;
+			if ( ! is_string( $model ) || '' === trim( $model ) ) {
+				return self::DEFAULT_MODEL;
+			}
+			return trim( $model );
+		} catch ( \Throwable ) {
+			return self::DEFAULT_MODEL;
+		}
 	}
 
 	/**
@@ -132,7 +231,8 @@ final class Settings {
 	 * used to be Catalog::allTransientKeys(), which is every key for both
 	 * catalogs — correct for uninstall.php, wrong here, and the same
 	 * cross-catalog shape the entry-file key bust had just been scoped away from.
-	 * This option holds `show_all_models` and nothing else, so saving, adding or
+	 * This option holds `show_all_models` and the additive `default_model`
+	 * display default and nothing else, so saving, adding or
 	 * deleting it adjudicates no credential; it cannot invalidate what either
 	 * catalog's flag asserts. Both flags are independent 30-day fail-open
 	 * fallbacks and `unknown` never re-arms one, so deleting them here meant a
@@ -298,10 +398,20 @@ final class Settings {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'You do not have permission to view this page.', 'duoport-connect-for-opencode' ) );
 		}
-		$opts   = get_option( \OpenCodeConnector\OPTION_NAME, array( 'show_all_models' => false ) );
-		$status = $this->fetchProviderStatus();
-		$go_ok  = $status['go'];
-		$zen_ok = $status['zen'];
+		$opts          = get_option(
+			\OpenCodeConnector\OPTION_NAME,
+			array(
+				'show_all_models' => false,
+				'default_model'   => self::DEFAULT_MODEL,
+			)
+		);
+		$status        = $this->fetchProviderStatus();
+		$go_ok         = $status['go'];
+		$zen_ok        = $status['zen'];
+		$default_model = '';
+		if ( is_array( $opts ) && isset( $opts['default_model'] ) && is_string( $opts['default_model'] ) ) {
+			$default_model = $opts['default_model'];
+		}
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'DuoPort Connector', 'duoport-connect-for-opencode' ); ?></h1>
@@ -328,6 +438,9 @@ final class Settings {
 				<table class="form-table"><tr>
 					<th><?php esc_html_e( 'Show all models', 'duoport-connect-for-opencode' ); ?></th>
 					<td><label><input type="checkbox" name="<?php echo esc_attr( \OpenCodeConnector\OPTION_NAME ); ?>[show_all_models]" value="1" <?php checked( ! empty( $opts['show_all_models'] ) ); ?> /> <?php esc_html_e( 'Show every model from the API (including non-chat models that may fail)', 'duoport-connect-for-opencode' ); ?></label></td>
+				</tr><tr>
+					<th><?php esc_html_e( 'Default model', 'duoport-connect-for-opencode' ); ?></th>
+					<td><label><input type="text" class="regular-text" name="<?php echo esc_attr( \OpenCodeConnector\OPTION_NAME ); ?>[default_model]" value="<?php echo esc_attr( $default_model ); ?>" placeholder="<?php echo esc_attr( self::DEFAULT_MODEL ); ?>" /> <?php esc_html_e( 'Optional model ID callers fall back to when they select no model. Empty means no override.', 'duoport-connect-for-opencode' ); ?></label></td>
 				</tr></table>
 				<?php submit_button(); ?>
 			</form>

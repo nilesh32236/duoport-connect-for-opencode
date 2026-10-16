@@ -173,23 +173,51 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	 * array_splice() index at the call site, so reordering this list cannot
 	 * silently move outputSchema to the wrong advertised position.
 	 *
-	 * @since 0.1.6
+	 * Temperature and max tokens are the unconditional base every text row
+	 * declares. System instruction, top-p, stop sequences, and the
+	 * presence/frequency penalties are appended only where
+	 * ModelRegistry::supportsOption() verifies them for the model, so an
+	 * unverified (pending or show-all) row keeps the temperature-only
+	 * base instead of advertising an unverified contract. Caller-wins
+	 * passthrough is preserved via the always-advertised customOptions
+	 * entry: callers may still send any niche parameter through custom
+	 * options without conflicting with a declared one. The
+	 * `duoport_connector_supported_options` filter (applied by the caller
+	 * once the full option set is assembled) allows overrides; it
+	 * runs only when available and a non-array result is ignored.
 	 *
-	 * @param bool $with_output_schema Whether to include the outputSchema option.
+	 * OptionEnum factories are magic (__callStatic on the SDK AbstractEnum),
+	 * so method_exists() cannot probe them; each factory call is wrapped
+	 * in try/catch instead so an older SDK without a factory degrades to
+	 * omitting that option instead of fataling. Never throws.
+	 *
+	 * @since 0.1.6
+	 * @since 0.1.9 Added per-option verification gating, penalty options, and the override filter.
+	 *
+	 * @param bool   $with_output_schema Whether to include the outputSchema option.
+	 * @param string $id                 Model ID for the verification gate (empty skips gating).
+	 * @param string $catalog            Catalog slug for the verification gate.
 	 * @return array
 	 */
-	private function buildCommonOptions( bool $with_output_schema = false ): array {
+	private function buildCommonOptions( bool $with_output_schema = false, string $id = '', string $catalog = '' ): array {
 		$options = array(
-			new SupportedOption( OptionEnum::systemInstruction() ),
 			new SupportedOption( OptionEnum::maxTokens() ),
 			new SupportedOption( OptionEnum::temperature() ),
-			new SupportedOption( OptionEnum::topP() ),
-			new SupportedOption( OptionEnum::stopSequences() ),
 		);
-		if ( $with_output_schema ) {
-			$options[] = new SupportedOption( OptionEnum::outputSchema() );
+		foreach ( $this->verifiedGenerationOptions( $id, $catalog ) as $option ) {
+			$options[] = $option;
 		}
-		return array_merge(
+		if ( $with_output_schema ) {
+			try {
+				if ( class_exists( OptionEnum::class ) ) {
+					$options[] = new SupportedOption( OptionEnum::outputSchema() );
+				}
+			} catch ( \Throwable $output_schema_exception ) {
+				unset( $output_schema_exception );
+				// Fail-open: omit outputSchema when the SDK cannot build it.
+			}
+		}
+		$options = array_merge(
 			$options,
 			array(
 				new SupportedOption( OptionEnum::outputMimeType(), array( 'text/plain', 'application/json' ) ),
@@ -198,6 +226,94 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 				new SupportedOption( OptionEnum::outputModalities(), array( array( ModalityEnum::text() ) ) ),
 			)
 		);
+		return $options;
+	}
+
+	/**
+	 * Gated generation options for a model, in declaration order.
+	 *
+	 * Each entry consults ModelRegistry::supportsOption() first so only
+	 * verified options are built; each factory call is then attempted in
+	 * try/catch so an SDK missing that factory omits the option instead
+	 * of fataling. An empty model ID fails closed to no gated options.
+	 * Never throws.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param string $id      Model ID.
+	 * @param string $catalog Catalog slug.
+	 * @return array
+	 */
+	private function verifiedGenerationOptions( string $id, string $catalog ): array {
+		$gated = array();
+		if ( '' === $id || '' === $catalog ) {
+			return $gated;
+		}
+		try {
+			if ( ! class_exists( ModelRegistry::class ) || ! method_exists( ModelRegistry::class, 'supportsOption' ) ) {
+				return $gated;
+			}
+			if ( ! class_exists( OptionEnum::class ) ) {
+				return $gated;
+			}
+			$factories = array(
+				'systemInstruction' => 'systemInstruction',
+				'topP'              => 'topP',
+				'stopSequences'     => 'stopSequences',
+				'presencePenalty'   => 'presencePenalty',
+				'frequencyPenalty'  => 'frequencyPenalty',
+			);
+			foreach ( $factories as $option_key => $factory ) {
+				try {
+					if ( ! ModelRegistry::supportsOption( $id, $catalog, $option_key ) ) {
+						continue;
+					}
+					$gated[] = new SupportedOption( OptionEnum::$factory() );
+				} catch ( \Throwable ) {
+					continue;
+				}
+			}
+		} catch ( \Throwable ) {
+			return array();
+		}
+		return $gated;
+	}
+
+	/**
+	 * Apply the supported-options override filter, fail-open.
+	 *
+	 * Runs only when the filter API exists; a non-array result is ignored
+	 * so a misbehaving hook cannot break the metadata shape. Never throws.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param array  $options Declared options.
+	 * @param string $id      Model ID.
+	 * @param string $catalog Catalog slug.
+	 * @return array
+	 */
+	private function filterSupportedOptions( array $options, string $id, string $catalog ): array {
+		try {
+			if ( ! function_exists( 'apply_filters' ) ) {
+				return $options;
+			}
+			if ( function_exists( 'has_filter' ) ) {
+				try {
+					if ( ! has_filter( 'duoport_connector_supported_options' ) ) {
+						return $options;
+					}
+				} catch ( \Throwable ) {
+					return $options;
+				}
+			}
+			$filtered = apply_filters( 'duoport_connector_supported_options', $options, $id, $catalog );
+			if ( ! is_array( $filtered ) ) {
+				return $options;
+			}
+			return array_values( $filtered );
+		} catch ( \Throwable ) {
+			return $options;
+		}
 	}
 
 	/**
@@ -291,6 +407,11 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	 * it, and unverified models are explicitly unsupported (text-only) so no
 	 * hallucinated grounding occurs on mis-declared models.
 	 *
+	 * Chat history is advertised only where a messages-array is verified: a
+	 * reviewed chat-family record, matching the messages param the inherited
+	 * text model sends. Caller-wins passthrough for undeclared parameters is
+	 * preserved via the always-advertised customOptions entry.
+	 *
 	 * @since 0.1.8
 	 *
 	 * @param string                    $id     Model ID.
@@ -299,7 +420,7 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	 */
 	private function textMetadata( string $id, ?array $record ): ModelMetadata {
 		// DeepSeek models return malformed JSON for strict schema; hide outputSchema so JSON tasks pick a capable model.
-		$opts = $this->buildCommonOptions( ModelAllowlist::isStrictSchemaCapable( $id ) );
+		$opts = $this->buildCommonOptions( ModelAllowlist::isStrictSchemaCapable( $id ), $id, $this->catalogKey() );
 		if ( ModelRegistry::supports( $id, $this->catalogKey(), 'tools' ) ) {
 			$opts[] = new SupportedOption( OptionEnum::functionDeclarations() );
 		}
@@ -309,7 +430,59 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 				$opts[] = $web_search_option;
 			}
 		}
-		return new ModelMetadata( $id, $this->displayNameFor( $id, $record ), array( CapabilityEnum::textGeneration(), CapabilityEnum::chatHistory() ), $opts );
+		$capabilities = array( CapabilityEnum::textGeneration() );
+		if ( $this->chatHistoryVerified( $record ) ) {
+			try {
+				if ( class_exists( CapabilityEnum::class ) ) {
+					$capabilities[] = CapabilityEnum::chatHistory();
+				}
+			} catch ( \Throwable $chat_history_exception ) {
+				unset( $chat_history_exception );
+				// Fail-open: omit chat history when the SDK cannot build it.
+			}
+		}
+		return new ModelMetadata( $id, $this->displayNameFor( $id, $record ), $capabilities, $this->filterSupportedOptions( $opts, $id, $this->catalogKey() ) );
+	}
+
+	/**
+	 * Whether chat history may be advertised for a registry record.
+	 *
+	 * A messages-array is verified only for a reviewed record on the
+	 * implemented chat endpoint family; pending-verification and unknown
+	 * (show-all) rows stay text-only so multi-turn callers cannot select
+	 * a model with no verified conversation transport. Never throws.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param array<string, mixed>|null $record Registry record, if any.
+	 * @return bool
+	 */
+	private function chatHistoryVerified( ?array $record ): bool {
+		try {
+			if ( null === $record ) {
+				return false;
+			}
+			if ( ! class_exists( ModelRegistry::class ) || ! method_exists( ModelRegistry::class, 'isVerified' ) ) {
+				return false;
+			}
+			if ( ! ModelRegistry::isVerified( $record ) ) {
+				return false;
+			}
+			if ( ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === ( $record['endpoint_family'] ?? ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED ) ) {
+				return false;
+			}
+			if ( ! class_exists( CapabilityEnum::class ) || ! method_exists( CapabilityEnum::class, 'chatHistory' ) ) {
+				// CapabilityEnum factories are magic on the real SDK, where
+				// method_exists() cannot see them; fall through and attempt
+				// the call, letting the caller catch a missing factory.
+				if ( ! class_exists( CapabilityEnum::class ) ) {
+					return false;
+				}
+			}
+			return true;
+		} catch ( \Throwable ) {
+			return false;
+		}
 	}
 
 	/**
