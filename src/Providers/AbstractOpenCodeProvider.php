@@ -18,8 +18,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use OpenCodeConnector\Availability\OpenCodeProviderAvailability;
 use OpenCodeConnector\Metadata\Catalog;
-use OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory;
-use OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory;
 use OpenCodeConnector\Models\OpenCodeGoImageGenerationModel;
 use OpenCodeConnector\Models\OpenCodeGoTextGenerationModel;
 use OpenCodeConnector\Models\OpenCodeZenImageGenerationModel;
@@ -62,20 +60,63 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	/**
 	 * Display name.
 	 *
+	 * Resolved from the bound catalog key so the Go and Zen subclasses stay
+	 * pure catalog-key bindings: a display-name or i18n-pattern change lands
+	 * here once instead of in both subclasses.
+	 *
 	 * @since 0.1.0
 	 *
 	 * @return string
 	 */
-	abstract protected static function displayName(): string;
+	protected static function displayName(): string {
+		if ( Catalog::ZEN === static::catalogKey() ) {
+			if ( function_exists( '__' ) ) {
+				return __( 'OpenCode Zen', 'duoport-connect-for-opencode' );
+			}
+			return 'OpenCode Zen';
+		}
+		if ( function_exists( '__' ) ) {
+			return __( 'OpenCode Go', 'duoport-connect-for-opencode' );
+		}
+		return 'OpenCode Go';
+	}
 
 	/**
 	 * Description.
 	 *
+	 * Resolved from the bound catalog key for the same reason as
+	 * displayName(): one home for the per-catalog literals.
+	 *
 	 * @since 0.1.0
 	 *
 	 * @return string
 	 */
-	abstract protected static function description(): string;
+	protected static function description(): string {
+		if ( Catalog::ZEN === static::catalogKey() ) {
+			if ( function_exists( '__' ) ) {
+				return __( 'Text generation with OpenCode Zen, including free models.', 'duoport-connect-for-opencode' );
+			}
+			return 'Text generation with OpenCode Zen, including free models.';
+		}
+		if ( function_exists( '__' ) ) {
+			return __( 'Text generation with OpenCode Go.', 'duoport-connect-for-opencode' );
+		}
+		return 'Text generation with OpenCode Go.';
+	}
+
+	/**
+	 * Base URL.
+	 *
+	 * Resolved from the bound catalog key through Catalog::baseUrl(), so
+	 * subclasses keep no per-catalog URL literal of their own.
+	 *
+	 * @since 0.1.0
+	 *
+	 * @return string
+	 */
+	protected static function baseUrl(): string {
+		return Catalog::baseUrl( static::catalogKey() );
+	}
 
 	/**
 	 * Create a model instance.
@@ -130,18 +171,20 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	/**
 	 * Catalog-bound class variant for a role.
 	 *
-	 * Single source of truth for every catalog → class mapping in this
-	 * file (model classes per capability family and the metadata directory
-	 * class): adding a catalog means extending this map only, instead of
-	 * editing one ternary per role. An unrecognised catalog key falls back
-	 * to the Zen variant — the binding subclasses hardcode their key from
+	 * Single source of truth for the catalog → model-class mapping (per
+	 * capability family): adding a catalog means extending this map only,
+	 * instead of editing one ternary per model role. The metadata directory
+	 * role lives in Catalog::metadataDirectoryClassFor(), which the Settings
+	 * cache-bust list already reads from, so a third catalog is registered in
+	 * one place rather than two. An unrecognised catalog key falls back to
+	 * the Zen variant — the binding subclasses hardcode their key from
 	 * Catalog, so an unknown value here is a programming error that the
 	 * availability layer (which fails closed on unknown slugs) surfaces,
 	 * not a branch this file can adjudicate.
 	 *
 	 * @since 0.1.8
 	 *
-	 * @param string $role Variant role (`model-image`, `model-text`, `directory`).
+	 * @param string $role Variant role (`model-image` or `model-text`).
 	 * @return string Class FQCN.
 	 */
 	private static function variantClassFor( string $role ): string {
@@ -155,10 +198,6 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 				Catalog::GO  => OpenCodeGoTextGenerationModel::class,
 				Catalog::ZEN => OpenCodeZenTextGenerationModel::class,
 			),
-			'directory'   => array(
-				Catalog::GO  => OpenCodeGoModelMetadataDirectory::class,
-				Catalog::ZEN => OpenCodeZenModelMetadataDirectory::class,
-			),
 		);
 		if ( isset( $map[ $role ][ $catalog ] ) ) {
 			return $map[ $role ][ $catalog ];
@@ -166,9 +205,8 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 		$fallbacks = array(
 			'model-image' => OpenCodeZenImageGenerationModel::class,
 			'model-text'  => OpenCodeZenTextGenerationModel::class,
-			'directory'   => OpenCodeZenModelMetadataDirectory::class,
 		);
-		return $fallbacks[ $role ] ?? OpenCodeZenModelMetadataDirectory::class;
+		return $fallbacks[ $role ] ?? OpenCodeZenTextGenerationModel::class;
 	}
 
 	/**
@@ -326,11 +364,15 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	/**
 	 * Metadata directory class for the bound catalog.
 	 *
+	 * Resolves through Catalog::metadataDirectoryClassFor(), the single home
+	 * the Settings cache-bust list also reads, so a third catalog is
+	 * registered once.
+	 *
 	 * @since 0.1.6
 	 *
 	 * @return string Directory class FQCN.
 	 */
 	private static function directoryClassFor(): string {
-		return self::variantClassFor( 'directory' );
+		return Catalog::metadataDirectoryClassFor( static::catalogKey() );
 	}
 }

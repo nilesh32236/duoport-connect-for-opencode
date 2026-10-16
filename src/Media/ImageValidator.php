@@ -26,6 +26,62 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class ImageValidator {
 	/**
+	 * Maximum accepted payload size in bytes (10 MB).
+	 *
+	 * Single home for the byte cap: both the saver and the re-encoder
+	 * read it from here, so the policy has one owner instead of two
+	 * halves depending on each other cyclically.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @var int
+	 */
+	public const MAX_BYTES = 10485760;
+
+	/**
+	 * Maximum decoded pixel count (width x height, 25 megapixels).
+	 *
+	 * Bounds the pixel buffer BEFORE anything decodes it: PHP memory
+	 * exhaustion is not Throwable, so a decompression bomb (a tiny file
+	 * declaring gigapixel dimensions) cannot be caught after the fact.
+	 * Lives here with the byte cap so the re-encoder never reaches back
+	 * into the saver for policy.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @var int
+	 */
+	public const MAX_PIXELS = 25000000;
+
+	/**
+	 * Whether a MIME type is accepted.
+	 *
+	 * Single home for the allowlist check: ImageMime owns the list, this
+	 * owns the predicate, and both the saver and the re-encoder call it
+	 * instead of each other's statics.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param string $mime_type MIME type to check.
+	 * @return bool
+	 */
+	public static function is_allowed_mime( string $mime_type ): bool {
+		return in_array( strtolower( trim( $mime_type ) ), ImageMime::ALL, true );
+	}
+
+	/**
+	 * Whether a payload size is within the byte cap.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param int $size_bytes Payload size in bytes.
+	 * @return bool
+	 */
+	public static function is_within_size_limit( int $size_bytes ): bool {
+		return $size_bytes >= 0 && $size_bytes <= self::MAX_BYTES;
+	}
+
+	/**
 	 * Single header probe returning MIME plus dimensions.
 	 *
 	 * One `getimagesizefromstring()` parse shared by every guard instead of

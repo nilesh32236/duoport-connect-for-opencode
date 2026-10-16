@@ -33,6 +33,9 @@ final class ImageMime {
 	/**
 	 * File extension per MIME type.
 	 *
+	 * The single map: mimeForExtension() derives the inverse from this via
+	 * array_flip(), so adding a format means editing this map only.
+	 *
 	 * @since 0.1.6
 	 *
 	 * @var array<string, string>
@@ -41,23 +44,6 @@ final class ImageMime {
 		'image/png'  => 'png',
 		'image/jpeg' => 'jpg',
 		'image/webp' => 'webp',
-	);
-
-	/**
-	 * Inverse of EXTENSIONS, keyed by file extension.
-	 *
-	 * Hoisted so mimeForExtension() does not rebuild array_flip() on
-	 * every call. Single home alongside EXTENSIONS: adding a format
-	 * means editing these two maps together.
-	 *
-	 * @since 0.1.8
-	 *
-	 * @var array<string, string>
-	 */
-	private const MIME_FOR_EXTENSION = array(
-		'png'  => 'image/png',
-		'jpg'  => 'image/jpeg',
-		'webp' => 'image/webp',
 	);
 
 	/**
@@ -88,9 +74,12 @@ final class ImageMime {
 	/**
 	 * MIME type for a file extension, restricted to the allowlist.
 	 *
-	 * Single inverse of EXTENSIONS: adding a format means editing this map
-	 * only. Returns null for anything outside the allowlist so an
-	 * unexpected output format fails closed downstream.
+	 * Derived from EXTENSIONS (the single map) via array_flip(), cached in
+	 * a static local so the flip is built once: adding a format means
+	 * editing EXTENSIONS only. The `jpeg` alias is the one special case —
+	 * both spellings name the same container. Returns null for anything
+	 * outside the allowlist so an unexpected output format fails closed
+	 * downstream.
 	 *
 	 * @since 0.1.8
 	 *
@@ -105,6 +94,10 @@ final class ImageMime {
 		if ( 'jpeg' === $ext ) {
 			$ext = 'jpg';
 		}
-		return self::MIME_FOR_EXTENSION[ $ext ] ?? null;
+		static $by_extension = null;
+		if ( null === $by_extension ) {
+			$by_extension = array_flip( self::EXTENSIONS );
+		}
+		return $by_extension[ $ext ] ?? null;
 	}
 }

@@ -104,7 +104,7 @@ namespace OpenCodeConnector\Tests\Unit {
 					'A factory produced a state outside the published vocabulary.'
 				);
 				self::assertContains(
-					$diagnostics->verify_state( $result ),
+					$diagnostics->verifyState( $result ),
 					$verify_states,
 					'Every diagnosis must map to an explicit verification state.'
 				);

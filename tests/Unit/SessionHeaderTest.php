@@ -462,7 +462,7 @@ final class SessionHeaderTest extends MonkeyTestCase {
 	 * @return void
 	 */
 	public function test_probe_carries_derived_session_header(): void {
-		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Availability/OpenCodeProviderAvailability.php' );
+		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Http/GoRequestHeaders.php' );
 
 		self::assertStringContainsString( 'SessionHeader::inject_into_headers', $source );
 	}

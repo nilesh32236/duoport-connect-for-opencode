@@ -191,18 +191,21 @@ namespace OpenCodeConnector\Tests\Unit {
 		 * @return void
 		 */
 		public function test_surface_probe_does_not_method_exists_an_sdk_enum(): void {
-			$source = (string) file_get_contents(
+			$probe = (string) file_get_contents(
+				dirname( __DIR__, 2 ) . '/src/Availability/ProbeRequest.php'
+			);
+			$facade = (string) file_get_contents(
 				dirname( __DIR__, 2 ) . '/src/Availability/OpenCodeProviderAvailability.php'
 			);
 
 			self::assertStringNotContainsString(
 				"method_exists( HttpMethodEnum::class, 'POST' )",
-				$source,
+				$probe . $facade,
 				'HttpMethodEnum::POST() is a magic factory; method_exists() is permanently false against the real SDK.'
 			);
 			self::assertStringContainsString(
 				"defined( HttpMethodEnum::class . '::POST' )",
-				$source,
+				$probe,
 				'The surface probe must test the backing constant instead.'
 			);
 		}

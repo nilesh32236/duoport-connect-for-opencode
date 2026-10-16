@@ -47,50 +47,16 @@ final class OpenCodeZenProvider extends AbstractOpenCodeProvider {
 	/**
 	 * Catalog key.
 	 *
+	 * The only binding this subclass owns: display name, description, and
+	 * base URL all resolve from this key in the abstract base, so a
+	 * display or endpoint change lands there once instead of here and in
+	 * the Go subclass.
+	 *
 	 * @since 0.1.0
 	 *
 	 * @return string
 	 */
 	protected static function catalogKey(): string {
 		return \OpenCodeConnector\Metadata\Catalog::ZEN;
-	}
-
-	/**
-	 * Display name.
-	 *
-	 * @since 0.1.0
-	 *
-	 * @return string
-	 */
-	protected static function displayName(): string {
-		if ( function_exists( '__' ) ) {
-			return __( 'OpenCode Zen', 'duoport-connect-for-opencode' );
-		}
-		return 'OpenCode Zen';
-	}
-
-	/**
-	 * Description.
-	 *
-	 * @since 0.1.0
-	 *
-	 * @return string
-	 */
-	protected static function description(): string {
-		if ( function_exists( '__' ) ) {
-			return __( 'Text generation with OpenCode Zen, including free models.', 'duoport-connect-for-opencode' );
-		}
-		return 'Text generation with OpenCode Zen, including free models.';
-	}
-
-	/**
-	 * Base URL.
-	 *
-	 * @since 0.1.0
-	 *
-	 * @return string
-	 */
-	protected static function baseUrl(): string {
-		return \OpenCodeConnector\Metadata\Catalog::baseUrl( \OpenCodeConnector\Metadata\Catalog::ZEN );
 	}
 }

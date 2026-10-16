@@ -28,28 +28,24 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class ImageAttachmentSaver {
 	/**
-	 * MIME types accepted for generated images.
-	 *
-	 * Single source of truth lives in ImageMime::ALL; this alias is kept
-	 * for backward compatibility.
-	 *
-	 * @since 0.1.4
-	 *
-	 * @var list<string>
-	 */
-	public const ALLOWED_MIME_TYPES = ImageMime::ALL;
-
-	/**
 	 * Maximum accepted payload size in bytes (10 MB).
+	 *
+	 * Backward-compatibility alias of ImageValidator::MAX_BYTES, which is
+	 * the single home for the byte cap. Retained so existing callers keep
+	 * working; new code reads the validator directly.
 	 *
 	 * @since 0.1.4
 	 *
 	 * @var int
 	 */
-	public const MAX_BYTES = 10485760;
+	public const MAX_BYTES = ImageValidator::MAX_BYTES;
 
 	/**
 	 * Maximum decoded pixel count (width x height, 25 megapixels).
+	 *
+	 * Backward-compatibility alias of ImageValidator::MAX_PIXELS, which is
+	 * the single home for the pixel cap. Retained so existing callers keep
+	 * working; new code reads the validator directly.
 	 *
 	 * Bounds the pixel buffer BEFORE anything decodes it: PHP memory
 	 * exhaustion is not Throwable, so a decompression bomb (a tiny file
@@ -59,10 +55,14 @@ final class ImageAttachmentSaver {
 	 *
 	 * @var int
 	 */
-	public const MAX_PIXELS = 25000000;
+	public const MAX_PIXELS = ImageValidator::MAX_PIXELS;
 
 	/**
 	 * Whether a MIME type is accepted.
+	 *
+	 * Backward-compatibility alias of ImageValidator::is_allowed_mime(),
+	 * which is the single home for the allowlist check. Retained so
+	 * existing callers keep working; new code calls the validator directly.
 	 *
 	 * @since 0.1.4
 	 *
@@ -70,11 +70,15 @@ final class ImageAttachmentSaver {
 	 * @return bool
 	 */
 	public static function is_allowed_mime( string $mime_type ): bool {
-		return in_array( strtolower( trim( $mime_type ) ), self::ALLOWED_MIME_TYPES, true );
+		return ImageValidator::is_allowed_mime( $mime_type );
 	}
 
 	/**
 	 * Whether a payload size is within the byte cap.
+	 *
+	 * Backward-compatibility alias of
+	 * ImageValidator::is_within_size_limit(). Retained so existing callers
+	 * keep working; new code calls the validator directly.
 	 *
 	 * @since 0.1.4
 	 *
@@ -82,7 +86,7 @@ final class ImageAttachmentSaver {
 	 * @return bool
 	 */
 	public static function is_within_size_limit( int $size_bytes ): bool {
-		return $size_bytes >= 0 && $size_bytes <= self::MAX_BYTES;
+		return ImageValidator::is_within_size_limit( $size_bytes );
 	}
 
 	/**
@@ -96,20 +100,21 @@ final class ImageAttachmentSaver {
 	 * Detection is not allowed to be skipped, and the claim is never a gate on
 	 * its own. Two content-derived signals stand in front of `wp_upload_bits()`:
 	 *
-	 * 1. `structural_mime()` — `getimagesizefromstring()`, part of core PHP
+	 * 1. `ImageValidator::structuralMime()` — `getimagesizefromstring()`,
+	 *    part of core PHP
 	 *    rather than an extension, so it is available on exactly the minimal
 	 *    builds where the finfo sniff is not. A buffer it cannot parse as an
 	 *    allowlisted image container is rejected outright. Before this, the
 	 *    allowlisted *claim* was the only gate on such hosts, and the claim is
 	 *    attacker-controlled.
-	 * 2. `detect_mime()` — the finfo magic-byte sniff, used for the
+	 * 2. `ImageValidator::detectMime()` — the finfo magic-byte sniff, used for the
 	 *    claim-versus-content comparison when it is available.
 	 *
 	 * Note what these two still cannot do, and why that matters elsewhere: every
 	 * signal here reads the HEADER. A well-formed image with a payload appended
 	 * after its final chunk is still "image/png" to all of them. The guarantee
 	 * that what lands in uploads contains nothing but image data is
-	 * `reencode_image()`, which `save_to_media_library()` runs before writing.
+	 * `ImageReencoder::reencode()`, which `save_to_media_library()` runs before writing.
 	 *
 	 * @since 0.1.4
 	 *
@@ -124,7 +129,7 @@ final class ImageAttachmentSaver {
 				__( 'The generated image payload is empty.', 'duoport-connect-for-opencode' )
 			);
 		}
-		if ( ! self::is_allowed_mime( $mime_type ) ) {
+		if ( ! ImageValidator::is_allowed_mime( $mime_type ) ) {
 			return new \WP_Error(
 				'opencode_image_mime',
 				sprintf(
@@ -134,24 +139,24 @@ final class ImageAttachmentSaver {
 				)
 			);
 		}
-		if ( ! self::is_within_size_limit( strlen( $image_bytes ) ) ) {
+		if ( ! ImageValidator::is_within_size_limit( strlen( $image_bytes ) ) ) {
 			return new \WP_Error(
 				'opencode_image_size',
 				sprintf(
 					/* translators: %d: maximum size in bytes. */
 					__( 'The generated image exceeds the %d byte limit.', 'duoport-connect-for-opencode' ),
-					self::MAX_BYTES
+					ImageValidator::MAX_BYTES
 				)
 			);
 		}
-		$structural = self::structural_mime( $image_bytes );
-		if ( null === $structural || ! self::is_allowed_mime( $structural ) ) {
+		$structural = ImageValidator::structuralMime( $image_bytes );
+		if ( null === $structural || ! ImageValidator::is_allowed_mime( $structural ) ) {
 			return new \WP_Error(
 				'opencode_image_unreadable',
 				__( 'The generated image could not be read as a supported image.', 'duoport-connect-for-opencode' )
 			);
 		}
-		$detected = self::detect_mime( $image_bytes ) ?? $structural;
+		$detected = ImageValidator::detectMime( $image_bytes ) ?? $structural;
 		if ( strtolower( trim( $mime_type ) ) !== $detected ) {
 			return new \WP_Error(
 				'opencode_image_mime_mismatch',
@@ -167,105 +172,10 @@ final class ImageAttachmentSaver {
 	}
 
 	/**
-	 * Sniff the real content type of a payload.
-	 *
-	 * Returns null when detection is unavailable (finfo missing) or
-	 * inconclusive — callers then fall back to `structural_mime()` rather than
-	 * to the claimed type. Never throws.
-	 *
-	 * @since 0.1.4
-	 *
-	 * @param string $image_bytes Raw bytes.
-	 * @return string|null Lowercase detected MIME type, or null when unknown.
-	 */
-	private static function detect_mime( string $image_bytes ): ?string {
-		return ImageValidator::detectMime( $image_bytes );
-	}
-
-	/**
-	 * Single header probe returning MIME plus dimensions.
-	 *
-	 * One `getimagesizefromstring()` parse shared by validate(),
-	 * reencode_image(), and save_to_media_library() instead of three
-	 * independent parses that could disagree. Returns null when the buffer
-	 * has no parseable image header — callers fail closed on null.
-	 * Never throws.
-	 *
-	 * @since 0.1.8
-	 *
-	 * @param string $image_bytes Raw bytes.
-	 * @return array{mime: string, width: int, height: int}|null Header data, or null when unknown.
-	 */
-	private static function header_probe( string $image_bytes ): ?array {
-		return ImageValidator::headerProbe( $image_bytes );
-	}
-
-	/**
-	 * Second-opinion content read, independent of ext/fileinfo.
-	 *
-	 * `getimagesizefromstring()` lives in core PHP rather than in an
-	 * extension, so it is available on exactly the minimal builds where
-	 * `detect_mime()` is not. It parses the container header and reports the
-	 * format it found, which is a content-derived signal rather than the
-	 * caller's claim. It reads only the header, exactly like the finfo sniff,
-	 * so it is a fallback for UNAVAILABILITY — never a replacement for the
-	 * re-encode.
-	 *
-	 * Never throws.
-	 *
-	 * @since 0.1.9
-	 *
-	 * @param string $image_bytes Raw bytes.
-	 * @return string|null Lowercase detected MIME type, or null when unknown.
-	 */
-	private static function structural_mime( string $image_bytes ): ?string {
-		$probe = self::header_probe( $image_bytes );
-		if ( null === $probe ) {
-			return null;
-		}
-		return $probe['mime'];
-	}
-
-	/**
-	 * Re-encode a payload so only decoded image data survives.
-	 *
-	 * The reason this exists. Everything upstream of it — the allowlist, the
-	 * finfo sniff, `getimagesize()` — reads a header, so a well-formed PNG
-	 * with `<?php … ?>` appended after the final IEND chunk is reported as
-	 * `image/png` by all of them and passes every check this class had. Those
-	 * bytes were then written verbatim into a web-served uploads directory and
-	 * registered as an attachment with the claimed MIME type. Decoding the
-	 * image and encoding it back out is the only step that necessarily drops
-	 * whatever followed the image data, so the stored file becomes a
-	 * re-encoding of what the pixels were rather than a copy of the
-	 * transmitted buffer.
-	 *
-	 * FAIL CLOSED. If no image editor is available (no GD, no Imagick), or the
-	 * decode fails, or the editor refuses to save, this returns a WP_Error and
-	 * nothing is written. The alternative — storing the buffer as-is when no
-	 * editor exists — reinstates the exact hole this closes on precisely the
-	 * hosts least likely to be running an editor, which is the wrong way round:
-	 * it makes the guard's strength depend on a detail of the environment.
-	 *
-	 * Every temporary file created here is removed on every path, including
-	 * the editor's actual output file when `save()` rewrites the destination
-	 * extension under output-format filters.
-	 *
-	 * @since 0.1.9
-	 *
-	 * @param string $image_bytes    Raw image bytes.
-	 * @param string $detected_mime  MIME type identified from the content.
-	 * @return array{bytes:string,mime:string}|\WP_Error Re-encoded bytes plus the MIME type of what the editor actually wrote, or WP_Error on any failure.
-	 */
-	private static function reencode_image( string $image_bytes, string $detected_mime ): array|\WP_Error {
-		return ImageReencoder::reencode( $image_bytes, $detected_mime );
-	}
-
-	/**
 	 * Save image bytes to the Media Library.
 	 *
 	 * The bytes written are the re-encoding of the decoded image, never the
-	 * transmitted buffer — see `reencode_image()` — and both the file
+	 * transmitted buffer — see `ImageReencoder::reencode()` — and both the file
 	 * extension and the registered `post_mime_type` follow what the editor
 	 * actually wrote rather than the caller's claim, so a site filtering the
 	 * editor's output format still gets a consistently-named attachment.
@@ -295,15 +205,21 @@ final class ImageAttachmentSaver {
 		// validate() above has already established that this resolves to an
 		// allowlisted type and agrees with the claim; the re-guard only keeps
 		// that invariant local to the write path.
-		$decoded_mime = self::detect_mime( $image_bytes ) ?? self::structural_mime( $image_bytes );
-		if ( null === $decoded_mime || ! self::is_allowed_mime( $decoded_mime ) ) {
+		$decoded_mime = ImageValidator::contentMime( $image_bytes );
+		if ( null === $decoded_mime || ! ImageValidator::is_allowed_mime( $decoded_mime ) ) {
 			return new \WP_Error(
 				'opencode_image_unreadable',
 				__( 'The generated image could not be read as a supported image.', 'duoport-connect-for-opencode' )
 			);
 		}
 
-		$encoded = self::reencode_image( $image_bytes, $decoded_mime );
+		// The re-encode is what guarantees the stored file contains only
+		// decoded image data: everything above reads a header, so a
+		// well-formed image with bytes appended after its final chunk still
+		// reports its container MIME here. Decoding and encoding back out
+		// drops whatever followed the image data. Fail closed when no
+		// editor exists or the decode fails — nothing is written.
+		$encoded = ImageReencoder::reencode( $image_bytes, $decoded_mime );
 		if ( $encoded instanceof \WP_Error ) {
 			return $encoded;
 		}
