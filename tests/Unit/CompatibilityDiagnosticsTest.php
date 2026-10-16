@@ -62,10 +62,12 @@ final class CompatibilityDiagnosticsTest extends MonkeyTestCase {
 
 	/**
 	 * The diagnostic source contains no connector-option or credential API.
+	 *
+	 * The broader credential-blindness ratchet (covering the whole
+	 * option-reading family) lives in CompatGuardsTest.
 	 */
 	public function test_diagnostics_are_credential_blind(): void {
 		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Compatibility/CompatibilityDiagnostics.php' );
-		self::assertStringNotContainsString( 'get_option', $source );
 		self::assertStringNotContainsString( 'isProviderConfigured', $source );
 		self::assertStringNotContainsString( 'connectors_ai_', $source );
 	}
@@ -76,7 +78,7 @@ final class CompatibilityDiagnosticsTest extends MonkeyTestCase {
 	public function test_gate_fields_are_null_on_legacy_wordpress(): void {
 		$registry = $this->healthy_registry();
 		$diagnostics = new \OpenCodeConnector\Compatibility\CompatibilityDiagnostics( array( CompatibilityFakeProvider::class ) );
-		$status      = $diagnostics->inspect( $registry, '6.9' );
+		$status      = $diagnostics->inspect( $registry, '6.9', true );
 
 		self::assertNull( $status['ai_supported'] );
 		self::assertNull( $status['prompt_prevented'] );
@@ -92,7 +94,7 @@ final class CompatibilityDiagnosticsTest extends MonkeyTestCase {
 		Functions\when( 'has_filter' )->justReturn( false );
 		$registry = $this->healthy_registry();
 		$diagnostics = new \OpenCodeConnector\Compatibility\CompatibilityDiagnostics( array( CompatibilityFakeProvider::class ) );
-		$status      = $diagnostics->inspect( $registry, '7.1.2' );
+		$status      = $diagnostics->inspect( $registry, '7.1.2', true );
 
 		self::assertTrue( $status['ai_supported'] );
 		self::assertFalse( $status['prompt_prevented'] );
@@ -113,7 +115,7 @@ final class CompatibilityDiagnosticsTest extends MonkeyTestCase {
 		Functions\when( 'has_filter' )->justReturn( 10 );
 		$registry = $this->healthy_registry();
 		$diagnostics = new \OpenCodeConnector\Compatibility\CompatibilityDiagnostics( array( CompatibilityFakeProvider::class ) );
-		$status      = $diagnostics->inspect( $registry, '7.1.2' );
+		$status      = $diagnostics->inspect( $registry, '7.1.2', true );
 
 		self::assertFalse( $status['ai_supported'] );
 		self::assertTrue( $status['prompt_prevented'] );
@@ -135,7 +137,7 @@ final class CompatibilityDiagnosticsTest extends MonkeyTestCase {
 		Functions\when( 'has_filter' )->justReturn( false );
 		$registry = $this->healthy_registry();
 		$diagnostics = new \OpenCodeConnector\Compatibility\CompatibilityDiagnostics( array( CompatibilityFakeProvider::class ) );
-		$status      = $diagnostics->inspect( $registry, '7.1.2' );
+		$status      = $diagnostics->inspect( $registry, '7.1.2', true );
 
 		self::assertFalse( $status['ai_supported'] );
 		self::assertFalse( $status['prompt_prevented'] );
@@ -156,7 +158,7 @@ final class CompatibilityDiagnosticsTest extends MonkeyTestCase {
 		require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
 		$registry    = $this->healthy_registry();
 		$diagnostics = new \OpenCodeConnector\Compatibility\CompatibilityDiagnostics( array( CompatibilityFakeProvider::class ) );
-		$status      = $diagnostics->inspect( $registry, '7.1.2' );
+		$status      = $diagnostics->inspect( $registry, '7.1.2', true );
 
 		self::assertNull( $status['ai_supported'] );
 	}
@@ -176,7 +178,7 @@ final class CompatibilityDiagnosticsTest extends MonkeyTestCase {
 		Functions\when( 'has_filter' )->justReturn( false );
 		$registry    = $this->healthy_registry();
 		$diagnostics = new \OpenCodeConnector\Compatibility\CompatibilityDiagnostics( array( CompatibilityFakeProvider::class ) );
-		$status      = $diagnostics->inspect( $registry, '7.1.2' );
+		$status      = $diagnostics->inspect( $registry, '7.1.2', true );
 
 		self::assertFalse( $status['ai_supported'] );
 	}
@@ -193,7 +195,7 @@ final class CompatibilityDiagnosticsTest extends MonkeyTestCase {
 		Functions\when( 'has_filter' )->justReturn( false );
 		$registry    = $this->healthy_registry();
 		$diagnostics = new \OpenCodeConnector\Compatibility\CompatibilityDiagnostics( array( CompatibilityFakeProvider::class ) );
-		$status      = $diagnostics->inspect( $registry, '7.1.2' );
+		$status      = $diagnostics->inspect( $registry, '7.1.2', true );
 
 		self::assertTrue( $status['ai_supported'] );
 	}
@@ -210,7 +212,7 @@ final class CompatibilityDiagnosticsTest extends MonkeyTestCase {
 		Functions\when( 'has_filter' )->justReturn( false );
 		$registry    = $this->healthy_registry();
 		$diagnostics = new \OpenCodeConnector\Compatibility\CompatibilityDiagnostics( array( CompatibilityFakeProvider::class ) );
-		$status      = $diagnostics->inspect( $registry, '7.1.2' );
+		$status      = $diagnostics->inspect( $registry, '7.1.2', true );
 
 		self::assertNull( $status['ai_supported'] );
 		self::assertFalse( $status['prompt_prevented'] );
@@ -228,7 +230,7 @@ final class CompatibilityDiagnosticsTest extends MonkeyTestCase {
 		);
 		$registry    = $this->healthy_registry();
 		$diagnostics = new \OpenCodeConnector\Compatibility\CompatibilityDiagnostics( array( CompatibilityFakeProvider::class ) );
-		$status      = $diagnostics->inspect( $registry, '7.1.2' );
+		$status      = $diagnostics->inspect( $registry, '7.1.2', true );
 
 		self::assertTrue( $status['ai_supported'] );
 		self::assertNull( $status['prompt_prevented'] );
@@ -245,7 +247,7 @@ final class CompatibilityDiagnosticsTest extends MonkeyTestCase {
 		Functions\when( 'has_filter' )->justReturn( 0 );
 		$registry    = $this->healthy_registry();
 		$diagnostics = new \OpenCodeConnector\Compatibility\CompatibilityDiagnostics( array( CompatibilityFakeProvider::class ) );
-		$status      = $diagnostics->inspect( $registry, '7.1.2' );
+		$status      = $diagnostics->inspect( $registry, '7.1.2', true );
 
 		self::assertTrue( $status['ai_supported'] );
 		self::assertTrue( $status['prompt_prevented'] );
