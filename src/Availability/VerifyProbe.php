@@ -83,11 +83,11 @@ final class VerifyProbe {
 			// caching it as `invalid_key` for five minutes renders that fault
 			// on the settings page as a credential verdict the plugin never
 			// actually received.
-			$verdict = $this->verify_result(
+			$verdict = $this->verifyResult(
 				( $this->missing_credential )( $exception ) ? 'invalid_key' : 'could-not-be-checked',
 				null
 			);
-			$this->store_verify_verdict( $tkey, $lock_key, $verdict );
+			$this->storeVerifyVerdict( $tkey, $lock_key, $verdict );
 			return $verdict;
 		}
 
@@ -98,8 +98,8 @@ final class VerifyProbe {
 		// so a future third catalog cannot fall through to a wrong branch.
 		$cls = Catalog::providerClassFor( $this->catalog );
 		if ( '' === $cls ) {
-			$verdict = $this->verify_result( 'invalid_key', null );
-			$this->store_verify_verdict( $tkey, $lock_key, $verdict );
+			$verdict = $this->verifyResult( 'invalid_key', null );
+			$this->storeVerifyVerdict( $tkey, $lock_key, $verdict );
 			return $verdict;
 		}
 
@@ -108,8 +108,8 @@ final class VerifyProbe {
 		$state = null !== $this->diagnostics && null !== $diagnosis ? $this->diagnostics->verify_state( $diagnosis ) : 'could-not-be-checked';
 		// Explicit fail-open: transport/server/unknown outcomes already map to
 		// `could-not-be-checked` via verify_state(); never fatal here.
-		$verdict = $this->verify_result( $state, $diagnosis );
-		$this->store_verify_verdict( $tkey, $lock_key, $verdict );
+		$verdict = $this->verifyResult( $state, $diagnosis );
+		$this->storeVerifyVerdict( $tkey, $lock_key, $verdict );
 		return $verdict;
 	}
 
@@ -133,7 +133,7 @@ final class VerifyProbe {
 			return $cached;
 		}
 		if ( false !== TransientCache::get( $lock_key ) ) {
-			return $this->verify_result( 'could-not-be-checked', null );
+			return $this->verifyResult( 'could-not-be-checked', null );
 		}
 		return null;
 	}
@@ -219,7 +219,7 @@ final class VerifyProbe {
 	 * @param array<string,mixed>|null $diagnosis Safe diagnosis, if any.
 	 * @return array<string, mixed>
 	 */
-	private function verify_result( string $state, ?array $diagnosis ): array {
+	private function verifyResult( string $state, ?array $diagnosis ): array {
 		$diagnostics = $this->diagnostics;
 		if ( null === $diagnosis ) {
 			if ( null !== $diagnostics ) {
@@ -257,7 +257,7 @@ final class VerifyProbe {
 	 * @param array<string, mixed> $verdict Safe verdict.
 	 * @return void
 	 */
-	private function store_verify_verdict( string $tkey, string $lock_key, array $verdict ): void {
+	private function storeVerifyVerdict( string $tkey, string $lock_key, array $verdict ): void {
 		TransientCache::delete( $lock_key );
 		$base = defined( 'MINUTE_IN_SECONDS' ) ? 5 * MINUTE_IN_SECONDS : 300;
 		TransientCache::set( $tkey, $verdict, TransientCache::jitteredTtl( (int) $base ) );

@@ -38,7 +38,7 @@ final class ImageAttachmentSaver {
 	 *
 	 * @var int
 	 */
-	public const MAX_BYTES = 10485760;
+	public const MAX_BYTES = ImageValidator::MAX_BYTES;
 
 	/**
 	 * Maximum decoded pixel count (width x height, 25 megapixels).
@@ -55,7 +55,7 @@ final class ImageAttachmentSaver {
 	 *
 	 * @var int
 	 */
-	public const MAX_PIXELS = 25000000;
+	public const MAX_PIXELS = ImageValidator::MAX_PIXELS;
 
 	/**
 	 * Whether a MIME type is accepted.

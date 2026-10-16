@@ -151,10 +151,10 @@ namespace OpenCodeConnector\Tests\Unit {
 		 * not about a status code that happens to reach it today.
 		 *
 		 * The control assertion at the end is load-bearing. Without it this test
-		 * would also pass against an `applyLastGood()` that never touched the flag
-		 * at all, which is the same reason an assertion has to be able to tell the
-		 * correct implementation from the defect: "the flag survived" is only
-		 * evidence if something else can make it not survive.
+		 * would also pass against a LastGoodStore::apply() that never touched
+		 * the flag at all, which is the same reason an assertion has to be able
+		 * to tell the correct implementation from the defect: "the flag
+		 * survived" is only evidence if something else can make it not survive.
 		 *
 		 * @return void
 		 */
@@ -208,11 +208,8 @@ namespace OpenCodeConnector\Tests\Unit {
 				);
 			}
 
-			$apply = new \ReflectionMethod( OpenCodeProviderAvailability::class, 'applyLastGood' );
-			$apply->setAccessible( true );
-
-			$availability = new OpenCodeProviderAvailability( 'go' );
-			$apply->invoke( $availability, $unbucketed );
+			$store_instance = new LastGoodStore( 'go' );
+			$store_instance->apply( $unbucketed );
 
 			self::assertNotContains(
 				$flag,
@@ -232,7 +229,7 @@ namespace OpenCodeConnector\Tests\Unit {
 
 			// Control: a proven negative must still clear it immediately, or the
 			// assertion above proves nothing.
-			$apply->invoke( $availability, 'invalid_key' );
+			$store_instance->apply( 'invalid_key' );
 
 			self::assertContains(
 				$flag,
@@ -507,10 +504,11 @@ namespace OpenCodeConnector\Tests\Unit {
 		/**
 		 * Flag reads are memoised per instance, and writes arm the memo.
 		 *
-		 * `isConfigured()` reads the flag on every could-not-be-checked
-		 * verdict, so without the memo each call costs a transient read on top
-		 * of the verdict read. The memo is per-instance only — a new instance
-		 * re-reads, so there is no cross-request staleness.
+		 * `LastGoodStore` is the live home: `isConfigured()` reads the flag
+		 * through it on every could-not-be-checked verdict, so without the
+		 * memo each call costs a transient read on top of the verdict read.
+		 * The memo is per-instance only — a new instance re-reads, so there
+		 * is no cross-request staleness.
 		 *
 		 * @return void
 		 */
@@ -539,21 +537,16 @@ namespace OpenCodeConnector\Tests\Unit {
 			Functions\when( 'set_transient' )->justReturn( true );
 			Functions\when( 'delete_transient' )->justReturn( true );
 
-			$read = new \ReflectionMethod( OpenCodeProviderAvailability::class, 'readLastGood' );
-			$read->setAccessible( true );
-			$write = new \ReflectionMethod( OpenCodeProviderAvailability::class, 'writeLastGood' );
-			$write->setAccessible( true );
-
-			$availability = new OpenCodeProviderAvailability( 'go' );
-			self::assertTrue( $read->invoke( $availability ) );
-			self::assertTrue( $read->invoke( $availability ) );
+			$reader = new LastGoodStore( 'go' );
+			self::assertTrue( $reader->read() );
+			self::assertTrue( $reader->read() );
 			self::assertSame( 1, $reads, 'The second read in one request must come from the memo, not storage.' );
 
 			// A write arms the memo: storage going away afterwards must not disarm it.
-			$writer = new OpenCodeProviderAvailability( 'go' );
-			$write->invoke( $writer, true );
+			$writer = new LastGoodStore( 'go' );
+			$writer->write( true );
 			unset( $store[ $flag ] );
-			self::assertTrue( $read->invoke( $writer ), 'writeLastGood() must set the memo, so a write-then-read never re-reads.' );
+			self::assertTrue( $writer->read(), 'write() must set the memo, so a write-then-read never re-reads.' );
 			self::assertSame( 1, $reads, 'The memoised read must not touch storage at all.' );
 		}
 

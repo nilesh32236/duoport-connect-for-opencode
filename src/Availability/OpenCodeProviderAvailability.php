@@ -134,11 +134,11 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Per-instance memo of the last-known-good flag.
 	 *
-	 * Retained for backward compatibility; the canonical memo lives in
-	 * LastGoodStore. `writeLastGood()` keeps both in step so a write
-	 * followed by a read in the same request never goes back to storage.
+	 * The canonical memo lives in LastGoodStore; probe() copies the flag
+	 * delta AvailabilityProbe reports so a write followed by a read in the
+	 * same request never goes back to storage.
 	 *
-	 * @since 0.1.10
+	 * @since 0.1.9
 	 *
 	 * @var bool|null
 	 */
@@ -369,141 +369,6 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		}
 		$this->last_good_memo = $this->lastGoodStore()->read();
 		return $this->last_good_memo;
-	}
-
-	/**
-	 * Whether a stored last-known-good value still arms the fallback.
-	 *
-	 * The current shape is `array( 'v' => '1', 'ts' => <unix time> )`: the
-	 * string sentinel keeps the stored type stable across the database
-	 * round-trip (an int `1` comes back as string `'1'`), and the timestamp
-	 * bounds the fallback by age — see LastGoodStore::MAX_AGE. The age cap binds
-	 * only timestamped shapes.
-	 *
-	 * Legacy shapes (int `1`, string `'1'`) predate the timestamp and read as
-	 * armed with no age bound: they fail open, exactly as they did before the
-	 * bound existed, and the next keyed success upgrades them to the
-	 * timestamped shape. That unbounded read is intentional — treating a
-	 * pre-upgrade flag as expired would disconnect working keys on upgrade.
-	 * A stale timestamped entry reads as disarmed; the transient itself still
-	 * expires on its own TTL, and definitive negatives still delete outright.
-	 *
-	 * @since 0.1.10
-	 *
-	 * @param mixed $value Raw transient value.
-	 * @return bool True while the fallback may carry a could-not-be-checked verdict.
-	 */
-	private function isFreshLastGood( mixed $value ): bool {
-		return LastGoodStore::isFresh( $value );
-	}
-
-	/**
-	 * Apply a classified verdict to the last-known-good flag.
-	 *
-	 * Three outcomes, not two: arm, clear, or leave alone. The third is the
-	 * one that matters and it exists because the earlier version of this
-	 * decision was `KEYED_STATES ? write(true) : write(false)` — an `else`
-	 * that cleared the flag for everything not keyed, including any state in
-	 * NO bucket at all.
-	 *
-	 * That fallthrough is the same hazard as the production bug this PR fixes,
-	 * one branch later. The bug was `unknown` missing from the bucket list, so
-	 * a state that had adjudicated nothing reached a write that decided the
-	 * credential was bad, and a working key was disconnected. An unbucketed
-	 * state is the identical mistake made permanently: today the buckets happen
-	 * to be exhaustive, so the `else` is unreachable for real states and reads
-	 * as harmless — until the next state is added to the vocabulary without a
-	 * bucket, which is exactly when nobody is looking at this method.
-	 *
-	 * So the fallthrough fails OPEN on whatever the flag already says. Only a
-	 * state in DEFINITIVE_NEGATIVE_STATES may clear it, because only those two
-	 * are a proven verdict about the credential. Everything else has proved
-	 * nothing, and proving nothing must not cost a site its connection.
-	 *
-	 * @param string $state Classified state name.
-	 * @return void
-	 */
-	private function applyLastGood( string $state ): void {
-		$this->lastGoodStore()->apply( $state );
-		// Keep the legacy memo in step: apply() may arm or clear the store,
-		// and a stale local memo would otherwise disagree with it.
-		if ( ConnectionDiagnostics::isConfiguredState( $state ) ) {
-			$this->last_good_memo = true;
-			return;
-		}
-		if ( ConnectionDiagnostics::isDefinitiveNegativeState( $state ) ) {
-			$this->last_good_memo = false;
-		}
-	}
-
-	/**
-	 * Record or clear the last-known-good configured flag for this catalog.
-	 *
-	 * THE WINDOW IS ROLLING AND MUST STAY ROLLING. Every keyed success
-	 * re-writes the flag and pushes its 30-day TTL forward. Do not "optimise"
-	 * the redundant write away — that was tried in this PR and reverted, and
-	 * the optimisation is a bug.
-	 *
-	 * Why it must roll. This flag is the entire mechanism by which a working
-	 * key keeps looking working when the gateway answers something the plugin
-	 * cannot interpret. The defect this PR fixes is precisely that a 400/404
-	 * made `isConfigured()` report a perfectly valid key as unconfigured; the
-	 * fallback flag is the fix for that. If the window were absolute — set
-	 * once and left to count down — then a site whose last confirmed good
-	 * probe was on day 1 and whose upstream starts answering unrecognisably
-	 * on day 29 loses its fallback on day 31, and `isConfigured()` starts
-	 * reporting that valid key as not connected again. That is not a subtler
-	 * version of the fix; it is the original defect returning on a 30-day
-	 * horizon, with a good key and no upstream error to explain it.
-	 *
-	 * Rolling is what makes the guarantee hold for as long as the credential
-	 * keeps working: each keyed success says "still good, today", so the
-	 * fallback cannot lapse while the key is genuinely healthy, and it starts
-	 * counting down only from the last real confirmation.
-	 *
-	 * The cost is one options-row UPDATE per keyed probe, about every five
-	 * minutes per catalog for the life of the install — and that figure is
-	 * conditional, not universal. WP core's `set_transient()` branches on
-	 * `wp_using_ext_object_cache()`: on a site with a persistent object cache
-	 * (Redis, Memcached) it returns through `wp_cache_set()` and writes no
-	 * options row at all, so the database cost is zero there. Only the default
-	 * path, which writes `_transient_*` rows with a raw UPDATE and no equality
-	 * short-circuit, pays it. The earlier version of this paragraph stated the
-	 * cost as if it were unconditional, which is wrong for the majority of
-	 * production sites and was offered as support for a decision that does not
-	 * depend on it.
-	 *
-	 * The decision does not depend on the cost. Rolling is required for
-	 * correctness; the price is what it happens to be on the sites that pay it.
-	 * That write is the accepted price of the guarantee above, not an
-	 * oversight. If it ever needs to be avoided, the fix belongs at the storage
-	 * layer (an equality check that still extends the TTL), never at the cost of
-	 * the rolling behaviour.
-	 *
-	 * Clearing is unaffected: the first definitive negative deletes the flag
-	 * outright and immediately, so a genuinely revoked key is never held open
-	 * by any of this.
-	 *
-	 * The stored shape is `array( 'v' => '1', 'ts' => time() )`, still
-	 * credential-blind. The string sentinel (not int `1`) keeps the stored
-	 * type stable across the database round-trip; it does not skip the
-	 * value-row write, because `ts` changes on every keyed success so the
-	 * serialised value is never equal — both the value row and the timeout
-	 * row move on each rewrite, and that rewrite is the rolling behaviour
-	 * above, not a pointless write. The timestamp is what `readLastGood()`
-	 * bounds by LastGoodStore::MAX_AGE (timestamped shapes only; pre-timestamp
-	 * int/string shapes read as armed until a keyed success upgrades them),
-	 * so a flag that has not been confirmed since before a `wp-config.php` or
-	 * environment rotation stops failing open.
-	 *
-	 * @since 0.1.6
-	 *
-	 * @param bool $good Whether a keyed probe just succeeded.
-	 * @return void
-	 */
-	private function writeLastGood( bool $good ): void {
-		$this->lastGoodStore()->write( $good );
-		$this->last_good_memo = $good;
 	}
 
 	/**

@@ -99,9 +99,8 @@ final class AvailabilityProbe {
 			return $credential;
 		}
 
-		// Set lock before network I/O (10s).
-		TransientCache::set( $lock_key, 1, 10 );
-
+		// Resolve the catalog BEFORE taking the stampede lock so an
+		// unrecognised slug cannot leak the lock for its full 10s TTL.
 		// An unrecognised catalog fails closed instead of silently probing as
 		// the Zen catalog; see verify() for why the mapping has one home.
 		$cls = Catalog::providerClassFor( $this->catalog );
@@ -110,6 +109,10 @@ final class AvailabilityProbe {
 			$this->writeLastGood( false );
 			return $result;
 		}
+
+		// Set lock before network I/O (10s).
+		TransientCache::set( $lock_key, 1, 10 );
+
 		$result = $this->sendAvailabilityProbe( $cls );
 		TransientCache::delete( $lock_key );
 		$state = isset( $result['state'] ) && is_string( $result['state'] ) ? $result['state'] : '';
@@ -202,8 +205,10 @@ final class AvailabilityProbe {
 		if ( is_array( $cached ) && isset( $cached['state'] ) ) {
 			return $cached;
 		}
-		if ( false !== $cached && is_bool( $cached ) ) {
-			return $cached ? $this->diagnostics->verified() : $this->diagnostics->notConfigured();
+		if ( true === $cached ) {
+			// Legacy boolean-true cache entry. A false miss sentinel falls
+			// through to the lock check and then a fresh probe.
+			return $this->diagnostics->verified();
 		}
 		if ( false !== TransientCache::get( $lock_key ) ) {
 			// Concurrent probe: surface could-not-be-checked so isConfigured()
@@ -298,20 +303,65 @@ final class AvailabilityProbe {
 	 * @return void
 	 */
 	private function applyLastGood( string $state ): void {
-		$this->last_good->apply( $state );
-		// Keep the facade memo in step: apply() may arm or clear the store,
-		// and a stale memo would otherwise disagree with it.
-		if ( ConnectionDiagnostics::isConfiguredState( $state ) ) {
-			$this->flag_memo = true;
-			return;
-		}
-		if ( ConnectionDiagnostics::isDefinitiveNegativeState( $state ) ) {
-			$this->flag_memo = false;
-		}
+		// apply() classifies the state once and reports the action, so the
+		// memo delta comes from the same read that decides the write.
+		$this->flag_memo = $this->last_good->apply( $state );
 	}
 
 	/**
-	 * Record or clear the last-known-good flag, tracking the memo delta.
+	 * Record or clear the last-known-good configured flag for this catalog.
+	 *
+	 * THE WINDOW IS ROLLING AND MUST STAY ROLLING. Every keyed success
+	 * re-writes the flag and pushes its 30-day TTL forward. Do not "optimise"
+	 * the redundant write away — that was tried and reverted, and the
+	 * optimisation is a bug.
+	 *
+	 * Why it must roll. This flag is the entire mechanism by which a working
+	 * key keeps looking working when the gateway answers something the plugin
+	 * cannot interpret. If the window were absolute — set once and left to
+	 * count down — then a site whose last confirmed good probe was on day 1
+	 * and whose upstream starts answering unrecognisably on day 29 loses its
+	 * fallback on day 31, and `isConfigured()` starts reporting that valid key
+	 * as not connected again. That is not a subtler version of the fix; it is
+	 * the original defect returning on a 30-day horizon, with a good key and no
+	 * upstream error to explain it.
+	 *
+	 * Rolling is what makes the guarantee hold for as long as the credential
+	 * keeps working: each keyed success says "still good, today", so the
+	 * fallback cannot lapse while the key is genuinely healthy, and it starts
+	 * counting down only from the last real confirmation.
+	 *
+	 * The cost is one options-row UPDATE per keyed probe, about every five
+	 * minutes per catalog for the life of the install — and that figure is
+	 * conditional, not universal. WP core's `set_transient()` branches on
+	 * `wp_using_ext_object_cache()`: on a site with a persistent object cache
+	 * (Redis, Memcached) it returns through `wp_cache_set()` and writes no
+	 * options row at all, so the database cost is zero there. Only the default
+	 * path, which writes `_transient_*` rows with a raw UPDATE and no equality
+	 * short-circuit, pays it.
+	 *
+	 * The decision does not depend on the cost. Rolling is required for
+	 * correctness; the price is what it happens to be on the sites that pay it.
+	 * That write is the accepted price of the guarantee above, not an
+	 * oversight. If it ever needs to be avoided, the fix belongs at the storage
+	 * layer (an equality check that still extends the TTL), never at the cost of
+	 * the rolling behaviour.
+	 *
+	 * Clearing is unaffected: the first definitive negative deletes the flag
+	 * outright and immediately, so a genuinely revoked key is never held open
+	 * by any of this.
+	 *
+	 * The stored shape is `array( 'v' => '1', 'ts' => time() )`, still
+	 * credential-blind. The string sentinel (not int `1`) keeps the stored
+	 * type stable across the database round-trip; it does not skip the
+	 * value-row write, because `ts` changes on every keyed success so the
+	 * serialised value is never equal — both the value row and the timeout
+	 * row move on each rewrite, and that rewrite is the rolling behaviour
+	 * above, not a pointless write. The timestamp is what the read side
+	 * bounds by LastGoodStore::MAX_AGE (timestamped shapes only; pre-timestamp
+	 * int/string shapes read as armed until a keyed success upgrades them),
+	 * so a flag that has not been confirmed since before a `wp-config.php` or
+	 * environment rotation stops failing open.
 	 *
 	 * @since 0.1.9
 	 *

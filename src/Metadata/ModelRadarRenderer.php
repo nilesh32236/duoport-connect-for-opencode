@@ -26,6 +26,21 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 final class ModelRadarRenderer {
 	/**
+	 * Status-to-label map for change rows.
+	 *
+	 * A constant so the map is not rebuilt on every call; the next status
+	 * value extends it instead of a nested ternary.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @var array<string, string>
+	 */
+	private const STATUS_LABELS = array(
+		'retired'               => 'retired',
+		'verification_required' => 'verification-required',
+	);
+
+	/**
 	 * Render a stable Markdown view of a report.
 	 *
 	 * @since 0.1.8
@@ -126,13 +141,9 @@ final class ModelRadarRenderer {
 	 * @return string
 	 */
 	public function changeLabel( array $change ): string {
-		$labels = array(
-			'retired'               => 'retired',
-			'verification_required' => 'verification-required',
-		);
 		$status = (string) ( $change['status'] ?? '' );
-		if ( isset( $labels[ $status ] ) ) {
-			$label = $labels[ $status ];
+		if ( isset( self::STATUS_LABELS[ $status ] ) ) {
+			$label = self::STATUS_LABELS[ $status ];
 		} elseif ( ! empty( $change['supported'] ) ) {
 			$label = 'reviewed';
 		} else {

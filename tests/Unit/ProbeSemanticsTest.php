@@ -1128,9 +1128,10 @@ namespace OpenCodeConnector\Tests\Unit {
 		 * A broken object cache must not escape the probe.
 		 *
 		 * The transient helpers guard for the function being ABSENT but not for
-		 * it THROWING, and the three private helpers are the only place in this
-		 * file that calls get/set/delete_transient() unguarded — verify() and
-		 * store_verify_verdict() both wrap the same three functions. The cache is
+		 * it THROWING, so `TransientCache` centralises the unguarded
+		 * get/set/delete_transient() calls behind its own wrappers — the
+		 * availability probe, `VerifyProbe::storeVerifyVerdict()`, and the
+		 * last-known-good store all go through it. The cache is
 		 * an optimisation: a dead one must cost a probe, not the request. These
 		 * three specs cover each helper separately, because the call sites differ
 		 * — delete runs on the path that clears a revoked key and releases the

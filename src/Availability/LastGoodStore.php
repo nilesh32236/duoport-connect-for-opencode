@@ -138,20 +138,25 @@ final class LastGoodStore {
 	 * Apply a classified verdict to the flag (arm, clear, or leave alone).
 	 *
 	 * Only definitive negatives may clear; everything unbucketed fails open
-	 * on whatever the flag already says.
+	 * on whatever the flag already says. Classifies the state once and
+	 * reports the action so a caller tracking a memo delta does not have to
+	 * scan the buckets a second time.
 	 *
 	 * @since 0.1.8
+	 * @since 0.1.9 Returns the applied action (true armed, false cleared, null untouched).
 	 *
 	 * @param string $state Classified state name.
-	 * @return void
+	 * @return bool|null Applied action, or null when the flag was left alone.
 	 */
-	public function apply( string $state ): void {
+	public function apply( string $state ): ?bool {
 		if ( ConnectionDiagnostics::isConfiguredState( $state ) ) {
 			$this->write( true );
-			return;
+			return true;
 		}
 		if ( ConnectionDiagnostics::isDefinitiveNegativeState( $state ) ) {
 			$this->write( false );
+			return false;
 		}
+		return null;
 	}
 }

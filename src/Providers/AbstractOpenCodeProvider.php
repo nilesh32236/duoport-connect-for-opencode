@@ -18,8 +18,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use OpenCodeConnector\Availability\OpenCodeProviderAvailability;
 use OpenCodeConnector\Metadata\Catalog;
-use OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory;
-use OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory;
 use OpenCodeConnector\Models\OpenCodeGoImageGenerationModel;
 use OpenCodeConnector\Models\OpenCodeGoTextGenerationModel;
 use OpenCodeConnector\Models\OpenCodeZenImageGenerationModel;
@@ -173,18 +171,20 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	/**
 	 * Catalog-bound class variant for a role.
 	 *
-	 * Single source of truth for every catalog → class mapping in this
-	 * file (model classes per capability family and the metadata directory
-	 * class): adding a catalog means extending this map only, instead of
-	 * editing one ternary per role. An unrecognised catalog key falls back
-	 * to the Zen variant — the binding subclasses hardcode their key from
+	 * Single source of truth for the catalog → model-class mapping (per
+	 * capability family): adding a catalog means extending this map only,
+	 * instead of editing one ternary per model role. The metadata directory
+	 * role lives in Catalog::metadataDirectoryClassFor(), which the Settings
+	 * cache-bust list already reads from, so a third catalog is registered in
+	 * one place rather than two. An unrecognised catalog key falls back to
+	 * the Zen variant — the binding subclasses hardcode their key from
 	 * Catalog, so an unknown value here is a programming error that the
 	 * availability layer (which fails closed on unknown slugs) surfaces,
 	 * not a branch this file can adjudicate.
 	 *
 	 * @since 0.1.8
 	 *
-	 * @param string $role Variant role (`model-image`, `model-text`, `directory`).
+	 * @param string $role Variant role (`model-image` or `model-text`).
 	 * @return string Class FQCN.
 	 */
 	private static function variantClassFor( string $role ): string {
@@ -198,10 +198,6 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 				Catalog::GO  => OpenCodeGoTextGenerationModel::class,
 				Catalog::ZEN => OpenCodeZenTextGenerationModel::class,
 			),
-			'directory'   => array(
-				Catalog::GO  => OpenCodeGoModelMetadataDirectory::class,
-				Catalog::ZEN => OpenCodeZenModelMetadataDirectory::class,
-			),
 		);
 		if ( isset( $map[ $role ][ $catalog ] ) ) {
 			return $map[ $role ][ $catalog ];
@@ -209,9 +205,8 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 		$fallbacks = array(
 			'model-image' => OpenCodeZenImageGenerationModel::class,
 			'model-text'  => OpenCodeZenTextGenerationModel::class,
-			'directory'   => OpenCodeZenModelMetadataDirectory::class,
 		);
-		return $fallbacks[ $role ] ?? OpenCodeZenModelMetadataDirectory::class;
+		return $fallbacks[ $role ] ?? OpenCodeZenTextGenerationModel::class;
 	}
 
 	/**
@@ -369,11 +364,15 @@ abstract class AbstractOpenCodeProvider extends AbstractApiProvider {
 	/**
 	 * Metadata directory class for the bound catalog.
 	 *
+	 * Resolves through Catalog::metadataDirectoryClassFor(), the single home
+	 * the Settings cache-bust list also reads, so a third catalog is
+	 * registered once.
+	 *
 	 * @since 0.1.6
 	 *
 	 * @return string Directory class FQCN.
 	 */
 	private static function directoryClassFor(): string {
-		return self::variantClassFor( 'directory' );
+		return Catalog::metadataDirectoryClassFor( static::catalogKey() );
 	}
 }
