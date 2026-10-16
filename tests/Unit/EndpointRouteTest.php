@@ -58,10 +58,37 @@ final class EndpointRouteTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * Unimplemented endpoint kinds are explicitly denied.
+	 * Verified non-chat families resolve their reviewed paths.
+	 *
+	 * Each family here has a verified payload parser and authentication
+	 * contract; routing one means both are evidenced.
+	 */
+	public function test_verified_families_resolve_paths(): void {
+		self::assertSame( 'responses', EndpointRoute::pathForEndpointKind( 'responses' ) );
+		self::assertSame( 'messages', EndpointRoute::pathForEndpointKind( 'messages' ) );
+		self::assertSame( 'systemone', EndpointRoute::pathForEndpointKind( 'systemone' ) );
+		self::assertSame( 'models/{model}:generateContent', EndpointRoute::pathForEndpointKind( 'gemini' ) );
+		foreach ( array( 'chat', 'responses', 'messages', 'gemini', 'systemone' ) as $kind ) {
+			self::assertTrue( EndpointRoute::isVerifiedFamily( $kind ), $kind . ' must count as verified.' );
+		}
+		foreach ( array( 'provider-specific', 'some-future-family', 'unsupported', '' ) as $kind ) {
+			self::assertFalse( EndpointRoute::isVerifiedFamily( $kind ), $kind . ' must stay unverified.' );
+		}
+	}
+
+	/**
+	 * The model-scoped Gemini path substitutes the model ID.
+	 */
+	public function test_gemini_model_path_substitutes_the_model_id(): void {
+		self::assertSame( 'models/glm-5.3:generateContent', EndpointRoute::pathForGeminiModel( 'glm-5.3' ) );
+		self::assertSame( 'models/a%20b:generateContent', EndpointRoute::pathForGeminiModel( 'a b' ) );
+	}
+
+	/**
+	 * Unverified endpoint kinds are explicitly denied.
 	 */
 	public function test_unimplemented_family_paths_are_denied(): void {
-		foreach ( array( 'responses', 'messages', 'systemone', 'provider-specific' ) as $kind ) {
+		foreach ( array( 'provider-specific' ) as $kind ) {
 			try {
 				EndpointRoute::pathForEndpointKind( $kind );
 				self::fail( 'Expected an unsupported endpoint kind exception.' );
@@ -76,11 +103,11 @@ final class EndpointRouteTest extends MonkeyTestCase {
 	 */
 	public function test_named_family_is_reported_in_the_message(): void {
 		try {
-			EndpointRoute::pathForEndpointKind( 'systemone' );
+			EndpointRoute::pathForEndpointKind( 'provider-specific' );
 			self::fail( 'Expected an unsupported endpoint kind exception.' );
 		} catch ( UnsupportedEndpointFamilyException $exception ) {
-			self::assertStringContainsString( 'systemone', $exception->getMessage() );
-			self::assertStringContainsString( 'chat/completions only', $exception->getMessage() );
+			self::assertStringContainsString( 'provider-specific', $exception->getMessage() );
+			self::assertStringContainsString( 'supported families:', $exception->getMessage() );
 		}
 	}
 
@@ -110,7 +137,7 @@ final class EndpointRouteTest extends MonkeyTestCase {
 			self::fail( 'Expected an unsupported endpoint kind exception.' );
 		} catch ( UnsupportedEndpointFamilyException $exception ) {
 			self::assertStringNotContainsString( 'some-future-family', $exception->getMessage() );
-			self::assertStringContainsString( 'chat/completions only', $exception->getMessage() );
+			self::assertStringContainsString( 'supported families:', $exception->getMessage() );
 		}
 	}
 

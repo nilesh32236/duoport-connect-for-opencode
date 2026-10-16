@@ -17,23 +17,56 @@ use OpenCodeConnector\Metadata\ModelRegistry;
 
 /**
  * Resolves only reviewed endpoint families and paths.
+ *
+ * Each family listed in PATHS has a verified payload parser (see the
+ * sibling *PayloadParser classes) and a verified authentication contract
+ * (see EndpointAuth): routing a family means its request shape and its
+ * credential header are both evidenced. Families outside the map fail
+ * closed before transport, whether or not they are named in
+ * `ModelRegistry::isUnsupportedFamily()`.
  */
 final class EndpointRoute {
 
 	/**
 	 * Implemented family-to-path map.
 	 *
-	 * This chat-only allowlist is the enforcement point: every family that is
-	 * not a key here fails closed before transport, whether or not it is
-	 * named in `ModelRegistry::isUnsupportedFamily()`. Responses, Messages,
-	 * and provider-specific transports remain denied until their payload,
+	 * This verified allowlist is the enforcement point: every family that
+	 * is not a key here fails closed before transport, whether or not it
+	 * is named in `ModelRegistry::isUnsupportedFamily()`.
+	 * Provider-specific transports remain denied until their payload,
 	 * parser, and authentication contracts are complete.
+	 *
+	 * The Gemini path is model-scoped (`models/{model}:generateContent`):
+	 * pathForModel() substitutes the model ID, while pathForEndpointKind()
+	 * reports the template.
+	 *
+	 * The map keys are the single source for the routable vocabulary:
+	 * isVerifiedFamily() enforces them and rejectFamily() reports them,
+	 * so the denial text cannot drift from enforcement.
 	 *
 	 * @var array<string, string>
 	 */
 	private const PATHS = array(
-		'chat' => 'chat/completions',
+		'chat'      => 'chat/completions',
+		'responses' => 'responses',
+		'messages'  => 'messages',
+		'gemini'    => 'models/{model}:generateContent',
+		'systemone' => 'systemone',
 	);
+
+	/**
+	 * Whether an endpoint family has a verified route, parser, and auth contract.
+	 *
+	 * Single owner for the "routable" vocabulary: EndpointAuth and
+	 * CapabilityAwareFallback delegate here, so a family the router can
+	 * send cannot be rejected by one of its consumers.
+	 *
+	 * @param string $family Endpoint family name.
+	 * @return bool
+	 */
+	public static function isVerifiedFamily( string $family ): bool {
+		return isset( self::PATHS[ $family ] );
+	}
 
 	/**
 	 * Build the fail-closed message for a rejected endpoint family.
@@ -47,14 +80,15 @@ final class EndpointRoute {
 	 * @throws UnsupportedEndpointFamilyException Always.
 	 */
 	private static function rejectFamily( string $kind ): never {
+		$supported = implode( ', ', array_keys( self::PATHS ) );
 		if ( ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === $kind ) {
-			$message = 'This model\'s documented endpoint family is not implemented by this adapter; chat/completions only.';
+			$message = sprintf( 'This model\'s documented endpoint family is not implemented by this adapter; supported families: %s.', $supported );
 		} elseif ( ModelRegistry::isUnsupportedFamily( $kind ) ) {
-			$message = sprintf( 'Endpoint family "%s" is unsupported; chat/completions only.', $kind );
+			$message = sprintf( 'Endpoint family "%s" is unsupported; supported families: %s.', $kind, $supported );
 		} else {
-			// Unknown family: the chat-only allowlist still fails closed, but do
+			// Unknown family: the verified allowlist still fails closed, but do
 			// not echo an unrecognised name back to the caller.
-			$message = 'Endpoint family is unsupported; chat/completions only.';
+			$message = sprintf( 'Endpoint family is unsupported; supported families: %s.', $supported );
 		}
 
 		// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception message, not output.
@@ -84,17 +118,64 @@ final class EndpointRoute {
 	/**
 	 * Resolve a path for a model.
 	 *
+	 * The Gemini path is model-scoped, so the model ID is substituted
+	 * into the template there; every other verified family has a fixed
+	 * path.
+	 *
 	 * @param string $model_id Model ID.
 	 * @param string $catalog  Catalog slug.
 	 * @return string
 	 * @throws UnsupportedEndpointFamilyException When the route is unsupported.
 	 */
 	public static function pathForModel( string $model_id, string $catalog ): string {
-		return self::PATHS[ self::endpointKindForModel( $model_id, $catalog ) ];
+		return self::pathForVerifiedKind( self::endpointKindForModel( $model_id, $catalog ), $model_id );
+	}
+
+	/**
+	 * Resolve a sendable path for an already-verified endpoint kind.
+	 *
+	 * Single owner for the kind-to-path derivation: createRequest() resolves
+	 * the kind once (one registry lookup per request) and derives the path
+	 * here, so the kind the payload was built for cannot differ from the
+	 * kind the path is resolved for. The Gemini kind is model-scoped, so
+	 * the model ID is substituted into the template there; every other
+	 * verified family has a fixed path.
+	 *
+	 * @param string $kind     Verified endpoint family name.
+	 * @param string $model_id Verified model ID (used for the Gemini path).
+	 * @return string Sendable request path.
+	 * @throws UnsupportedEndpointFamilyException When the kind is not verified.
+	 */
+	public static function pathForVerifiedKind( string $kind, string $model_id ): string {
+		if ( ! isset( self::PATHS[ $kind ] ) ) {
+			self::rejectFamily( $kind );
+		}
+		if ( 'gemini' === $kind ) {
+			return self::pathForGeminiModel( $model_id );
+		}
+		return self::PATHS[ $kind ];
+	}
+
+	/**
+	 * Resolve the model-scoped Gemini generateContent path for a model.
+	 *
+	 * Factored out of pathForModel() so the substitution is directly
+	 * pinnable: no allowlisted model maps to the Gemini family yet, so
+	 * this is the only seam that exercises the template.
+	 *
+	 * @param string $model_id Model ID.
+	 * @return string
+	 */
+	public static function pathForGeminiModel( string $model_id ): string {
+		return 'models/' . rawurlencode( $model_id ) . ':generateContent';
 	}
 
 	/**
 	 * Return a path for a known endpoint kind.
+	 *
+	 * The Gemini kind reports its model-scoped template
+	 * (`models/{model}:generateContent`); use pathForModel() (or
+	 * pathForGeminiModel()) for a sendable Gemini path.
 	 *
 	 * @param string $kind Endpoint kind.
 	 * @return string

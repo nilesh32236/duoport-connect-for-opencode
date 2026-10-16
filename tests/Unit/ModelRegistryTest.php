@@ -214,7 +214,12 @@ final class ModelRegistryTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * The published deny table names exactly the known non-chat families.
+	 * The published deny table names exactly the still-unverified families.
+	 *
+	 * Responses, messages, gemini, and systemone each have a verified
+	 * route, payload parser, and authentication contract (see
+	 * EndpointRoute), so they no longer read as unsupported; only
+	 * provider-specific transports stay denied.
 	 *
 	 * @param string $family   Endpoint family under test.
 	 * @param bool   $expected Whether the family should be reported denied.
@@ -231,9 +236,10 @@ final class ModelRegistryTest extends MonkeyTestCase {
 	 */
 	public static function unsupportedFamilyProvider(): array {
 		return array(
-			'responses'         => array( 'responses', true ),
-			'messages'          => array( 'messages', true ),
-			'systemone'         => array( 'systemone', true ),
+			'responses'         => array( 'responses', false ),
+			'messages'          => array( 'messages', false ),
+			'gemini'            => array( 'gemini', false ),
+			'systemone'         => array( 'systemone', false ),
 			'provider-specific' => array( 'provider-specific', true ),
 			'chat'              => array( 'chat', false ),
 			'unsupported'       => array( 'unsupported', false ),
@@ -251,7 +257,7 @@ final class ModelRegistryTest extends MonkeyTestCase {
 		$record = ModelRegistry::record( 'responses', 'go' );
 
 		self::assertNull( $record, 'A family name is not an allowlisted model id.' );
-		self::assertFalse( ModelRegistry::isUnsupportedFamily( 'responses' ) === false );
+		self::assertFalse( ModelRegistry::isUnsupportedFamily( 'responses' ), 'A verified family is routable, not denied.' );
 	}
 
 	/**

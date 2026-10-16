@@ -74,6 +74,15 @@ final class ModelRegistry {
 
 	/**
 	 * Current implemented endpoint family.
+	 *
+	 * Every allowlisted model resolves here unless it is pending endpoint
+	 * verification. The published OpenCode endpoint tables map GPT models
+	 * to responses and Claude/Qwen models to messages, but none of those
+	 * IDs are allowlisted; the allowlisted DeepSeek/GLM/Kimi/MiniMax IDs
+	 * are chat/completions per the same tables. A non-chat mapping for an
+	 * allowlisted ID lands here only with per-model endpoint evidence, and
+	 * its family must already be verified in EndpointRoute — existence in
+	 * `/models` alone never routes.
 	 */
 	private const ENDPOINT_FAMILY = 'chat';
 
@@ -110,19 +119,20 @@ final class ModelRegistry {
 	/**
 	 * Known non-chat endpoint families with no verified transport.
 	 *
-	 * This is the single source of truth for *named* non-chat families, so a
-	 * denial can say which family was rejected instead of leaking a sentinel.
-	 * It is not the enforcement point: `EndpointRoute::PATHS` is a
-	 * chat-only allowlist and remains the gate that fails every unknown or
-	 * unlisted family closed. Adding a family here improves the diagnostic;
-	 * omitting one still fails closed.
+	 * This is the single source of truth for *named* non-chat families that
+	 * remain unroutable, so a denial can say which family was rejected
+	 * instead of leaking a sentinel. It is not the enforcement point:
+	 * `EndpointRoute::PATHS` is a verified-family allowlist and remains
+	 * the gate that fails every unknown or unlisted family closed. The
+	 * responses, messages, gemini, and systemone families used to be listed
+	 * here; each now has a verified route, payload parser, and
+	 * authentication contract (see EndpointRoute and EndpointAuth), so
+	 * listing them as unsupported would misreport a routable family.
+	 * Omitting a family here still fails closed at the route gate.
 	 *
 	 * @var list<string>
 	 */
 	private const UNSUPPORTED_FAMILIES = array(
-		'responses',
-		'messages',
-		'systemone',
 		'provider-specific',
 	);
 
