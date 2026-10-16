@@ -192,20 +192,52 @@ final class CompatGuardsTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * isConfigured() documents its credential-only contract.
+	 * isConfigured() is a credential verdict and never consults the gates.
 	 *
-	 * The probe verdict must state that prevent-prompt gates do not clear
-	 * last-known-good, so a prevented prompt is never misread as
-	 * not-configured.
+	 * Asserted by behaviour, not by prose: with active core gates
+	 * (`wp_supports_ai()` false and a registered `wp_ai_client_prevent_prompt`
+	 * filter) a healthy 2xx probe must still read as configured, and the
+	 * availability path must not call either gate function. A prevented prompt
+	 * is never misreported as not-configured.
 	 *
 	 * @return void
 	 */
-	public function test_availability_documents_gate_semantics(): void {
-		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/src/Availability/OpenCodeProviderAvailability.php' );
+	#[RunInSeparateProcess]
+	#[PreserveGlobalState( false )]
+	public function test_is_configured_ignores_prompt_gates(): void {
+		require_once dirname( __DIR__, 2 ) . '/src/autoload.php';
+		require_once __DIR__ . '/Fixtures/SdkStubs.php';
 
-		self::assertStringContainsString( 'wp_ai_client_prevent_prompt', $source );
-		self::assertStringContainsString( 'prompt_prevented', $source );
-		self::assertStringContainsString( 'wp_connectors_init', $source );
+		if ( ! defined( 'MINUTE_IN_SECONDS' ) ) {
+			define( 'MINUTE_IN_SECONDS', 60 );
+		}
+
+		// Active gates: if availability consulted either, this would differ.
+		Functions\expect( 'wp_supports_ai' )->never();
+		Functions\expect( 'has_filter' )->never();
+		Functions\when( 'get_transient' )->justReturn( false );
+		Functions\when( 'set_transient' )->justReturn( true );
+		Functions\when( 'delete_transient' )->justReturn( true );
+		Functions\when( 'wp_rand' )->justReturn( 0 );
+
+		$availability = new \OpenCodeConnector\Availability\OpenCodeProviderAvailability( 'go' );
+		$availability->setHttpTransporter(
+			new class() {
+				public function send( mixed $request ): mixed {
+					unset( $request );
+					return new \WordPress\AiClient\Providers\Http\DTO\Response( 200, null );
+				}
+			}
+		);
+		$availability->setRequestAuthentication(
+			new class() {
+				public function authenticateRequest( mixed $request ): mixed {
+					return $request;
+				}
+			}
+		);
+
+		self::assertTrue( $availability->isConfigured(), 'A valid key stays configured regardless of active prompt gates.' );
 	}
 
 	/**

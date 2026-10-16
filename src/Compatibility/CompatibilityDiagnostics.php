@@ -61,6 +61,9 @@ final class CompatibilityDiagnostics {
 	 * means prompts MAY be prevented — prevention itself is evaluated per
 	 * prompt by core against a builder clone, not here.
 	 *
+	 * @since 0.1.5
+	 * @since 0.1.10 Added `ai_supported` and `prompt_prevented` fields.
+	 *
 	 * @param object|null $registry Optional registry override for tests.
 	 * @param string|null $wordpress_version Optional WordPress version override for tests.
 	 * @return array<string, mixed>
@@ -153,7 +156,7 @@ final class CompatibilityDiagnostics {
 		if ( version_compare( $wordpress_version, self::MINIMUM_WORDPRESS_VERSION, '<' ) ) {
 			return $gates;
 		}
-		if ( defined( 'WP_AI_SUPPORT' ) && false === WP_AI_SUPPORT ) {
+		if ( defined( 'WP_AI_SUPPORT' ) && ! WP_AI_SUPPORT ) {
 			$gates['ai_supported'] = false;
 		} elseif ( function_exists( 'wp_supports_ai' ) ) {
 			try {
@@ -166,12 +169,12 @@ final class CompatibilityDiagnostics {
 			try {
 				$hook = has_filter( 'wp_ai_client_prevent_prompt' );
 			} catch ( \Throwable ) {
-				$hook = false;
+				$hook = null;
 			}
-			if ( false !== $hook ) {
-				$gates['prompt_prevented'] = true;
+			if ( null === $hook ) {
+				$gates['prompt_prevented'] = null;
 			} else {
-				$gates['prompt_prevented'] = false;
+				$gates['prompt_prevented'] = ( false !== $hook );
 			}
 		}
 		return $gates;

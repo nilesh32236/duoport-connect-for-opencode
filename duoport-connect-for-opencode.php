@@ -34,6 +34,9 @@ require_once __DIR__ . '/src/autoload.php';
 add_action(
 	'admin_notices',
 	static function (): void {
+		if ( function_exists( 'current_user_can' ) && ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
 		$diagnostics = new Compatibility\CompatibilityDiagnostics();
 		$status      = $diagnostics->inspect();
 		if ( $status['ok'] ) {
