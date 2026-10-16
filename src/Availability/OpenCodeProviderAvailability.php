@@ -749,7 +749,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 			return $this->last_result;
 		}
 		$this->last_result = $this->sendAvailabilityProbe( $cls, $diagnostics );
-		$state = isset( $this->last_result['state'] ) && is_string( $this->last_result['state'] ) ? $this->last_result['state'] : '';
+		$state             = isset( $this->last_result['state'] ) && is_string( $this->last_result['state'] ) ? $this->last_result['state'] : '';
 		// Persist BEFORE releasing the stampede lock. Releasing first left a
 		// window in which another request acquired the lock and probed again
 		// before the verdict was stored, so the second probe could overwrite a
