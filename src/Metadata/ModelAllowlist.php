@@ -91,17 +91,25 @@ final class ModelAllowlist {
 	/**
 	 * Web-search-capable IDs per catalog.
 	 *
-	 * Intentionally empty (fail-open default): the OpenAI-compatible base
-	 * model has no `webSearch` handling on `chat/completions` and the
-	 * OpenCode gateway payload is unverified, so no model advertises this
-	 * option until an end-to-end gateway probe passes. Add verified IDs here
-	 * to advertise it; the metadata directory already consults the gate.
+	 * Default-deny, fail-closed: mirrors the ALLOW shape (per-catalog, never
+	 * shared between Go and Zen) and ships empty. Only IDs whose grounding
+	 * contract is verified by an end-to-end gateway probe may be listed
+	 * here. The OpenAI-compatible base model has no `webSearch` handling on
+	 * `chat/completions` and the OpenCode gateway payload is unverified, so
+	 * every unverified model is explicitly unsupported and never advertises
+	 * this option — a mis-declared model must degrade to text-only rather
+	 * than hallucinate grounding. Add verified IDs here to advertise it;
+	 * the metadata directory already consults the gate.
 	 *
 	 * @since 0.1.4
+	 * @since 0.1.9 Per-catalog default-deny shape; was a flat list.
 	 *
 	 * @var array<string, list<string>>
 	 */
-	private const WEB_SEARCH_CAPABLE = array();
+	private const WEB_SEARCH_CAPABLE = array(
+		Catalog::GO  => array(),
+		Catalog::ZEN => array(),
+	);
 	/**
 	 * Image-capable IDs per catalog.
 	 *
@@ -148,6 +156,21 @@ final class ModelAllowlist {
 			'big-pickle',
 		),
 	);
+
+	/**
+	 * Test-only web-search allowlist override (null means use the const).
+	 *
+	 * Lets specs cover both sides of the default-deny gate — a verified
+	 * model advertising web_search and an unverified model denied — without
+	 * a live gateway probe. Production never sets this; it stays null there,
+	 * so runtime behaviour is exactly the shipped const. Credential-blind:
+	 * the map carries model IDs only, never credential option values.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @var array<string, list<string>>|null
+	 */
+	private static $web_search_override = null;
 
 	/**
 	 * Whether a model is allowlisted.
@@ -269,21 +292,41 @@ final class ModelAllowlist {
 	/**
 	 * Whether a model may advertise web-search support.
 	 *
-	 * Fail-open default: backed by the (currently empty) WEB_SEARCH_CAPABLE
-	 * list. The OpenAI-compatible base model has no `webSearch` handling on
-	 * `chat/completions` (unlike the Responses-API `web_search` tool), and
-	 * the OpenCode gateway payload is unverified, so no model advertises this
-	 * option until an end-to-end gateway probe passes. Enabling a verified
-	 * model is a one-line change to the list above.
+	 * Default-deny, fail-closed: backed by the (currently empty-per-catalog)
+	 * WEB_SEARCH_CAPABLE list. Only models whose grounding contract is
+	 * verified by an end-to-end gateway probe are listed; every unverified
+	 * model — including unknown catalogs and IDs absent from the list — is
+	 * explicitly unsupported and denied, so grounded generation can never be
+	 * attempted on a mis-declared model. The OpenAI-compatible base model
+	 * has no `webSearch` handling on `chat/completions` (unlike the
+	 * Responses-API `web_search` tool), so enabling a verified model is a
+	 * one-line change to the per-catalog list above.
 	 *
 	 * @since 0.1.4
+	 * @since 0.1.9 Default-deny per-catalog lookup with a test-only override seam.
 	 *
 	 * @param string $id      Model ID.
 	 * @param string $catalog Catalog slug.
 	 * @return bool
 	 */
 	public static function isWebSearchCapable( string $id, string $catalog ): bool {
-		return in_array( $id, self::WEB_SEARCH_CAPABLE[ $catalog ] ?? array(), true );
+		$list = null !== self::$web_search_override ? self::$web_search_override : self::WEB_SEARCH_CAPABLE;
+		return in_array( $id, $list[ $catalog ] ?? array(), true );
+	}
+
+	/**
+	 * Inject a web-search allowlist for isolated tests.
+	 *
+	 * Pass null to restore the shipped const. Test-only; production callers
+	 * must never call this.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param array<string, list<string>>|null $map Per-catalog IDs, or null to restore the const.
+	 * @return void
+	 */
+	public static function setWebSearchCapableForTests( ?array $map ): void {
+		self::$web_search_override = $map;
 	}
 
 	/**
