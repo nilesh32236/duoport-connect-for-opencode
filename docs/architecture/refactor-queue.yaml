@@ -372,7 +372,7 @@ items:
       - Keep the probe paths credential-blind: state names and status codes only, never response bodies or key material.
     acceptance:
       - An unrecognised response renders a distinct, non-connected-looking status instead of a plain "connected".
-      - The rendered state agrees with diagnose()['state'] and with verify_state() for the same probe.
+      - The rendered state agrees with diagnose()['state'] and with verifyState() for the same probe.
       - The new UI path stays credential-blind: it reads no connector key option value, only the probe's own safe state.
     status_note: >-
       Deferred out of PR #135 at the review finding that raised it

@@ -22,8 +22,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use OpenCodeConnector\Metadata\Catalog;
-use WordPress\AiClient\Providers\Http\DTO\Request;
-use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 
 /**
  * Runs the lightweight availability probe for one catalog.
@@ -36,17 +34,6 @@ use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
  * @since 0.1.9
  */
 final class AvailabilityProbe {
-	/**
-	 * Flag memo delta applied by the last run, if any.
-	 *
-	 * Mirrors the facade's per-instance memo so a flag write followed by
-	 * a read in the same request never goes back to storage. Null when
-	 * the run touched nothing (cache hit, uncheckable verdict).
-	 *
-	 * @var bool|null
-	 */
-	private ?bool $flag_memo = null;
-
 	/**
 	 * Build a probe for one catalog.
 	 *
@@ -69,17 +56,6 @@ final class AvailabilityProbe {
 	) {}
 
 	/**
-	 * Flag memo delta applied by the last run, if any.
-	 *
-	 * @since 0.1.9
-	 *
-	 * @return bool|null True when armed, false when cleared, null when untouched.
-	 */
-	public function flagMemo(): ?bool {
-		return $this->flag_memo;
-	}
-
-	/**
 	 * Probe, classify, and briefly cache the safe result.
 	 *
 	 * @since 0.1.9
@@ -95,7 +71,7 @@ final class AvailabilityProbe {
 		}
 
 		$credential = $this->resolveCredentialOrUncheckable();
-		if ( null !== $credential ) {
+		if ( is_array( $credential ) ) {
 			return $credential;
 		}
 
@@ -113,7 +89,7 @@ final class AvailabilityProbe {
 		// Set lock before network I/O (10s).
 		TransientCache::set( $lock_key, 1, 10 );
 
-		$result = $this->sendAvailabilityProbe( $cls );
+		$result = $this->sendAvailabilityProbe( $cls, $credential );
 		TransientCache::delete( $lock_key );
 		$state = isset( $result['state'] ) && is_string( $result['state'] ) ? $result['state'] : '';
 		$this->persistProbeResult( $tkey, $state, $result );
@@ -123,18 +99,22 @@ final class AvailabilityProbe {
 	/**
 	 * Resolve the request credential, or return an early verdict.
 	 *
-	 * Returns null when the credential resolved and the caller should
-	 * proceed to probe. A proven-absent credential reports not-configured
-	 * (and clears last-known-good); any other resolution fault degrades to
-	 * could-not-be-checked and leaves the flag alone. Never throws.
+	 * Returns the resolved authenticator when the caller should proceed to
+	 * probe, or an early verdict array otherwise. A proven-absent
+	 * credential reports not-configured (and clears last-known-good); any
+	 * other resolution fault degrades to could-not-be-checked and leaves
+	 * the flag alone. Never throws.
+	 *
+	 * The authenticator is returned rather than discarded so the send does
+	 * not resolve the credential a second time.
 	 *
 	 * @since 0.1.9
 	 *
-	 * @return array<string, mixed>|null Early verdict, or null to proceed.
+	 * @return object|array<string, mixed> Resolved authenticator, or early verdict.
 	 */
-	private function resolveCredentialOrUncheckable(): ?array {
+	private function resolveCredentialOrUncheckable(): object|array {
 		try {
-			( $this->resolve_auth )();
+			return ( $this->resolve_auth )();
 		} catch ( \Throwable $exception ) {
 			if ( ! ( $this->missing_credential )( $exception ) ) {
 				return $this->diagnostics->uncheckable();
@@ -143,7 +123,6 @@ final class AvailabilityProbe {
 			$this->writeLastGood( false );
 			return $result;
 		}
-		return null;
 	}
 
 	/**
@@ -157,32 +136,24 @@ final class AvailabilityProbe {
 	 *
 	 * @since 0.1.9
 	 *
-	 * @param string $cls Provider class FQCN.
+	 * @param string $cls  Provider class FQCN.
+	 * @param object $auth Resolved request authentication.
 	 * @return array<string, mixed> Safe diagnosis.
 	 */
-	private function sendAvailabilityProbe( string $cls ): array {
-		$probe_model   = OpenCodeProviderAvailability::PROBE_MODEL;
-		$probe_data    = ProbeRequest::payload( $probe_model );
-		$probe_headers = ProbeRequest::headers( $this->catalog, $probe_data );
+	private function sendAvailabilityProbe( string $cls, object $auth ): array {
 		try {
-			// Construction belongs INSIDE the try. `$cls::url()` is a static call
-			// on the provider class and HttpMethodEnum::POST() is a magic factory
-			// served by __callStatic, so a broken or half-installed SDK throws
-			// \Error or \BadMethodCallException here rather than returning a value
-			// that could be checked.
-			$req  = new Request(
-				HttpMethodEnum::POST(),
-				$cls::url( 'chat/completions' ),
-				$probe_headers,
-				$probe_data
-			);
-			$auth = ( $this->resolve_auth )();
-			$req  = $auth->authenticateRequest( $req );
-			$res  = ( $this->send )( $req );
+			$res  = ProbeRequest::send( $this->catalog, $cls, $auth, $this->send );
 			$data = $res->getData();
-			return $this->diagnostics->classify( $res->getStatusCode(), is_array( $data ) ? $data : null, null, $probe_model );
+			return $this->diagnostics->classify( $res->getStatusCode(), is_array( $data ) ? $data : null, null, OpenCodeProviderAvailability::PROBE_MODEL );
 		} catch ( \Throwable $exception ) {
-			return $this->diagnostics->classify( 0, null, $exception );
+			// A classifier fault here must not escape run() and skip the
+			// stampede-lock release, so the fallback is a local verdict.
+			try {
+				return $this->diagnostics->classify( 0, null, $exception );
+			} catch ( \Throwable $classify_exception ) {
+				unset( $classify_exception );
+				return $this->diagnostics->uncheckable();
+			}
 		}
 	}
 
@@ -202,7 +173,7 @@ final class AvailabilityProbe {
 	 */
 	private function readProbeCache( string $tkey, string $lock_key ): ?array {
 		$cached = TransientCache::get( $tkey );
-		if ( is_array( $cached ) && isset( $cached['state'] ) ) {
+		if ( is_array( $cached ) && isset( $cached['state'] ) && is_string( $cached['state'] ) ) {
 			return $cached;
 		}
 		if ( true === $cached ) {
@@ -267,6 +238,7 @@ final class AvailabilityProbe {
 	 * @return void
 	 */
 	private function persistProbeResult( string $tkey, string $state, array $result ): void {
+		$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
 		if ( ConnectionDiagnostics::isUncheckableState( $state ) ) {
 			if ( ! ConnectionDiagnostics::isPersistentUncheckableState( $state ) ) {
 				// Jittered 45-75s, not a fixed 60s: a fixed window makes every
@@ -279,13 +251,11 @@ final class AvailabilityProbe {
 			// last-known-good writes — neither state proves anything about the
 			// key, and writing false there would reinstate the exact production
 			// bug the persistent window exists to fix.
-			$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
 			TransientCache::set( $tkey, $result, TransientCache::jitteredTtl( 5 * $minute ) );
 			return;
 		}
 		$this->applyLastGood( $state );
 		// Stagger expiry ±60s to avoid synchronized stampedes.
-		$minute = defined( 'MINUTE_IN_SECONDS' ) ? (int) MINUTE_IN_SECONDS : 60;
 		TransientCache::set( $tkey, $result, TransientCache::jitteredTtl( 5 * $minute ) );
 	}
 
@@ -303,9 +273,9 @@ final class AvailabilityProbe {
 	 * @return void
 	 */
 	private function applyLastGood( string $state ): void {
-		// apply() classifies the state once and reports the action, so the
-		// memo delta comes from the same read that decides the write.
-		$this->flag_memo = $this->last_good->apply( $state );
+		// apply() classifies the state once and updates the store memo, so
+		// the facade's read-through sees the same decision.
+		$this->last_good->apply( $state );
 	}
 
 	/**
@@ -370,6 +340,5 @@ final class AvailabilityProbe {
 	 */
 	private function writeLastGood( bool $good ): void {
 		$this->last_good->write( $good );
-		$this->flag_memo = $good;
 	}
 }

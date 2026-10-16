@@ -84,6 +84,43 @@ final class ProbeRequest {
 	}
 
 	/**
+	 * Build and send the probe request both probes share.
+	 *
+	 * Single home for the round-trip so the availability probe and the
+	 * verification probe cannot drift on the path, the authentication
+	 * step, or the Request arity. The caller owns the try/catch: a broken
+	 * or half-installed SDK throws here rather than returning a value that
+	 * could be checked, and each probe classifies that fault differently.
+	 * The credential is resolved once by the caller and threaded in, so a
+	 * probe never resolves it twice.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param string   $catalog Catalog slug the headers are built for.
+	 * @param string   $cls     Provider class FQCN.
+	 * @param object   $auth    Resolved request authentication.
+	 * @param \Closure $send    Sends a Request, returning the SDK response (may throw).
+	 * @return object SDK response.
+	 */
+	public static function send( string $catalog, string $cls, object $auth, \Closure $send ): object {
+		$probe_data    = self::payload( OpenCodeProviderAvailability::PROBE_MODEL );
+		$probe_headers = self::headers( $catalog, $probe_data );
+		// Construction belongs INSIDE the caller's try. `$cls::url()` is a
+		// static call on the provider class and HttpMethodEnum::POST() is a
+		// magic factory served by __callStatic, so a broken or half-installed
+		// SDK throws \Error or \BadMethodCallException here rather than
+		// returning a value that could be checked.
+		$request = new Request(
+			HttpMethodEnum::POST(),
+			$cls::url( 'chat/completions' ),
+			$probe_headers,
+			$probe_data
+		);
+		$request = $auth->authenticateRequest( $request );
+		return ( $send )( $request );
+	}
+
+	/**
 	 * Whether the SDK surface a probe needs is available.
 	 *
 	 * HttpMethodEnum::POST() is a magic factory: the SDK declares it as an
@@ -95,8 +132,10 @@ final class ProbeRequest {
 	 * static method on AbstractApiProvider, so method_exists() is correct
 	 * for it.
 	 *
-	 * Shared by verify() and probe() so both probes agree on what "the SDK
-	 * is present" means.
+	 * Used by the verification probe, which classifies a missing surface
+	 * explicitly before attempting a send. The availability probe reaches
+	 * the same fault through its try/classify(0) path instead, so only
+	 * the verification probe calls this.
 	 *
 	 * @since 0.1.9
 	 *

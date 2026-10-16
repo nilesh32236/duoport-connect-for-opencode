@@ -299,7 +299,7 @@ final class ConnectionDiagnostics {
 	 * @param array<string, mixed> $diagnosis Detailed result from classify().
 	 * @return string
 	 */
-	public function verify_state( array $diagnosis ): string {
+	public function verifyState( array $diagnosis ): string {
 		$state = isset( $diagnosis['state'] ) && is_string( $diagnosis['state'] ) ? $diagnosis['state'] : '';
 		// Read the published buckets rather than a second copy of each list.
 		// The probe defect this class documents was one missing entry in one of

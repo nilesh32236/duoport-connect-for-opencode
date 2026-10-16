@@ -158,10 +158,10 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * `verify_state()` reads the published buckets instead of restating them.
+	 * `verifyState()` reads the published buckets instead of restating them.
 	 *
 	 * The defect these buckets document was one missing entry in one of two
-	 * hand-maintained lists. `verify_state()` is the remaining second copy: it
+	 * hand-maintained lists. `verifyState()` is the remaining second copy: it
 	 * spelled both lists out inline, so a state added to the vocabulary would
 	 * still be silently forgotten there and every probe outcome would be
 	 * bucketed by hand.
@@ -175,8 +175,8 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 	public function test_verify_state_has_no_hand_maintained_state_lists(): void {
 		$source = (string) file_get_contents( __DIR__ . '/../../src/Availability/ConnectionDiagnostics.php' );
 
-		$start = strpos( $source, 'public function verify_state' );
-		self::assertNotFalse( $start, 'verify_state() must exist.' );
+		$start = strpos( $source, 'public function verifyState' );
+		self::assertNotFalse( $start, 'verifyState() must exist.' );
 
 		// Slice just this method body: from its signature to whichever member
 		// comes next, so a literal elsewhere in the class cannot fail this.
@@ -195,25 +195,25 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 		self::assertDoesNotMatchRegularExpression(
 			'/in_array\(\s*\$state,\s*array\(/',
 			$body,
-			'verify_state() must read the published buckets, not a hand-maintained array.'
+			'verifyState() must read the published buckets, not a hand-maintained array.'
 		);
 		foreach ( array( 'verified', 'no_credits', 'rate_limited', 'free_tier_limit', 'invalid_key', 'not_configured' ) as $state ) {
 			self::assertStringNotContainsString(
 				"array( '" . $state . "'",
 				$body,
-				"verify_state() must not restate the state list containing '{$state}'."
+				"verifyState() must not restate the state list containing '{$state}'."
 			);
 		}
 
 		self::assertStringContainsString(
 			'self::isConfiguredState',
 			$body,
-			'verify_state() must read the keyed bucket through the state helper.'
+			'verifyState() must read the keyed bucket through the state helper.'
 		);
 		self::assertStringContainsString(
 			'self::isDefinitiveNegativeState',
 			$body,
-			'verify_state() must read the definitive-negative bucket through the state helper.'
+			'verifyState() must read the definitive-negative bucket through the state helper.'
 		);
 	}
 }

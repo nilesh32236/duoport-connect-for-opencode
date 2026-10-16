@@ -63,33 +63,4 @@ final class DiagnosticResult {
 			'code'       => $this->code,
 		);
 	}
-
-	/**
-	 * Build the legacy array shape from named fields in one call.
-	 *
-	 * Legacy shim: new call sites construct the object with named
-	 * arguments and project via toArray() (see
-	 * ConnectionDiagnostics::result()) so field order is checked by name,
-	 * not position. Retained for backward compatibility.
-	 *
-	 * @since 0.1.8
-	 *
-	 * @param string $state      Safe state name.
-	 * @param bool   $configured Whether authorization was accepted.
-	 * @param bool   $verified   Whether the backend was reached and identified.
-	 * @param bool   $usable     Whether the connection is currently usable.
-	 * @param int    $status     HTTP status or zero.
-	 * @param string $code       Safe result code.
-	 * @return array<string, mixed>
-	 */
-	public static function make( string $state, bool $configured, bool $verified, bool $usable, int $status, string $code ): array {
-		return ( new self(
-			state: $state,
-			configured: $configured,
-			verified: $verified,
-			usable: $usable,
-			status: $status,
-			code: $code
-		) )->toArray();
-	}
 }

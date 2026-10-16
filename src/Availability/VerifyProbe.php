@@ -21,8 +21,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 use OpenCodeConnector\Metadata\Catalog;
-use WordPress\AiClient\Providers\Http\DTO\Request;
-use WordPress\AiClient\Providers\Http\Enums\HttpMethodEnum;
 
 /**
  * Runs the explicit credential-verification probe for one catalog.
@@ -74,7 +72,7 @@ final class VerifyProbe {
 		}
 
 		try {
-			( $this->resolve_auth )();
+			$auth = ( $this->resolve_auth )();
 		} catch ( \Throwable $exception ) {
 			// Same split as the availability probe: only a PROVEN absent
 			// credential is an `invalid_key` verdict. Any other throwable
@@ -103,11 +101,11 @@ final class VerifyProbe {
 			return $verdict;
 		}
 
-		$diagnosis = $this->sendVerifyProbe( $cls );
+		$diagnosis = $this->sendVerifyProbe( $cls, $auth );
 
-		$state = null !== $this->diagnostics && null !== $diagnosis ? $this->diagnostics->verify_state( $diagnosis ) : 'could-not-be-checked';
+		$state = null !== $this->diagnostics && null !== $diagnosis ? $this->diagnostics->verifyState( $diagnosis ) : 'could-not-be-checked';
 		// Explicit fail-open: transport/server/unknown outcomes already map to
-		// `could-not-be-checked` via verify_state(); never fatal here.
+		// `could-not-be-checked` via verifyState(); never fatal here.
 		$verdict = $this->verifyResult( $state, $diagnosis );
 		$this->storeVerifyVerdict( $tkey, $lock_key, $verdict );
 		return $verdict;
@@ -148,10 +146,11 @@ final class VerifyProbe {
 	 *
 	 * @since 0.1.9
 	 *
-	 * @param string $cls Provider class FQCN.
+	 * @param string $cls  Provider class FQCN.
+	 * @param object $auth Resolved request authentication.
 	 * @return array<string, mixed>|null Safe diagnosis, or null when none exists.
 	 */
-	private function sendVerifyProbe( string $cls ): ?array {
+	private function sendVerifyProbe( string $cls, object $auth ): ?array {
 		$diagnostics = $this->diagnostics;
 		if ( ! ProbeRequest::surfaceAvailable( $cls ) ) {
 			if ( null === $diagnostics ) {
@@ -165,17 +164,7 @@ final class VerifyProbe {
 			}
 		}
 		try {
-			$probe_data    = ProbeRequest::payload( OpenCodeProviderAvailability::PROBE_MODEL );
-			$probe_headers = ProbeRequest::headers( $this->catalog, $probe_data );
-			$req           = new Request(
-				HttpMethodEnum::POST(),
-				$cls::url( 'chat/completions' ),
-				$probe_headers,
-				$probe_data
-			);
-			$auth          = ( $this->resolve_auth )();
-			$req           = $auth->authenticateRequest( $req );
-			$res           = ( $this->send )( $req );
+			$res = ProbeRequest::send( $this->catalog, $cls, $auth, $this->send );
 			return null !== $diagnostics ? $diagnostics->classify( $res->getStatusCode(), $res->getData(), null, OpenCodeProviderAvailability::PROBE_MODEL ) : null;
 		} catch ( \Throwable $exception ) {
 			unset( $exception );

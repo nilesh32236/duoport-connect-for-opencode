@@ -132,26 +132,30 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	private ?ConnectionDiagnostics $resolved_diagnostics = null;
 
 	/**
-	 * Per-instance memo of the last-known-good flag.
-	 *
-	 * The canonical memo lives in LastGoodStore; probe() copies the flag
-	 * delta AvailabilityProbe reports so a write followed by a read in the
-	 * same request never goes back to storage.
-	 *
-	 * @since 0.1.9
-	 *
-	 * @var bool|null
-	 */
-	private ?bool $last_good_memo = null;
-
-	/**
 	 * Flag store for this catalog (lazy).
+	 *
+	 * Its per-instance read memo is the single flag memo, so the facade
+	 * reads through it rather than keeping a second copy in step.
 	 *
 	 * @since 0.1.8
 	 *
 	 * @var LastGoodStore|null
 	 */
 	private ?LastGoodStore $last_good_store = null;
+
+	/**
+	 * Availability probe for this catalog (lazy).
+	 *
+	 * Built once per instance so repeated isConfigured()/diagnose() calls
+	 * in one request reuse the object graph instead of re-allocating it.
+	 * Its closures capture $this, so a later setHttpTransporter() /
+	 * setRequestAuthentication() is still honoured on the next run.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @var AvailabilityProbe|null
+	 */
+	private ?AvailabilityProbe $availability_probe = null;
 
 	/**
 	 * Flag store for this catalog.
@@ -329,34 +333,46 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	/**
 	 * Probe, classify, and briefly cache the safe result.
 	 *
-	 * Delegates to AvailabilityProbe and records its result, keeping the
-	 * legacy flag memo in step with any flag write the run applied.
+	 * Delegates to the lazily-built AvailabilityProbe and records its
+	 * result.
 	 *
 	 * @return array<string, mixed>
 	 */
 	private function probe(): array {
-		$availability      = new AvailabilityProbe(
-			$this->catalog,
-			$this->diagnostics(),
-			fn(): object => $this->getRequestAuthentication(),
-			fn( Request $request ): object => $this->getHttpTransporter()->send( $request ),
-			$this->lastGoodStore(),
-			fn( \Throwable $exception ): bool => self::is_missing_credential_throwable( $exception )
-		);
-		$this->last_result = $availability->run();
-		$flag_memo         = $availability->flagMemo();
-		if ( null !== $flag_memo ) {
-			$this->last_good_memo = $flag_memo;
-		}
+		$this->last_result = $this->availabilityProbe()->run();
 		return $this->last_result;
+	}
+
+	/**
+	 * Availability probe for this catalog (canonical unless overridden).
+	 *
+	 * Built once and reused; the closures resolve the
+	 * transporter/authentication lazily so their setters still take effect.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @return AvailabilityProbe
+	 */
+	private function availabilityProbe(): AvailabilityProbe {
+		if ( null === $this->availability_probe ) {
+			$this->availability_probe = new AvailabilityProbe(
+				$this->catalog,
+				$this->diagnostics(),
+				fn(): object => $this->getRequestAuthentication(),
+				fn( Request $request ): object => $this->getHttpTransporter()->send( $request ),
+				$this->lastGoodStore(),
+				fn( \Throwable $exception ): bool => self::is_missing_credential_throwable( $exception )
+			);
+		}
+		return $this->availability_probe;
 	}
 
 	/**
 	 * Read the last-known-good configured flag for this catalog.
 	 *
 	 * Transient-only and credential-blind: stores only whether a keyed probe
-	 * previously succeeded, never any option value. Memoised per instance —
-	 * see $last_good_memo — so repeated reads in one request cost one
+	 * previously succeeded, never any option value. LastGoodStore memoises
+	 * the read per instance, so repeated reads in one request cost one
 	 * transient fetch.
 	 *
 	 * @since 0.1.6
@@ -364,11 +380,7 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * @return bool
 	 */
 	private function readLastGood(): bool {
-		if ( null !== $this->last_good_memo ) {
-			return $this->last_good_memo;
-		}
-		$this->last_good_memo = $this->lastGoodStore()->read();
-		return $this->last_good_memo;
+		return $this->lastGoodStore()->read();
 	}
 
 	/**
