@@ -40,6 +40,13 @@ final class LastGoodStore {
 	 * genuinely healthy key never reaches this bound; the stored transient
 	 * itself may live longer, but it only arms the fallback for this window.
 	 *
+	 * The bound applies to the timestamped shape only. Legacy scalar truthy
+	 * values (`1`, `'1'`) predate the timestamp and read as armed with no age
+	 * bound until the next keyed success upgrades them — see
+	 * `OpenCodeProviderAvailability::readLastGood()`. That unbounded read is
+	 * deliberate: treating a pre-upgrade flag as expired would disconnect
+	 * working keys on upgrade.
+	 *
 	 * @since 0.1.8
 	 *
 	 * @var int
