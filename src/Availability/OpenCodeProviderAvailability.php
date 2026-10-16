@@ -733,16 +733,18 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 		$this->setCached( $lock_key, 1, 10 );
 
 		// An unrecognised catalog fails closed instead of silently probing as
-		// the Zen catalog; see verify() for why the mapping has one home. It
-		// reports not-configured (a definitive negative, so isConfigured() is
-		// still false) but must NOT clear last-known-good: an unregistered
-		// catalog slug is a code/config error, not a statement about the
-		// credential, so it degrades indeterminate rather than deleting the
-		// 30-day fallback for a valid key. The stampede lock is released
-		// before returning so isConfigured() does not re-enter holding it.
+		// the Zen catalog; see verify() for why the mapping has one home. An
+		// unregistered catalog slug is a code/config error, NOT a statement
+		// about the credential, so it degrades to could-not-be-checked
+		// (uncheckable) exactly like verify() does — only a proven invalid or
+		// missing key reports not-configured (AGENTS.md). Reporting
+		// not-configured here was a definitive negative that contradicted
+		// verify() and rendered a code bug as a rejected key. The stampede
+		// lock is released before returning so isConfigured() does not
+		// re-enter holding it.
 		$cls = Catalog::providerClassFor( $this->catalog );
 		if ( '' === $cls ) {
-			$this->last_result = $diagnostics->notConfigured();
+			$this->last_result = $diagnostics->uncheckable();
 			$this->deleteCached( $lock_key );
 			return $this->last_result;
 		}
