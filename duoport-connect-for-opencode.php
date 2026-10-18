@@ -58,6 +58,12 @@ add_action(
 add_action(
 	'admin_notices',
 	static function (): void {
+		// Respect the WordPress 7.0 AI kill switch: never nag on a
+		// site whose owner has disabled AI. Fail open when the helper
+		// (wp_supports_ai) is absent.
+		if ( ! Compatibility\CompatibilityDiagnostics::ai_supported() ) {
+			return;
+		}
 		if ( function_exists( 'is_admin' ) && ! is_admin() ) {
 			return;
 		}
@@ -108,6 +114,12 @@ add_action(
 add_action(
 	'init',
 	static function (): void {
+		// Respect the WordPress 7.0 AI kill switch: do not register AI
+		// providers on a site whose owner has disabled AI. Fail open when
+		// the helper (wp_supports_ai) is absent.
+		if ( ! Compatibility\CompatibilityDiagnostics::ai_supported() ) {
+			return;
+		}
 		if ( ! class_exists( \WordPress\AiClient\AiClient::class ) ) {
 			return;
 		}

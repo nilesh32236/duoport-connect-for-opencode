@@ -45,6 +45,20 @@ final class CompatibilityDiagnostics {
 	}
 
 	/**
+	 * Whether the site allows AI features (WordPress 7.0 kill switch).
+	 *
+	 * Fail open: when wp_supports_ai() is absent (WordPress below 7.0 or a
+	 * partial bootstrap) AI is treated as supported, so behavior is
+	 * byte-identical to older installs. This probe never reads or writes a
+	 * connector option or credential.
+	 *
+	 * @return bool
+	 */
+	public static function ai_supported(): bool {
+		return function_exists( 'wp_supports_ai' ) ? (bool) \wp_supports_ai() : true;
+	}
+
+	/**
 	 * Inspect the current WordPress/AI Client/provider surface.
 	 *
 	 * The optional arguments are a small test seam; production callers use

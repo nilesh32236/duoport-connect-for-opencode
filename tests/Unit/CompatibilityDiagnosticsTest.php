@@ -64,6 +64,14 @@ final class CompatibilityDiagnosticsTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * The AI kill switch helper fails open when wp_supports_ai() is absent.
+	 */
+	public function test_ai_supported_fails_open_when_kill_switch_absent(): void {
+		self::assertFalse( function_exists( 'wp_supports_ai' ) );
+		self::assertTrue( \OpenCodeConnector\Compatibility\CompatibilityDiagnostics::ai_supported() );
+	}
+
+	/**
 	 * The diagnostic source contains no connector-option or credential API.
 	 */
 	public function test_diagnostics_are_credential_blind(): void {
