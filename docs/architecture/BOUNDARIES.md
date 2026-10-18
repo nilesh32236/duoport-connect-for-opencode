@@ -108,7 +108,7 @@ A could-not-be-checked outcome is never cleared from the transient-only last-kno
 - `uncheckable` (5xx), `network_error`, and `server_error` are transient — they resolve on their own, so they are cached for one minute and retried quickly. `uncheckable` reports `configured=false` and `verified=false`: the backend was never identified.
 - `unknown` is everything the classifier has no rule for: 400, 402, 403, 404, and any status the gateway introduces later. It is persistent, not transient — a model rename does not undo itself in a minute — so it is cached on the full jittered window. Jitter matters here as much as the length: a window without it would make every affected site re-probe on the same boundary, which is the synchronized stampede the jitter exists to prevent. It reports `configured=false`, because it never adjudicated the credential, and `verified=true`, because the gateway was reached and identified — that is what separates it from `uncheckable`.
 
-Because these states prove nothing about the key, `isConfigured()` falls back to last-known-good rather than reporting a working key as not configured. That is the deliberate trade: an uninterpreted response is not evidence against the credential. Its cost is that the fallback is invisible, so a long-lived verdict can outlive the condition it was issued for — which is why deleting a connector key clears the flag rather than waiting out its TTL. Quota outcomes are never in this bucket: 429 maps to `rate_limited` or `free_tier_limit`, and 401 with a credits error maps to `no_credits`. Only a proven invalid or missing key reports not configured.
+Because these states prove nothing about the key, `isConfigured()` falls back to last-known-good rather than reporting a working key as not configured. That is the deliberate trade: an uninterpreted response is not evidence against the credential. Its cost is that the fallback is invisible, so a long-lived verdict can outlive the condition it was issued for — which is why deleting a connector key clears the flag rather than waiting out its TTL. Quota outcomes are never in this bucket: 429 maps to `rate_limited` or `free_tier_limit`, 401 with a credits error maps to `no_credits`, and 401 naming a monthly/user quota stop (`MonthlyLimitError`/`UserLimitError`) maps to `free_tier_limit`. Only a proven invalid or missing key reports not configured.
 
 #### Which statuses reach `unknown`, and why that is a decision
 
@@ -118,6 +118,7 @@ Recorded explicitly rather than inherited from the classifier's fallthrough, bec
 | --- | --- | --- |
 | 2xx | `verified` | no — arms the flag |
 | 401 (`CreditsError`) | `no_credits` | no — arms the flag |
+| 401 (`MonthlyLimitError`/`UserLimitError`) | `free_tier_limit` | no — arms the flag |
 | 401 (anything else) | `invalid_key` | no — clears the flag |
 | 429 (`FreeUsageLimitError`) | `free_tier_limit` | no — arms the flag |
 | 429 (anything else) | `rate_limited` | no — arms the flag |

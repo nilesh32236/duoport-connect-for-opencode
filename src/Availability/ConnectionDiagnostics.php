@@ -128,7 +128,8 @@ final class ConnectionDiagnostics {
 	 * (429), and Zen free-tier quota stops (429 FreeUsageLimitError) report a
 	 * configured key; 5xx and transport failures report a distinct
 	 * could-not-be-checked verdict so callers can preserve last-known-good
-	 * state instead of flipping to not-connected.
+	 * state instead of flipping to not-connected. A 401 whose error type is a
+	 * keyed-limit code (monthly/user quota stop) is likewise a configured key.
 	 *
 	 * $probe_model is the model the request ASKED FOR, and it is what turns a
 	 * model-scoped failure from a credential verdict into an indeterminate one.
@@ -155,6 +156,15 @@ final class ConnectionDiagnostics {
 		if ( 401 === $status ) {
 			if ( 'CreditsError' === $this->errorType( $data ) ) {
 				return $this->noCredits( $status );
+			}
+			// A 401 whose type names a quota/usage stop is a keyed verdict, not
+			// a credential one: the key was accepted and the allowance is spent.
+			// Definitive-negative would clear last-known-good and disconnect a
+			// valid key until the quota resets. The list is read from
+			// ErrorVocabulary, never restated here, and unknown 401 types still
+			// reach invalidKey() below.
+			if ( in_array( $this->normalize( $this->errorType( $data ) ), ErrorVocabulary::KEYED_LIMIT_ERROR_CODES, true ) ) {
+				return $this->freeTierLimit( $status );
 			}
 			// Before the definitive negative, not after it. A gateway may answer
 			// 401 because the key cannot reach THIS model — for one key, or for
