@@ -264,6 +264,9 @@ namespace OpenCodeConnector\Tests\Unit {
 
 			Functions\when( 'current_user_can' )->justReturn( true );
 			Functions\when( 'get_option' )->justReturn( array( 'show_all_models' => false ) );
+			Functions\when( 'get_current_user_id' )->justReturn( 1 );
+			Functions\when( 'get_transient' )->justReturn( false );
+			Functions\when( 'delete_transient' )->justReturn( true );
 			Functions\when( '__' )->returnArg();
 			Functions\when( 'esc_html__' )->returnArg();
 			Functions\when( 'esc_html_e' )->justReturn( null );
@@ -272,6 +275,7 @@ namespace OpenCodeConnector\Tests\Unit {
 			Functions\when( 'admin_url' )->justReturn( 'https://example.test/wp-admin/options-connectors.php' );
 			Functions\when( 'wp_kses_post' )->returnArg();
 			Functions\when( 'settings_fields' )->justReturn( null );
+			Functions\when( 'wp_nonce_field' )->justReturn( null );
 			Functions\when( 'submit_button' )->justReturn( null );
 			Functions\when( 'checked' )->justReturn( null );
 
