@@ -61,6 +61,22 @@ final class ErrorVocabulary {
 	);
 
 	/**
+	 * Error type/code values naming a valid key that hit a quota/usage stop.
+	 *
+	 * These arrive as 401 but are not credential rejections: the key was
+	 * accepted and the account's monthly/user allowance is spent. Treating them
+	 * as a credential verdict would clear last-known-good and disconnect a
+	 * valid key until the quota resets. Single home for the codes, so the
+	 * classifier reads the list rather than restating it.
+	 *
+	 * @var list<string>
+	 */
+	public const KEYED_LIMIT_ERROR_CODES = array(
+		'monthlylimiterror',
+		'userlimiterror',
+	);
+
+	/**
 	 * Message fragments meaning the CREDENTIAL is rejected.
 	 *
 	 * @var list<string>

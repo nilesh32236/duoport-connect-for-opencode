@@ -74,6 +74,56 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * A 401 monthly/user quota stop is a keyed verdict, not a bad key.
+	 *
+	 * The gateway accepts the key and refuses the request because an allowance
+	 * is spent, so clearing last-known-good would disconnect a valid key until
+	 * the quota resets. The state must stay in a keyed bucket and must never be
+	 * a definitive negative.
+	 *
+	 * @param string $type Raw error type from the gateway.
+	 *
+	 * @return void
+	 */
+	#[\PHPUnit\Framework\Attributes\DataProvider( 'keyedLimitProvider' )]
+	public function test_keyed_limit_401_is_configured( string $type ): void {
+		$diagnostics = new ConnectionDiagnostics();
+		$result      = $diagnostics->classify( 401, array( 'error' => array( 'type' => $type ) ) );
+
+		self::assertTrue( $result['configured'] );
+		self::assertTrue( $result['verified'] );
+		self::assertFalse( $result['usable'] );
+		self::assertTrue( ConnectionDiagnostics::isConfiguredState( $result['state'] ) );
+		self::assertFalse( ConnectionDiagnostics::isDefinitiveNegativeState( $result['state'] ) );
+	}
+
+	/**
+	 * Keyed-limit error types, including separator variants of the same code.
+	 *
+	 * @return array<string, array{0: string}>
+	 */
+	public static function keyedLimitProvider(): array {
+		return array(
+			'MonthlyLimitError'   => array( 'MonthlyLimitError' ),
+			'monthly_limit_error' => array( 'monthly_limit_error' ),
+			'UserLimitError'      => array( 'UserLimitError' ),
+			'user_limit_error'    => array( 'user_limit_error' ),
+		);
+	}
+
+	/**
+	 * An unrecognised 401 type stays a definitive negative.
+	 */
+	public function test_unknown_401_type_stays_invalid_key(): void {
+		$diagnostics = new ConnectionDiagnostics();
+		$result      = $diagnostics->classify( 401, array( 'error' => array( 'type' => 'SomeUnknownError' ) ) );
+
+		self::assertSame( 'invalid_key', $result['state'] );
+		self::assertFalse( $result['configured'] );
+		self::assertTrue( ConnectionDiagnostics::isDefinitiveNegativeState( $result['state'] ) );
+	}
+
+	/**
 	 * Server and transport failures are uncheckable, never invalid-key.
 	 */
 	public function test_server_and_transport_failures_are_uncheckable(): void {
