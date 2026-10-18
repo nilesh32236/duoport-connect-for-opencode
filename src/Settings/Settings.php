@@ -16,6 +16,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use OpenCodeConnector\Availability\ConnectionDiagnostics;
+use OpenCodeConnector\Metadata\Catalog;
 use WordPress\AiClient\AiClient;
 
 /**
@@ -25,6 +27,50 @@ use WordPress\AiClient\AiClient;
  * @since 0.1.0
  */
 final class Settings {
+	/**
+	 * Admin-post action and nonce name for the on-demand connection test.
+	 *
+	 * One string serves both because the handler reads exactly this action
+	 * and verifies exactly this nonce; splitting them would let a rename
+	 * desynchronise the form from the verifier.
+	 *
+	 * @since 0.1.10
+	 */
+	const TEST_ACTION = 'opencode_connector_test_connection';
+
+	/**
+	 * Per-user transient key prefix for the on-demand test verdict.
+	 *
+	 * Credential-blind: holds only classified state names, never any
+	 * `connectors_ai_*` option value. Per-user so one administrator's probe
+	 * cannot overwrite another's verdict before it is rendered.
+	 *
+	 * @since 0.1.10
+	 */
+	const TEST_TRANSIENT_PREFIX = 'opencode_connector_test_result_';
+
+	/**
+	 * Seconds the on-demand verdict survives the redirect back to Settings.
+	 *
+	 * Long enough for the redirect round-trip, short enough that a verdict is
+	 * never a stale impression of a key the user has since changed.
+	 *
+	 * @since 0.1.10
+	 */
+	const TEST_TRANSIENT_TTL = 60;
+
+	/**
+	 * Credential-blind state reported when a catalog could not be probed.
+	 *
+	 * The canonical could-not-be-checked member of
+	 * `ConnectionDiagnostics::COULD_NOT_BE_CHECKED_STATES`, so the verdict line
+	 * and the fail-open policy read the same vocabulary. A probe that never
+	 * reached the gateway must not be reported as either connected or not.
+	 *
+	 * @since 0.1.10
+	 */
+	const UNCHECKED_STATE = 'uncheckable';
+
 	/**
 	 * Register settings and hooks.
 	 *
@@ -44,6 +90,7 @@ final class Settings {
 		);
 		if ( is_admin() ) {
 			add_action( 'admin_menu', array( $this, 'menu' ) );
+			add_action( 'admin_post_' . self::TEST_ACTION, array( $this, 'handleTestConnection' ) );
 		}
 		add_action( 'update_option_' . \OpenCodeConnector\OPTION_NAME, array( $this, 'bustCaches' ), 10, 2 );
 		add_action( 'add_option_' . \OpenCodeConnector\OPTION_NAME, array( $this, 'bustCachesAdd' ), 10, 2 );
@@ -277,6 +324,110 @@ final class Settings {
 	}
 
 	/**
+	 * Handle an on-demand connection test submitted from the Settings page.
+	 *
+	 * Capability first, then nonce, so an unprivileged caller is rejected
+	 * before any probe could run. The probe then reuses the classified path
+	 * through each provider's `availability()` and captures ONLY the state
+	 * name: the credential value is never read, held, or echoed. Availability
+	 * caches are cleared first — transient deletes only, credential-blind — so
+	 * the button forces a fresh probe, while the last-known-good flags are
+	 * deliberately left alone so a transport error can never clear them.
+	 *
+	 * @since 0.1.10
+	 *
+	 * @return void
+	 */
+	public function handleTestConnection(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You do not have permission to test the connection.', 'duoport-connect-for-opencode' ) );
+		}
+		check_admin_referer( self::TEST_ACTION );
+		self::clearAvailabilityCaches();
+		$results = $this->runConnectionTests();
+		if ( function_exists( 'set_transient' ) ) {
+			set_transient( self::TEST_TRANSIENT_PREFIX . get_current_user_id(), $results, self::TEST_TRANSIENT_TTL );
+		}
+		wp_safe_redirect( admin_url( 'options-general.php?page=duoport-connect-for-opencode' ) );
+		exit;
+	}
+
+	/**
+	 * Probe both catalogs through the classified path and keep only states.
+	 *
+	 * Deliberately never falls back to constructing a bare
+	 * OpenCodeProviderAvailability: with unset authentication that resolves
+	 * the missing-credential branch, which clears the last-known-good flag. A
+	 * catalog whose SDK surface is unavailable reports the unchecked state
+	 * instead, leaving the fail-open fallback untouched. Any throwable is
+	 * treated the same way, so a broken SDK degrades to could-not-be-checked
+	 * rather than fataling the admin request.
+	 *
+	 * @since 0.1.10
+	 *
+	 * @return array{go: string, zen: string}
+	 */
+	private function runConnectionTests(): array {
+		$results = array(
+			Catalog::GO  => self::UNCHECKED_STATE,
+			Catalog::ZEN => self::UNCHECKED_STATE,
+		);
+		foreach ( Catalog::ALL as $catalog ) {
+			$cls = Catalog::providerClassFor( $catalog );
+			if ( '' === $cls ) {
+				continue;
+			}
+			try {
+				// The resolvable-class check lives INSIDE the guard: an
+				// autoloader that requires one of these provider classes when
+				// the SDK is absent throws a catchable \Error from a missing
+				// parent, and a half-installed SDK must degrade to
+				// could-not-be-checked rather than fatal the admin request.
+				if ( ! is_callable( array( $cls, 'availability' ) ) ) {
+					continue;
+				}
+				$availability = $cls::availability();
+				if ( ! is_object( $availability ) || ! method_exists( $availability, 'diagnose' ) ) {
+					continue;
+				}
+				$result = $availability->diagnose();
+				if ( is_array( $result ) && isset( $result['state'] ) && is_string( $result['state'] ) && '' !== $result['state'] ) {
+					$results[ $catalog ] = $result['state'];
+				}
+			} catch ( \Throwable ) {
+				$results[ $catalog ] = self::UNCHECKED_STATE;
+			}
+		}
+		return $results;
+	}
+
+	/**
+	 * Map a classified state to its credential-blind human label.
+	 *
+	 * Reads the published ConnectionDiagnostics buckets rather than a second
+	 * copy of any list, so a new state cannot silently mean the wrong thing
+	 * here. An unbucketed state fails to could-not-be-checked, never to a
+	 * credential verdict.
+	 *
+	 * @since 0.1.10
+	 *
+	 * @param string $state Classified state name.
+	 * @return string
+	 */
+	private function describeState( string $state ): string {
+		if ( ConnectionDiagnostics::isConfiguredState( $state ) ) {
+			$label = __( 'connected', 'duoport-connect-for-opencode' );
+		} elseif ( ConnectionDiagnostics::isDefinitiveNegativeState( $state ) ) {
+			$label = __( 'not connected', 'duoport-connect-for-opencode' );
+		} elseif ( ConnectionDiagnostics::isUncheckableState( $state ) ) {
+			$label = __( 'could not be checked', 'duoport-connect-for-opencode' );
+		} else {
+			$label = __( 'could not be checked', 'duoport-connect-for-opencode' );
+		}
+		return '' === $state ? $label : sprintf( '%s (%s)', $label, $state );
+	}
+
+	/**
 	 * Render settings page.
 	 *
 	 * Capability is enforced at the callback, not only at the registration
@@ -302,6 +453,13 @@ final class Settings {
 		$status = $this->fetchProviderStatus();
 		$go_ok  = $status['go'];
 		$zen_ok = $status['zen'];
+		// Read and consume the on-demand verdict written by the admin-post
+		// handler. Credential-blind: it holds classified state names only.
+		$test_key    = self::TEST_TRANSIENT_PREFIX . get_current_user_id();
+		$test_states = get_transient( $test_key );
+		if ( is_array( $test_states ) ) {
+			delete_transient( $test_key );
+		}
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'DuoPort Connector', 'duoport-connect-for-opencode' ); ?></h1>
@@ -323,6 +481,19 @@ final class Settings {
 				printf( esc_html__( 'Go: %1$s · Zen: %2$s', 'duoport-connect-for-opencode' ), $go_ok ? esc_html__( 'connected', 'duoport-connect-for-opencode' ) : esc_html__( 'not connected', 'duoport-connect-for-opencode' ), $zen_ok ? esc_html__( 'connected', 'duoport-connect-for-opencode' ) : esc_html__( 'not connected', 'duoport-connect-for-opencode' ) );
 			?>
 			</p>
+			<?php if ( is_array( $test_states ) ) : ?>
+			<p>
+				<?php
+				/* translators: 1: Go test verdict, 2: Zen test verdict */
+				printf( esc_html__( 'Test result — Go: %1$s · Zen: %2$s', 'duoport-connect-for-opencode' ), esc_html( $this->describeState( (string) ( $test_states['go'] ?? '' ) ) ), esc_html( $this->describeState( (string) ( $test_states['zen'] ?? '' ) ) ) );
+				?>
+			</p>
+			<?php endif; ?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="<?php echo esc_attr( self::TEST_ACTION ); ?>" />
+				<?php wp_nonce_field( self::TEST_ACTION ); ?>
+				<?php submit_button( __( 'Test connection', 'duoport-connect-for-opencode' ), 'secondary', '', false ); ?>
+			</form>
 			<form method="post" action="options.php">
 				<?php settings_fields( 'opencode_connector' ); ?>
 				<table class="form-table"><tr>

@@ -325,6 +325,28 @@ namespace WordPress\AiClient\Providers\ApiBasedImplementation {
 			public static function url( string $path ): string {
 				return 'https://example.test/' . ltrim( $path, '/' );
 			}
+
+			/**
+			 * Provider availability instance, mirroring AbstractProvider.
+			 *
+			 * The real SDK declares this as a final public static method that
+			 * memoizes `createProviderAvailability()`. The stub keeps the same
+			 * call surface so Settings::runConnectionTests() can be exercised,
+			 * but delegates to a caller-injected double: tests that need a
+			 * classified verdict set `$GLOBALS['__oc_availability']` to an
+			 * object exposing `diagnose()`, and tests asserting a probe did
+			 * NOT run leave it null. It also increments
+			 * `$GLOBALS['__oc_availability_calls']` when set, so a spec can
+			 * prove the reject paths never reach a probe.
+			 *
+			 * @return mixed
+			 */
+			public static function availability(): mixed {
+				if ( isset( $GLOBALS['__oc_availability_calls'] ) ) {
+					++$GLOBALS['__oc_availability_calls'];
+				}
+				return $GLOBALS['__oc_availability'] ?? null;
+			}
 		}
 	}
 }
