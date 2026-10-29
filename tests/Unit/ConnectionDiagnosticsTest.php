@@ -118,6 +118,42 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * Malformed gateway error fields cannot warn, throw, or change the verdict.
+	 *
+	 * A decoded response is untrusted. `error.type` may be an array (which used
+	 * to emit an "Array to string conversion" warning) or an object without
+	 * `__toString` (which used to throw inside the classifier), and `error`
+	 * itself may not be an array at all. None of those may abort the decision
+	 * that produces the credential verdict.
+	 *
+	 * @return void
+	 */
+	public function test_malformed_error_fields_do_not_warn_or_throw(): void {
+		$diagnostics = new ConnectionDiagnostics();
+		$warnings    = array();
+
+		set_error_handler(
+			static function ( int $errno, string $errstr ) use ( &$warnings ): bool {
+				unset( $errno );
+				$warnings[] = $errstr;
+				return true;
+			}
+		);
+		try {
+			$array_type      = $diagnostics->classify( 401, array( 'error' => array( 'type' => array( 'nested' ) ) ) );
+			$object_type     = $diagnostics->classify( 401, array( 'error' => array( 'type' => new \stdClass() ) ) );
+			$non_array_error = $diagnostics->classify( 401, array( 'error' => 'not-an-object' ) );
+		} finally {
+			restore_error_handler();
+		}
+
+		self::assertSame( array(), $warnings, 'Malformed error fields must be ignored, not cast.' );
+		self::assertSame( 'invalid_key', $array_type['state'], 'An array error.type is not CreditsError, so a 401 stays a credential verdict.' );
+		self::assertSame( 'invalid_key', $object_type['state'], 'An object error.type must not throw out of the classifier.' );
+		self::assertSame( 'invalid_key', $non_array_error['state'], 'A non-array error value is treated as absent.' );
+	}
+
+	/**
 	 * An unrecognised response must not assert the credential is configured.
 	 *
 	 * `unknown()` is a per-probe verdict with no memory: it cannot know whether

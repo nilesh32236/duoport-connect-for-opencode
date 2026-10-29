@@ -169,6 +169,33 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
+		 * A remote id carrying markup is dropped at the metadata boundary.
+		 *
+		 * show-all mode turns every scalar id into display text, so an id
+		 * outside the safe charset CatalogWatch already enforces must not
+		 * become a ModelMetadata row in the first place.
+		 */
+		public function test_markup_row_id_is_filtered_at_the_boundary(): void {
+			Functions\when( 'get_option' )->justReturn( array( 'show_all_models' => true ) );
+
+			$ids = self::ids(
+				$this->parse_rows(
+					new OpenCodeZenModelMetadataDirectory(),
+					array(
+						array( 'id' => '<img src=x onerror=alert(1)>glm-5' ),
+						array( 'id' => 'glm-5' ),
+					)
+				)
+			);
+
+			self::assertSame(
+				array( 'glm-5' ),
+				$ids,
+				'An id with markup must be filtered, and the safe id beside it must survive.'
+			);
+		}
+
+		/**
 		 * The extraction itself must reject non-scalars.
 		 *
 		 * Source-level companion to the behavioural specs above, so a future

@@ -35,6 +35,7 @@ namespace OpenCodeConnector\Tests\Unit {
 	use OpenCodeConnector\Http\ClientUserAgent;
 	use OpenCodeConnector\Http\SessionHeader;
 	use OpenCodeConnector\Media\ImageAttachmentSaver;
+	use OpenCodeConnector\Media\ImageMime;
 	use OpenCodeConnector\Metadata\ModelAllowlist;
 	use OpenCodeConnector\Metadata\OpenCodeGoModelMetadataDirectory;
 	use OpenCodeConnector\Metadata\OpenCodeZenModelMetadataDirectory;
@@ -347,6 +348,22 @@ namespace OpenCodeConnector\Tests\Unit {
 		}
 
 		/**
+		 * Extension selection fails closed for a MIME outside the allowlist.
+		 *
+		 * A guessed "png" fallback could make a file's extension and registered
+		 * post_mime_type disagree with its actual content if a future caller
+		 * trusted the helper before validating the MIME.
+		 */
+		public function test_extension_selection_fails_closed(): void {
+			self::assertSame( 'png', ImageMime::extensionFor( 'image/png' ) );
+			self::assertSame( 'jpg', ImageMime::extensionFor( 'image/jpeg' ) );
+			self::assertSame( 'webp', ImageMime::extensionFor( 'image/webp' ) );
+			self::assertNull( ImageMime::extensionFor( 'image/gif' ) );
+			self::assertNull( ImageMime::extensionFor( 'image/svg+xml' ) );
+			self::assertNull( ImageMime::extensionFor( '' ) );
+		}
+
+		/**
 		 * Size guard matrix.
 		 */
 		public function test_size_guard_matrix(): void {
@@ -354,6 +371,18 @@ namespace OpenCodeConnector\Tests\Unit {
 			self::assertTrue( ImageAttachmentSaver::is_within_size_limit( ImageAttachmentSaver::MAX_BYTES ) );
 			self::assertFalse( ImageAttachmentSaver::is_within_size_limit( ImageAttachmentSaver::MAX_BYTES + 1 ) );
 			self::assertFalse( ImageAttachmentSaver::is_within_size_limit( -1 ) );
+		}
+
+		/**
+		 * The pixel cap must stay small enough to decode inside a common limit.
+		 *
+		 * A truecolor buffer costs roughly four bytes per pixel, so the old
+		 * 25 MP cap could approach 100 MB before editor overhead on a 128 MB
+		 * host. PHP memory exhaustion is not Throwable, so the guard has to be
+		 * conservative rather than merely bounded.
+		 */
+		public function test_pixel_cap_bounds_decode_memory(): void {
+			self::assertSame( 8000000, ImageAttachmentSaver::MAX_PIXELS );
 		}
 
 		/**

@@ -49,17 +49,22 @@ final class ImageAttachmentSaver {
 	public const MAX_BYTES = 10485760;
 
 	/**
-	 * Maximum decoded pixel count (width x height, 25 megapixels).
+	 * Maximum decoded pixel count (width x height, 8 megapixels).
 	 *
 	 * Bounds the pixel buffer BEFORE anything decodes it: PHP memory
 	 * exhaustion is not Throwable, so a decompression bomb (a tiny file
 	 * declaring gigapixel dimensions) cannot be caught after the fact.
 	 *
+	 * A truecolor decode costs roughly four bytes per pixel, so 8 MP is about
+	 * 32 MB for the buffer before the editor's own overhead and the re-encode
+	 * copy. The previous 25 MP cap could approach 100 MB for a single buffer,
+	 * which exceeds what a common 128 MB PHP memory_limit can survive.
+	 *
 	 * @since 0.1.9
 	 *
 	 * @var int
 	 */
-	public const MAX_PIXELS = 25000000;
+	public const MAX_PIXELS = 8000000;
 
 	/**
 	 * Whether a MIME type is accepted.
@@ -333,7 +338,13 @@ final class ImageAttachmentSaver {
 	 */
 	private static function uploadReencoded( string $encoded_bytes, string $encoded_mime, string $filename ): array|\WP_Error {
 		$extension = ImageMime::extensionFor( $encoded_mime );
-		$base      = sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) );
+		if ( null === $extension ) {
+			return new \WP_Error(
+				'opencode_image_upload',
+				__( 'The generated image format is not supported.', 'duoport-connect-for-opencode' )
+			);
+		}
+		$base = sanitize_file_name( pathinfo( $filename, PATHINFO_FILENAME ) );
 		if ( '' === $base ) {
 			$base = 'opencode-image';
 		}

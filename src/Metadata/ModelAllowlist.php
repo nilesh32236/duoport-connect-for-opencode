@@ -338,8 +338,20 @@ final class ModelAllowlist {
 	 * @return string
 	 */
 	public static function displayName( string $id ): string {
+		// Show-all mode turns remote /models ids into labels, so strip markup at
+		// creation instead of trusting every downstream renderer to escape it.
+		// The fallback keeps the helper usable before WordPress is loaded.
+		if ( function_exists( 'wp_strip_all_tags' ) ) {
+			$id = wp_strip_all_tags( $id );
+		} else {
+			// phpcs:ignore WordPress.WP.AlternativeFunctions.strip_tags_strip_tags -- Fallback only when WordPress is not loaded; runtime uses wp_strip_all_tags().
+			$id = strip_tags( $id );
+		}
 		$human = ucwords( str_replace( array( '-', '_' ), ' ', $id ) );
 		// e.g. "Deepseek V4 Flash Free" -> normalize V4 casing left as-is.
+		if ( function_exists( 'sanitize_text_field' ) ) {
+			$human = sanitize_text_field( $human );
+		}
 		return $human;
 	}
 }

@@ -43,9 +43,9 @@ final class ProbeModelDrift {
 			return false;
 		}
 		$error   = $data['error'];
-		$code    = ErrorVocabulary::normalize( (string) ( $error['code'] ?? '' ) );
-		$type    = ErrorVocabulary::normalize( (string) ( $error['type'] ?? '' ) );
-		$message = ErrorVocabulary::normalize( (string) ( $error['message'] ?? '' ) );
+		$code    = ErrorVocabulary::normalize( self::stringField( $error, 'code' ) );
+		$type    = ErrorVocabulary::normalize( self::stringField( $error, 'type' ) );
+		$message = ErrorVocabulary::normalize( self::stringField( $error, 'message' ) );
 
 		if ( in_array( $code, ErrorVocabulary::CREDENTIAL_SCOPED_ERROR_CODES, true )
 			|| in_array( $type, ErrorVocabulary::CREDENTIAL_SCOPED_ERROR_CODES, true )
@@ -53,7 +53,7 @@ final class ProbeModelDrift {
 			return false;
 		}
 
-		if ( 'model' === ErrorVocabulary::normalize( (string) ( $error['param'] ?? '' ) ) ) {
+		if ( 'model' === ErrorVocabulary::normalize( self::stringField( $error, 'param' ) ) ) {
 			return true;
 		}
 
@@ -65,5 +65,24 @@ final class ProbeModelDrift {
 			return false;
 		}
 		return ErrorVocabulary::containsAnyOf( $message, ErrorVocabulary::MODEL_GONE_PHRASES );
+	}
+
+	/**
+	 * Read one error field only when it is a string.
+	 *
+	 * A decoded gateway body is untrusted input: `error.type`, `code`,
+	 * `message` and `param` may be arrays or objects. Casting those directly
+	 * emits an "Array to string conversion" warning (normalising to the
+	 * literal "Array") or throws for an object without `__toString`, which
+	 * aborts the credential classifier. Non-string values are ignored so
+	 * malformed data cannot alter the verdict.
+	 *
+	 * @param array<string, mixed> $error Error object.
+	 * @param string               $key   Field name.
+	 * @return string Field value, or an empty string when absent or non-string.
+	 */
+	private static function stringField( array $error, string $key ): string {
+		$value = $error[ $key ] ?? '';
+		return is_string( $value ) ? $value : '';
 	}
 }

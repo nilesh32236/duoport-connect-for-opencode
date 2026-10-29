@@ -47,6 +47,9 @@ final class ImageReencoder {
 		}
 		$tmp_files = array();
 		$extension = ImageMime::extensionFor( $detected_mime );
+		if ( null === $extension ) {
+			return self::decodeError();
+		}
 
 		try {
 			$source = self::writeSourceTemp( $image_bytes, $extension, $tmp_files );
