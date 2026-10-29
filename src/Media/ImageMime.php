@@ -74,15 +74,19 @@ final class ImageMime {
 	}
 
 	/**
-	 * File extension for a MIME type (fail-open to png).
+	 * File extension for a MIME type, restricted to the allowlist.
+	 *
+	 * Returns null for an unmapped MIME type so extension selection fails
+	 * closed, mirroring mimeForExtension(): a guessed extension could make a
+	 * file's name and registered MIME disagree with its actual content.
 	 *
 	 * @since 0.1.6
 	 *
 	 * @param string $mime_type MIME type.
-	 * @return string
+	 * @return string|null Allowlisted extension, or null when unmapped.
 	 */
-	public static function extensionFor( string $mime_type ): string {
-		return self::EXTENSIONS[ strtolower( trim( $mime_type ) ) ] ?? 'png';
+	public static function extensionFor( string $mime_type ): ?string {
+		return self::EXTENSIONS[ strtolower( trim( $mime_type ) ) ] ?? null;
 	}
 
 	/**

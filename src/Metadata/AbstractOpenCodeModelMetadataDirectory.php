@@ -221,6 +221,13 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 		if ( ! $id ) {
 			return null;
 		}
+		// Same safe charset CatalogWatch applies to discovery rows: an id from
+		// the remote catalog is display text in show-all mode, so reject
+		// markup and control characters at the boundary rather than carrying
+		// them into ModelMetadata.
+		if ( ! preg_match( '/^[A-Za-z0-9][A-Za-z0-9._-]*$/', $id ) ) {
+			return null;
+		}
 		$record = ModelRegistry::record( $id, $this->catalogKey() );
 		if ( null !== $record && ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === ( $record['endpoint_family'] ?? '' ) ) {
 			return null;

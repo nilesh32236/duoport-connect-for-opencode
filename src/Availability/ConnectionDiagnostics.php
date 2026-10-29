@@ -346,11 +346,21 @@ final class ConnectionDiagnostics {
 	/**
 	 * Read the credential-blind backend error type.
 	 *
+	 * A decoded response is untrusted: `error` may not be an array, and
+	 * `error.type` may be an array or object. Those shapes are ignored rather
+	 * than cast, because casting emits a warning or throws for an object
+	 * without `__toString` inside the classifier that decides the credential
+	 * verdict.
+	 *
 	 * @param array<string, mixed>|null $data Response data.
-	 * @return string Empty string when the type is absent.
+	 * @return string Empty string when the type is absent or not a string.
 	 */
 	private function errorType( ?array $data ): string {
-		return is_array( $data ) ? (string) ( $data['error']['type'] ?? '' ) : '';
+		if ( ! is_array( $data ) || ! isset( $data['error'] ) || ! is_array( $data['error'] ) ) {
+			return '';
+		}
+		$type = $data['error']['type'] ?? '';
+		return is_string( $type ) ? $type : '';
 	}
 
 	/**

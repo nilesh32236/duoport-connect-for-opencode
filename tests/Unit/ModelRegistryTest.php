@@ -288,4 +288,20 @@ final class ModelRegistryTest extends MonkeyTestCase {
 			'A bare literal in the verification guard goes stale the moment the constant changes.'
 		);
 	}
+
+	/**
+	 * Remote catalog ids become admin-facing labels, so markup is stripped.
+	 *
+	 * show-all mode turns every scalar id from the upstream /models response
+	 * into a display name. Sanitizing at creation keeps remote text from
+	 * crossing into admin display on the assumption that every downstream
+	 * renderer escapes it.
+	 */
+	public function test_display_name_strips_markup_from_remote_ids(): void {
+		$name = ModelAllowlist::displayName( '<img src=x onerror=alert(1)>glm-5' );
+
+		self::assertStringNotContainsString( '<', $name );
+		self::assertStringNotContainsString( 'onerror', $name );
+		self::assertSame( 'Glm 5', $name );
+	}
 }

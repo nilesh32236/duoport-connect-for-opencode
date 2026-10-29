@@ -58,6 +58,8 @@ final class ErrorVocabulary {
 		'invalidtoken',
 		'expiredtoken',
 		'invalidauthorization',
+		'invalidcredential',
+		'invalidcredentials',
 	);
 
 	/**
@@ -82,6 +84,8 @@ final class ErrorVocabulary {
 		'invalidtoken',
 		'expiredtoken',
 		'invalidauthorization',
+		'invalidcredential',
+		'invalidcredentials',
 	);
 
 	/**

@@ -30,6 +30,7 @@ namespace OpenCodeConnector\Tests\Unit {
 	use Brain\Monkey\Functions;
 	use OpenCodeConnector\Availability\ConnectionDiagnostics;
 	use OpenCodeConnector\Availability\OpenCodeProviderAvailability;
+	use OpenCodeConnector\Availability\ProbeModelDrift;
 	use OpenCodeConnector\Metadata\Catalog;
 	use PHPUnit\Framework\Attributes\PreserveGlobalState;
 	use PHPUnit\Framework\Attributes\RunInSeparateProcess;
@@ -584,6 +585,86 @@ namespace OpenCodeConnector\Tests\Unit {
 				'invalid_key',
 				$incorrect['state'],
 				'The message veto must cover the spellings a gateway actually uses, not one memorised string.'
+			);
+		}
+
+		/**
+		 * The gateway's live 401 wording is a credential veto.
+		 *
+		 * OpenCode answers a rejected key with `type: server_error` and
+		 * `message: "Invalid credential"`. The message normalises to
+		 * `invalidcredential`, which the credential phrase list must contain:
+		 * otherwise a response that also carries `param: "model"` is attributed
+		 * to probe-model drift, and a revoked key keeps reading as connected off
+		 * last-known-good for the full cache window.
+		 *
+		 * @return void
+		 */
+		public function test_the_gateways_live_invalid_credential_wording_vetoes_drift(): void {
+			$diagnostics = new ConnectionDiagnostics();
+			$model       = OpenCodeProviderAvailability::PROBE_MODEL;
+			$body        = array(
+				'error' => array(
+					'type'    => 'server_error',
+					'message' => 'Invalid credential',
+					'param'   => 'model',
+				),
+			);
+
+			self::assertFalse(
+				ProbeModelDrift::isDrift( $body, $model ),
+				'"Invalid credential" names the credential, so it must veto model attribution even when param is "model".'
+			);
+
+			$result = $diagnostics->classify( 401, $body, null, $model );
+			self::assertSame(
+				'invalid_key',
+				$result['state'],
+				'A live 401 "Invalid credential" response is a definitive credential verdict, not probe-model drift.'
+			);
+		}
+
+		/**
+		 * Non-string error fields are ignored rather than cast.
+		 *
+		 * The drift detector reads the same untrusted decoded body as the
+		 * classifier. An array or object in `code`/`type`/`message`/`param`
+		 * used to emit a warning (normalising to "Array") or throw, which could
+		 * turn a malformed response into an attribution or an abort.
+		 *
+		 * @return void
+		 */
+		public function test_non_string_error_fields_are_ignored(): void {
+			$model    = OpenCodeProviderAvailability::PROBE_MODEL;
+			$warnings = array();
+
+			set_error_handler(
+				static function ( int $errno, string $errstr ) use ( &$warnings ): bool {
+					unset( $errno );
+					$warnings[] = $errstr;
+					return true;
+				}
+			);
+			try {
+				$drift = ProbeModelDrift::isDrift(
+					array(
+						'error' => array(
+							'code'    => new \stdClass(),
+							'type'    => array( 'server_error' ),
+							'message' => array( 'Invalid credential' ),
+							'param'   => array( 'model' ),
+						),
+					),
+					$model
+				);
+			} finally {
+				restore_error_handler();
+			}
+
+			self::assertSame( array(), $warnings, 'Non-string error fields must not be cast.' );
+			self::assertFalse(
+				$drift,
+				'A response whose only model evidence is non-string is not attributable to the probe model.'
 			);
 		}
 
