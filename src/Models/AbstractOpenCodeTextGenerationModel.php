@@ -259,6 +259,10 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 	/**
 	 * Map one function declaration to the tools wire shape.
 	 *
+	 * Only the wire fields `name`, `description`, and `parameters` are
+	 * forwarded. SDK-only keys such as the 1.5 `annotations` entry are
+	 * dropped so newer runtimes cannot emit an unsupported tool payload.
+	 *
 	 * Returns null for unmappable declarations so the caller fails open to
 	 * plain text. Never throws.
 	 *
@@ -276,9 +280,21 @@ abstract class AbstractOpenCodeTextGenerationModel extends AbstractOpenAiCompati
 			if ( ! is_array( $declaration_array ) ) {
 				return null;
 			}
+			if ( ! isset( $declaration_array['name'] ) || ! is_string( $declaration_array['name'] ) ) {
+				return null;
+			}
+			$function = array(
+				'name'        => $declaration_array['name'],
+				'description' => isset( $declaration_array['description'] ) && is_string( $declaration_array['description'] )
+					? $declaration_array['description']
+					: '',
+			);
+			if ( isset( $declaration_array['parameters'] ) && is_array( $declaration_array['parameters'] ) ) {
+				$function['parameters'] = $declaration_array['parameters'];
+			}
 			return array(
 				'type'     => 'function',
-				'function' => $declaration_array,
+				'function' => $function,
 			);
 		} catch ( \Throwable ) {
 			return null;

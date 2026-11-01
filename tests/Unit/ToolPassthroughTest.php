@@ -105,6 +105,68 @@ final class ToolPassthroughTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * SDK-only keys (e.g. 1.5 annotations) are stripped from the wire payload.
+	 */
+	public function test_sdk_only_keys_are_stripped(): void {
+		$model = new ToolPassthroughTestModel( 'glm-5.3', 'go' );
+		$decls = array(
+			new ToolPassthroughFakeDeclaration(
+				array(
+					'name'        => 'get_weather',
+					'description' => 'Get weather.',
+					'parameters'  => array( 'type' => 'object' ),
+					'annotations' => array( 'readOnlyHint' => true ),
+				)
+			),
+		);
+
+		$result = $model->expose_prepare_tools( $decls );
+
+		self::assertCount( 1, $result );
+		self::assertSame(
+			array( 'name', 'description', 'parameters' ),
+			array_keys( $result[0]['function'] )
+		);
+		self::assertArrayNotHasKey( 'annotations', $result[0]['function'] );
+	}
+
+	/**
+	 * A null parameters value is omitted rather than sent as null.
+	 */
+	public function test_null_parameters_are_omitted(): void {
+		$model = new ToolPassthroughTestModel( 'glm-5.3', 'go' );
+		$decls = array(
+			new ToolPassthroughFakeDeclaration(
+				array(
+					'name'        => 'get_weather',
+					'description' => 'Get weather.',
+					'parameters'  => null,
+				)
+			),
+		);
+
+		$result = $model->expose_prepare_tools( $decls );
+
+		self::assertCount( 1, $result );
+		self::assertArrayNotHasKey( 'parameters', $result[0]['function'] );
+	}
+
+	/**
+	 * A minimal declaration still maps (stub-compatible/absent-hook path).
+	 */
+	public function test_minimal_declaration_maps(): void {
+		$model = new ToolPassthroughTestModel( 'glm-5.3', 'go' );
+		$decls = array( new ToolPassthroughFakeDeclaration( array( 'name' => 'ping' ) ) );
+
+		$result = $model->expose_prepare_tools( $decls );
+
+		self::assertCount( 1, $result );
+		self::assertSame( 'ping', $result[0]['function']['name'] );
+		self::assertSame( '', $result[0]['function']['description'] );
+		self::assertArrayNotHasKey( 'parameters', $result[0]['function'] );
+	}
+
+	/**
 	 * Verified Zen tool-capable models pass through as well (per-catalog gate).
 	 */
 	public function test_zen_tool_capable_model_passes_through(): void {
