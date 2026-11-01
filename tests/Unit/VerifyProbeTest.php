@@ -171,7 +171,8 @@ namespace OpenCodeConnector\Tests\Unit {
 			self::assertSame( 'valid', $verdict['state'] );
 			self::assertSame( 1, $transporter->calls );
 			$data = $transporter->seen->getData();
-			self::assertSame( 'deepseek-v4-flash', $data['model'] );
+			self::assertSame( 'deepseek-v4.1-flash', OpenCodeProviderAvailability::PROBE_MODEL );
+			self::assertSame( OpenCodeProviderAvailability::PROBE_MODEL, $data['model'] );
 			self::assertSame( 1, $data['max_tokens'] );
 			self::assertSame( 'ping', $data['messages'][0]['content'] );
 			self::assertStringContainsString( 'chat/completions', $transporter->seen->getUrl() );

@@ -183,8 +183,8 @@ namespace OpenCodeConnector\Tests\Unit {
 				// rule unexercised — and it was broken while unexercised. Model
 				// ids contain the characters the identifier normaliser strips, so
 				// matching a normalised model name against a raw message never
-				// matches, and the rule silently did nothing for
-				// `deepseek-v4-flash`, the very model this plugin probes with.
+				// matches, and the rule silently did nothing for the hyphenated
+				// model this plugin probes with.
 				'404 message-only, hyphenated model id' => array(
 					404,
 					array(

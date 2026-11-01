@@ -58,9 +58,15 @@ final class OpenCodeProviderAvailability implements ProviderAvailabilityInterfac
 	 * therefore a breaking change for anyone reading it: it has to come with a
 	 * classifier rule for the model that replaces it.
 	 *
+	 * Verified 2026-11-01 against both live catalogs,
+	 * `https://opencode.ai/inference/v1/models` and
+	 * `https://opencode.ai/inference/go/v1/models`: `deepseek-v4.1-flash` is
+	 * present in both, is a paid `chat` model with `chat-completions`, and is
+	 * absent from the deprecated-model table in the console docs.
+	 *
 	 * @since 0.1.6
 	 */
-	const PROBE_MODEL = 'deepseek-v4-flash';
+	const PROBE_MODEL = 'deepseek-v4.1-flash';
 
 	/**
 	 * Narrow patterns that identify "the credential is absent" in a throwable.
