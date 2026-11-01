@@ -225,6 +225,13 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 		if ( null !== $record && ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === ( $record['endpoint_family'] ?? '' ) ) {
 			return null;
 		}
+		// Free-tier IDs that OpenCode now serves only through its own client
+		// cannot work from WordPress, so they are hidden by default instead of
+		// being offered as ordinary free chat models. show-all still exposes
+		// them, labeled as requiring the OpenCode app by displayNameFor().
+		if ( ! $show_all && ModelAllowlist::requiresClient( $id, $this->catalogKey() ) ) {
+			return null;
+		}
 		$is_image = (bool) ( $record['capabilities']['image'] ?? false );
 		if ( ! $is_image && ! $show_all && null === $record ) {
 			return null;
@@ -250,6 +257,10 @@ abstract class AbstractOpenCodeModelMetadataDirectory extends AbstractOpenAiComp
 	private function displayNameFor( string $id, ?array $record ): string {
 		$catalog = $this->catalogKey();
 		$name    = (string) ( null !== $record ? ( $record['display_name'] ?? ModelAllowlist::displayName( $id ) ) : ModelAllowlist::displayName( $id ) );
+		if ( ModelAllowlist::requiresClient( $id, $catalog ) ) {
+			$name .= ' ' . __( '(Requires OpenCode app)', 'duoport-connect-for-opencode' );
+			return $name;
+		}
 		if ( (bool) ( null !== $record ? ( $record['free'] ?? ModelAllowlist::isFree( $id, $catalog ) ) : ModelAllowlist::isFree( $id, $catalog ) ) ) {
 			$name .= ' ' . __( '(Free)', 'duoport-connect-for-opencode' );
 		}
