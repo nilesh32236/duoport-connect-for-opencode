@@ -187,7 +187,63 @@ final class ModelRegistryTest extends MonkeyTestCase {
 	}
 
 	/**
-	 * The documented default-visible counts match the routable registry.
+	 * Client-required free-tier IDs are per-catalog and stay allowlisted.
+	 *
+	 * OpenCode serves these free-tier chat models only through its own
+	 * client, so the picker hides them by default. The set must stay
+	 * Zen-only: a client-required ID in one catalog must never hide or
+	 * relabel the other catalog's picker.
+	 */
+	public function test_client_required_models_are_per_catalog(): void {
+		foreach ( array( 'nemotron-3-ultra-free', 'nemotron-3.5-lightning-free', 'big-pickle' ) as $id ) {
+			self::assertTrue( ModelAllowlist::requiresClient( $id, 'zen' ) );
+			self::assertFalse( ModelAllowlist::requiresClient( $id, 'go' ) );
+			self::assertFalse( ModelAllowlist::requiresClient( $id, 'unknown-catalog' ) );
+			self::assertTrue( ModelAllowlist::isAllowed( $id, 'zen' ) );
+			self::assertTrue( ModelAllowlist::isFree( $id, 'zen' ) );
+		}
+		self::assertFalse( ModelAllowlist::requiresClient( 'glm-5.2', 'zen' ) );
+		self::assertFalse( ModelAllowlist::requiresClient( 'glm-5.3', 'go' ) );
+	}
+
+	/**
+	 * The documented default-visible counts exclude client-required IDs.
+	 *
+	 * The routable registry count is unchanged, but the picker offers fewer
+	 * Zen models by default because the client-required free-tier IDs are
+	 * hidden. Both numbers are read from the registry so the docs cannot
+	 * drift again.
+	 */
+	public function test_documented_default_visible_counts_exclude_client_required_models(): void {
+		$routable = array();
+		$default  = array();
+		foreach ( array( 'go', 'zen' ) as $catalog ) {
+			$routable[ $catalog ] = 0;
+			$default[ $catalog ]  = 0;
+			foreach ( ModelRegistry::records( $catalog ) as $record ) {
+				if ( ModelRegistry::ENDPOINT_FAMILY_UNSUPPORTED === ( $record['endpoint_family'] ?? '' ) ) {
+					continue;
+				}
+				++$routable[ $catalog ];
+				if ( ! ModelAllowlist::requiresClient( (string) $record['id'], $catalog ) ) {
+					++$default[ $catalog ];
+				}
+			}
+		}
+		self::assertSame( 11, $routable['go'] );
+		self::assertSame( 15, $routable['zen'] );
+		self::assertSame( 11, $default['go'] );
+		self::assertSame( 12, $default['zen'] );
+		foreach ( array( 'README.md', 'readme.txt' ) as $file ) {
+			$text = (string) file_get_contents( dirname( __DIR__, 2 ) . '/' . $file );
+			self::assertStringContainsString( 'Go: ' . $default['go'], $text, $file . ' must document the default-visible Go count.' );
+			self::assertStringContainsString( 'Zen: ' . $default['zen'], $text, $file . ' must document the default-visible Zen count.' );
+			self::assertStringContainsString( 'Zen: ' . $routable['zen'], $text, $file . ' must document the routable Zen count.' );
+		}
+	}
+
+	/**
+	 * The documented model counts match the routable registry.
 	 *
 	 * README.md states routable counts, not allowlist counts; this test
 	 * reads both from the registry so the docs cannot drift again.

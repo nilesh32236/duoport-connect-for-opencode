@@ -1,6 +1,6 @@
 # DuoPort Connector for OpenCode
 
-Connect [OpenCode](https://opencode.ai) Go and Zen catalogs — including free models — to the WordPress 7.0+ AI Client.
+Connect [OpenCode](https://opencode.ai) Go and Zen catalogs — including reviewed free-tier models, some of which require the OpenCode app — to the WordPress 7.0+ AI Client.
 
 > This plugin is not affiliated with or endorsed by OpenCode (Anomaly Innovations, Inc.).
 >
@@ -10,8 +10,8 @@ Once connected, any plugin that uses the WordPress AI Client (for example the of
 
 ## Features
 
-- **Two providers** — OpenCode Go (subscription catalog) and OpenCode Zen (pay-as-you-go catalog including free models), auto-discovered on Settings → Connectors.
-- **Curated model list** — only verified chat/completions models per catalog; free Zen models are labeled `(Free)` in the picker.
+- **Two providers** — OpenCode Go (subscription catalog) and OpenCode Zen (pay-as-you-go catalog including reviewed free-tier models), auto-discovered on Settings → Connectors.
+- **Curated model list** — only verified chat/completions models per catalog; reviewed free-tier models that work from WordPress are labeled `(Free)`, while free-tier IDs that require the OpenCode app are hidden by default and labeled `(Requires OpenCode app)` under **Show all models**.
 - **Show all models toggle** — optional full catalog exposure on Settings → DuoPort Connector.
 - **Key validation with caching** — connection status is probed and cached, and shown on the settings page.
 
@@ -39,7 +39,7 @@ Visit https://opencode.ai/auth and sign up for Go or Zen. In most cases, the sam
 In most cases, yes. OpenCode uses a unified auth domain — paste the same key into both fields. Each catalog keeps its own field so WordPress can validate them independently.
 
 **Which models are available?**
-By default only reviewed chat/completions-routable models are shown (Go: 11, Zen: 15 including free models). Allowlisted models whose endpoint family is not yet verified stay hidden until a chat/completions probe passes. Enable **Show all models** to expose every other model from the API, including non-chat models that may fail.
+By default only reviewed chat/completions-routable models are shown (Go: 11, Zen: 15 routable; Zen: 12 offered by default). The other three Zen IDs are free-tier models that OpenCode now serves only through its own client, so they are hidden by default and appear only under **Show all models** labeled `(Requires OpenCode app)`. Allowlisted models whose endpoint family is not yet verified stay hidden until a chat/completions probe passes. Enable **Show all models** to expose every other model from the API, including non-chat models that may fail.
 
 **Does it work without WordPress 7.0?**
 No. It requires WordPress 7.0+ and PHP 8.2+. On older installs an admin notice is shown and registration is skipped.

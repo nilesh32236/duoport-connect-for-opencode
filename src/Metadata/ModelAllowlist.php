@@ -158,6 +158,33 @@ final class ModelAllowlist {
 	);
 
 	/**
+	 * Free-tier IDs that are only served through the OpenCode client/harness.
+	 *
+	 * Mirrors the ALLOW shape (per-catalog, never shared between Go and Zen).
+	 * OpenCode now routes these free-tier chat models only through its own
+	 * client, so offering them as ordinary WordPress chat models leads users
+	 * into a 403 `FreeUsageLimitError` they cannot resolve. They stay in
+	 * ALLOW/FREE so show-all still exposes them and free ordering is
+	 * unchanged, but the picker hides them by default and labels them
+	 * `(Requires OpenCode app)` when show-all is enabled.
+	 *
+	 * Unknown catalogs fall through to false: a client-required ID in one
+	 * catalog must never hide or relabel the other catalog's picker.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @var array<string, list<string>>
+	 */
+	private const REQUIRES_CLIENT = array(
+		Catalog::GO  => array(),
+		Catalog::ZEN => array(
+			'nemotron-3-ultra-free',
+			'nemotron-3.5-lightning-free',
+			'big-pickle',
+		),
+	);
+
+	/**
 	 * Test-only web-search allowlist override (null means use the const).
 	 *
 	 * Lets specs cover both sides of the default-deny gate — a verified
@@ -239,6 +266,25 @@ final class ModelAllowlist {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Whether a free-tier model requires the OpenCode client/harness.
+	 *
+	 * Per-catalog exact-match lookup with no flat cross-catalog fallback: an
+	 * unknown catalog returns false rather than applying another catalog's
+	 * client-required set. The picker uses this to hide the ID by default and
+	 * to label it `(Requires OpenCode app)` under show-all, so the ordinary
+	 * `(Free)` label never promises WordPress usability it cannot deliver.
+	 *
+	 * @since 0.1.9
+	 *
+	 * @param string $id      Model ID.
+	 * @param string $catalog Catalog slug.
+	 * @return bool
+	 */
+	public static function requiresClient( string $id, string $catalog ): bool {
+		return in_array( $id, self::REQUIRES_CLIENT[ $catalog ] ?? array(), true );
 	}
 
 	/**

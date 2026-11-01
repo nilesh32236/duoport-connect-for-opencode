@@ -57,6 +57,37 @@ final class ConnectionDiagnosticsTest extends MonkeyTestCase {
 	}
 
 	/**
+	 * A 403 FreeUsageLimitError is a client-required capability stop.
+	 *
+	 * OpenCode returns this for free-tier IDs it now serves only through its
+	 * own client. It proves the gateway was reached but says nothing about the
+	 * key, so it must be a non-keyed uncheckable outcome that cannot clear
+	 * last-known-good. The keyed 401 CreditsError and 429 verdicts are
+	 * unchanged.
+	 */
+	public function test_403_free_usage_limit_is_non_keyed_uncheckable(): void {
+		$diagnostics = new ConnectionDiagnostics();
+		$client_only = $diagnostics->classify( 403, array( 'error' => array( 'type' => 'FreeUsageLimitError' ) ) );
+
+		self::assertSame( 'unknown', $client_only['state'] );
+		self::assertFalse( $client_only['configured'] );
+		self::assertTrue( $client_only['verified'] );
+		self::assertFalse( $client_only['usable'] );
+		self::assertTrue( ConnectionDiagnostics::isUncheckableState( (string) $client_only['state'] ) );
+		self::assertTrue( ConnectionDiagnostics::isPersistentUncheckableState( (string) $client_only['state'] ) );
+		self::assertFalse( ConnectionDiagnostics::isConfiguredState( (string) $client_only['state'] ) );
+		self::assertFalse( ConnectionDiagnostics::isDefinitiveNegativeState( (string) $client_only['state'] ) );
+
+		$credits = $diagnostics->classify( 401, array( 'error' => array( 'type' => 'CreditsError' ) ) );
+		self::assertSame( 'no_credits', $credits['state'] );
+		self::assertTrue( ConnectionDiagnostics::isConfiguredState( (string) $credits['state'] ) );
+
+		$free_429 = $diagnostics->classify( 429, array( 'error' => array( 'type' => 'FreeUsageLimitError' ) ) );
+		self::assertSame( 'free_tier_limit', $free_429['state'] );
+		self::assertTrue( ConnectionDiagnostics::isConfiguredState( (string) $free_429['state'] ) );
+	}
+
+	/**
 	 * Authorization and credit outcomes remain distinct.
 	 */
 	public function test_auth_and_credit_outcomes_are_distinct(): void {

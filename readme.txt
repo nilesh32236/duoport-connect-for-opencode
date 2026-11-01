@@ -15,7 +15,7 @@ Connect OpenCode Go and Zen to the WordPress AI Client with a conservative, Word
 DuoPort Connector for OpenCode registers two WordPress AI Client providers:
 
 * **OpenCode Go** for the subscription catalog.
-* **OpenCode Zen** for the pay-as-you-go catalog, including reviewed free-model records.
+* **OpenCode Zen** for the pay-as-you-go catalog, including reviewed free-tier records; some of those require the OpenCode app.
 
 Enter your opencode.ai key in the Go and Zen fields on **Settings → Connectors**. In most cases, the same key works for both catalogs, while each field remains independently testable. DuoPort keeps credentials in WordPress and keeps model policy in a reviewed registry.
 
@@ -33,17 +33,17 @@ Use the Go subscription catalog for its reviewed text-generation models. Go avai
 
 = OpenCode Zen =
 
-Use the Zen pay-as-you-go catalog for reviewed text-generation models, including records explicitly identified as free. Free availability is supplied by OpenCode and can change; a free-looking model name is only a verification candidate, not a promise of free access.
+Use the Zen pay-as-you-go catalog for reviewed text-generation models, including records explicitly identified as free. Free availability is supplied by OpenCode and can change; a free-looking model name is only a verification candidate, not a promise of free access. Some free-tier IDs are now served only through the OpenCode app, so they cannot be used from WordPress: they are hidden by default and labeled `(Requires OpenCode app)` under **Show all models**.
 
 == Current OpenCode models ==
 
-Model lists change over time. By default, DuoPort presents the reviewed chat/completions records for each catalog and labels Zen free records. The credential-free Model Radar compares current public Go and Zen `/models` evidence with that registry and reports new, retired, unsupported, and verification-required changes in one aggregate issue.
+Model lists change over time. By default, DuoPort presents the reviewed chat/completions records for each catalog and labels Zen free records. Free-tier IDs that require the OpenCode app are hidden by default instead of being offered as ordinary free chat models. The credential-free Model Radar compares current public Go and Zen `/models` evidence with that registry and reports new, retired, unsupported, and verification-required changes in one aggregate issue.
 
 Enable **Show all models** only when you want to inspect the complete live catalog. Unknown models, unknown endpoint families, unsupported capabilities, and unverified free-name candidates remain default-deny; discovering a model is not the same as making it routable.
 
 == Free OpenCode models ==
 
-Zen records matched against OpenCode's published pricing table are marked `(Free)` in the model picker when they are part of the reviewed registry. Free models still require an API key and may have limits, availability changes, or catalog retirement. DuoPort does not promise that every free-looking ID is free or supported.
+Zen records matched against OpenCode's published pricing table are marked `(Free)` in the model picker when they are part of the reviewed registry. Some free-tier IDs are now served only through the OpenCode app and cannot be used from WordPress; those are hidden by default and labeled `(Requires OpenCode app)` when **Show all models** is enabled. Free models still require an API key and may have limits, availability changes, or catalog retirement. DuoPort does not promise that every free-looking ID is free or supported.
 
 == WordPress AI Client integration ==
 
@@ -56,8 +56,9 @@ Only reviewed chat/completions records are advertised by default. The current ad
 = Features =
 
 * Two providers (`opencode-go` / `opencode-zen`) auto-discovered by the Connectors screen.
-* Reviewed chat/completions-routable models per catalog (Go: 11, Zen: 15) — present in the live OpenCode `/models` catalog and recorded as routable in the reviewed registry.
-* Explicitly reviewed free models labeled `(Free)` in the model picker (Zen catalog).
+* Reviewed chat/completions-routable models per catalog (Go: 11, Zen: 15 routable; Zen: 12 offered by default) — present in the live OpenCode `/models` catalog and recorded as routable in the reviewed registry.
+* Zen offers 12 of those 15 routable models by default; the other three are free-tier IDs that require the OpenCode app and appear only under **Show all models** labeled `(Requires OpenCode app)`.
+* Explicitly reviewed free-tier models that work from WordPress are labeled `(Free)` in the model picker (Zen catalog); IDs that require the OpenCode app are hidden by default.
 * Credential-free Model Radar and catalog watch for fast-follow verification work.
 * Availability probe with transient caching — validates key without calling `/models`.
 * **Show all models** toggle on Settings → DuoPort Connector (off by default).
@@ -87,7 +88,7 @@ In most cases, yes. OpenCode uses a unified auth domain, so paste the same openc
 
 = Which models are available? =
 
-By default, only reviewed chat/completions models are shown. Zen may include explicitly reviewed free-model records. Enable **Show all models** on Settings → DuoPort Connector to inspect every live API model, including non-chat models that may fail. The toggle is for inspection, not a guarantee of support.
+By default, only reviewed chat/completions models are shown. Zen may include explicitly reviewed free-model records, but free-tier IDs that require the OpenCode app are hidden by default and labeled `(Requires OpenCode app)` under **Show all models**. Enable **Show all models** on Settings → DuoPort Connector to inspect every live API model, including non-chat models that may fail. The toggle is for inspection, not a guarantee of support.
 
 = Does it work without WordPress 7.0? =
 

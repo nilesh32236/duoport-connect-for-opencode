@@ -126,9 +126,11 @@ final class ConnectionDiagnostics {
 	 *
 	 * Fail-open contract: quota exhaustion (401 CreditsError), rate limiting
 	 * (429), and Zen free-tier quota stops (429 FreeUsageLimitError) report a
-	 * configured key; 5xx and transport failures report a distinct
-	 * could-not-be-checked verdict so callers can preserve last-known-good
-	 * state instead of flipping to not-connected.
+	 * configured key; a 403 FreeUsageLimitError is a client/harness capability
+	 * stop that says nothing about the key, so it classifies as `unknown`; 5xx
+	 * and transport failures report a distinct could-not-be-checked verdict so
+	 * callers can preserve last-known-good state instead of flipping to
+	 * not-connected.
 	 *
 	 * $probe_model is the model the request ASKED FOR, and it is what turns a
 	 * model-scoped failure from a credential verdict into an indeterminate one.
@@ -175,6 +177,15 @@ final class ConnectionDiagnostics {
 			// proof the key works, and downgrading it to indeterminate would stop
 			// a healthy key refreshing the very flag this exemption preserves.
 			return $this->rateLimited( $status );
+		}
+		// A 403 FreeUsageLimitError is what OpenCode returns for a free-tier ID
+		// that now requires its own client/harness. That is a capability stop,
+		// not a credential verdict: it proves the gateway was reached but says
+		// nothing about the key, so it belongs with `unknown` and must never
+		// clear last-known-good. 401 CreditsError and 429 keep their keyed
+		// verdicts above.
+		if ( 403 === $status && 'FreeUsageLimitError' === $this->errorType( $data ) ) {
+			return $this->unknown( $status );
 		}
 		if ( $status >= 500 && $status < 600 ) {
 			return $this->uncheckable( $status );

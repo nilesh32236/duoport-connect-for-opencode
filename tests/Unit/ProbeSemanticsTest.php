@@ -171,6 +171,7 @@ namespace OpenCodeConnector\Tests\Unit {
 				'401 empty body is not connected'  => array( 401, null, null, false ),
 				'400 with no last-known-good is not connected' => array( 400, null, null, false ),
 				'403 with no last-known-good is not connected' => array( 403, null, null, false ),
+				'403 FreeUsageLimitError with no last-known-good is not connected' => array( 403, array( 'error' => array( 'type' => 'FreeUsageLimitError' ) ), null, false ),
 				'500 is not connected'             => array( 500, null, null, false ),
 				'transport exception degrades'     => array( 0, null, new \RuntimeException( 'network down' ), false ),
 			);
@@ -228,6 +229,7 @@ namespace OpenCodeConnector\Tests\Unit {
 				'400 with last-known-good stays connected' => array( 400, null, null, true ),
 				'402 with last-known-good stays connected' => array( 402, null, null, true ),
 				'403 with last-known-good stays connected' => array( 403, null, null, true ),
+				'403 FreeUsageLimitError with last-known-good stays connected' => array( 403, array( 'error' => array( 'type' => 'FreeUsageLimitError' ) ), null, true ),
 				'404 with last-known-good stays connected' => array( 404, null, null, true ),
 				// 5xx and transport failures keep failing open on the same flag.
 				'500 with last-known-good stays connected' => array( 500, null, null, true ),
